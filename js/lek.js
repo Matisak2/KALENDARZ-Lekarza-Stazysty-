@@ -168,6 +168,33 @@ export function parseCoursesText(text, fallbackName = 'Kurs') {
   return chunks.map((c) => parseCourseText(c.join('\n'), fallbackName)).filter((p) => p.sections.some((s) => s.lessons.length));
 }
 
+/**
+ * Plik z kursami (prywatny, nie w kodzie aplikacji): JSON {type:'kalendarz-stazysty-kursy', courses:[…]}
+ * albo zwykły tekst skopiowany z WNL. Zwraca listę kursów w formacie parseCourseText.
+ */
+export function coursesFromFile(text) {
+  const raw = String(text || '').replace(/^\uFEFF/, '');
+  let data = null;
+  try { data = JSON.parse(raw); } catch { /* tekst */ }
+  if (data && Array.isArray(data.courses)) {
+    return data.courses.filter((c) => c && c.name && Array.isArray(c.sections)).map((c) => ({
+      name: String(c.name),
+      domain: DOMAIN_IDS.includes(c.domain) ? c.domain : guessDomain(c.name),
+      sections: c.sections.map((s) => ({
+        name: String(s.name),
+        lessons: (s.lessons || []).filter((l) => l && l.name).map((l) => ({
+          name: String(l.name),
+          hMin: Number.isFinite(Number(l.hMin)) ? Number(l.hMin) : null,
+          hMax: Number.isFinite(Number(l.hMax)) ? Number(l.hMax) : null,
+        })),
+      })).filter((s) => s.lessons.length),
+      warnings: [],
+    })).filter((c) => c.sections.length);
+  }
+  if (data || /^\s*[[{]/.test(raw)) return []; // inny plik JSON (np. kopia całej aplikacji) – nie zgadujemy
+  return parseCoursesText(raw);
+}
+
 /** Klucz lekcji niezależny od kolejności – odhaczenia przetrwają ponowne wklejenie spisu. */
 export const lessonKey = (course, section, lesson) =>
   `${course}|${section}|${lesson}`.toLowerCase().replace(/\s+/g, ' ').trim();

@@ -1,5 +1,5 @@
 // Zakładka „LEK”: planer nauki (Plan), spis kursów WNL (Materiały), wyniki LEK i próbne (Wyniki), Specjalizacje.
-import { DOMAINS, domainOf, guessDomain, parseCoursesText, mergeCourse, allLessons, buildPlan, currentWeek, DEFAULT_SURVEY } from './lek.js';
+import { DOMAINS, domainOf, guessDomain, parseCoursesText, coursesFromFile, mergeCourse, allLessons, buildPlan, currentWeek, DEFAULT_SURVEY } from './lek.js';
 import { specNames, wojNames, specStats, suggestTarget, chance, MY_SPECS, TRYBY } from './specs.js';
 import { fmtShort, fmtFull, fmtDayShort, toNum, plural, todayIso } from './dates.js';
 import { esc } from './blocks-ui.js';
@@ -21,7 +21,7 @@ const study = (state) => {
   return state.study;
 };
 const activePlan = (st) => (st.plans || []).find((p) => p.id === st.activePlan && !p.archived) || null;
-const h = (n) => `${Math.round(n * 10) / 10} h`;
+const h = (n) => `${String(Math.round(n * 10) / 10).replace(".", ",")} h`;
 const pctBar = (v, target) => `<div class="score-bar"><div style="width:${Math.min(100, v)}%"></div>
   <i style="left:56%" title="próg 56%"></i>${target > 56 ? `<i class="tg" style="left:${Math.min(100, target)}%" title="cel"></i>` : ''}</div>`;
 
@@ -177,6 +177,8 @@ function materialsView(st) {
       </ol>
       <p class="hint small">Daty i dni tygodnia z planu WNL są pomijane – plan układa ta aplikacja według Twojego grafiku. Zapisują się tylko nazwy tematów i czasy, w Twoich danych (nie w publicznym kodzie).</p>
       <button class="btn primary" data-lek="paste">Wklej spis kursu</button>
+      <label class="btn" style="margin-top:8px">Wczytaj plik z kursami…<input type="file" accept=".json,.txt,application/json,text/plain" data-courses-file hidden></label>
+      <p class="hint small">Plik z kursami zastępuje wszystkie kursy na liście. Odhaczone lekcje o tych samych nazwach zostają.</p>
     </div>
     ${list || '<p class="hint">Brak kursów. Wklej pierwszy spis powyżej.</p>'}`;
 }
@@ -536,6 +538,21 @@ export function handleLekChange(e, state, ctx) {
     if (el.checked) st.done[k] = todayIso(); else delete st.done[k];
     ctx.save(); ctx.render();
     ctx.toast(el.checked ? 'Zrobione ✓' : 'Odznaczono', () => { if (was) st.done[k] = was; else delete st.done[k]; ctx.save(); ctx.render(); });
+    return true;
+  }
+  if (el.dataset.coursesFile !== undefined && el.files?.[0]) {
+    el.files[0].text().then((txt) => {
+      const ps = coursesFromFile(txt);
+      el.value = '';
+      if (!ps.length) { ctx.toast('W pliku nie ma kursów'); return; }
+      const old = st.courses || [];
+      let list = [];
+      for (const p of ps) list = mergeCourse(list, p);
+      st.courses = list;
+      const n = list.reduce((a, c) => a + c.sections.reduce((b, s) => b + s.lessons.length, 0), 0);
+      ctx.save(); ctx.render();
+      ctx.toast(`Wczytano ${list.length} kursów · ${n} lekcji ✓`, () => { st.courses = old; ctx.save(); ctx.render(); });
+    });
     return true;
   }
   if (el.dataset.courseDom) {

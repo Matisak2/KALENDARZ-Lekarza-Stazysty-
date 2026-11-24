@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultState } from '../js/defaults.js';
-import { DOMAINS, parseCourseText, parseCoursesText, mergeCourse, guessDomain, studyDays, buildPlan, estimateScore, coverage, allLessons, lessonKey, DEFAULT_SURVEY } from '../js/lek.js';
+import { DOMAINS, parseCourseText, parseCoursesText, coursesFromFile, mergeCourse, guessDomain, studyDays, buildPlan, estimateScore, coverage, allLessons, lessonKey, DEFAULT_SURVEY } from '../js/lek.js';
 
 const SAMPLE = `Kurs z Interny
 ZMIEŃ KURS
@@ -279,4 +279,19 @@ Sobota`;
   assert.equal(ps[0].domain, 'int');
   assert.deepEqual(ps[0].sections.map((s) => [s.name, s.lessons.map((l) => l.name)]), [['Dział A', ['Lekcja 1', 'Lekcja 2']], ['Dział B', ['Lekcja 3']]]);
   assert.deepEqual(ps[0].warnings, []);
+});
+
+test('Plik z kursami: JSON (prywatny plik użytkownika) albo tekst z WNL', () => {
+  const json = JSON.stringify({ type: 'kalendarz-stazysty-kursy', version: 1, courses: [
+    { name: 'Kurs X', domain: 'ped', sections: [{ name: 'Dział', lessons: [{ name: 'L1', hMin: 1.5, hMax: 2.5 }, { name: '' }] }, { name: 'Pusty', lessons: [] }] },
+    { name: 'Kurs z psychiatrii', domain: 'zle', sections: [{ name: 'D', lessons: [{ name: 'L', hMin: 'x' }] }] },
+  ] });
+  const ps = coursesFromFile(`\uFEFF${json}`);
+  assert.deepEqual(ps.map((p) => [p.name, p.domain, p.sections.length]), [['Kurs X', 'ped', 1], ['Kurs z psychiatrii', 'psych', 1]]);
+  assert.deepEqual(ps[0].sections[0].lessons, [{ name: 'L1', hMin: 1.5, hMax: 2.5 }]);
+  assert.equal(ps[1].sections[0].lessons[0].hMin, null);
+  const merged = ps.reduce((l, p) => mergeCourse(l, p), []);
+  assert.equal(allLessons({ courses: merged }).length, 2);
+  assert.equal(coursesFromFile(SAMPLE)[0].name, 'Kurs z Interny');
+  assert.deepEqual(coursesFromFile('{"zle": 1}'), []);
 });
