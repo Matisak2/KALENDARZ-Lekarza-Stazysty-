@@ -1,5 +1,5 @@
 // Zakładka „LEK”: planer nauki (Plan), spis kursów WNL (Materiały), wyniki LEK i próbne (Wyniki), Specjalizacje.
-import { DOMAINS, domainOf, parseCoursesText, mergeCourse, allLessons, buildPlan, currentWeek, DEFAULT_SURVEY } from './lek.js';
+import { DOMAINS, domainOf, guessDomain, parseCoursesText, mergeCourse, allLessons, buildPlan, currentWeek, DEFAULT_SURVEY } from './lek.js';
 import { specNames, wojNames, specStats, suggestTarget, chance, MY_SPECS, TRYBY } from './specs.js';
 import { fmtShort, fmtFull, fmtDayShort, toNum, plural, todayIso } from './dates.js';
 import { esc } from './blocks-ui.js';
@@ -255,11 +255,24 @@ function pasteSheet(state, ctx) {
   const { root, close } = sheet('Wklej spis kursu', `<div class="form-card">
       <p class="sub" style="margin-top:0">Wklej cały skopiowany tekst ze strony kursu WNL (z rozwiniętymi działami) – z telefonu albo z komputera. Kilka kursów naraz: przed każdym linijka „Kurs Interna”, „Kurs Chirurgia”…</p>
       <textarea data-paste rows="10" placeholder="Kurs z Interny&#10;ALERGOLOGIA (10)&#10;Wstęp do alergologii&#10;1.5h - 2.5h&#10;…"></textarea>
+      <label data-cname-wrap hidden>Nazwa kursu (nie ma jej w wklejonym tekście)<input data-cname placeholder="np. Kurs z onkologii"></label>
       <div data-preview class="hint small"></div></div>`);
   const ta = root.querySelector('[data-paste]');
   const prev = root.querySelector('[data-preview]');
+  const cname = root.querySelector('[data-cname]');
+  const cwrap = root.querySelector('[data-cname-wrap]');
+  // Kurs bez tytułu w tekście (np. wklejone od pierwszego działu) – nazwę wpisuje użytkownik
+  const parse = () => {
+    const ps = parseCoursesText(ta.value, '');
+    const noName = ps.some((p) => !p.name);
+    cwrap.hidden = !noName;
+    const n = cname.value.trim();
+    for (const p of ps) if (!p.name) { p.name = n || 'Kurs bez nazwy'; p.domain = guessDomain(n); p.noName = !n; }
+    return ps;
+  };
+  cname.addEventListener('input', () => ta.dispatchEvent(new Event('input')));
   ta.addEventListener('input', () => {
-    const ps = parseCoursesText(ta.value);
+    const ps = parse();
     prev.innerHTML = !ta.value.trim() ? '' : !ps.length ? '<div class="seg-err">Nie rozpoznano lekcji – sprawdź wklejony tekst.</div>'
       : ps.map((p) => {
         const n = p.sections.reduce((a, s) => a + s.lessons.length, 0);
@@ -271,8 +284,9 @@ function pasteSheet(state, ctx) {
   root.addEventListener('click', (e) => {
     if (e.target.closest('[data-close]')) return close();
     if (e.target.closest('[data-ok]')) {
-      const ps = parseCoursesText(ta.value);
+      const ps = parse();
       if (!ps.length) { ctx.toast('Nie rozpoznano lekcji – sprawdź wklejony tekst'); return; }
+      if (ps.some((p) => p.noName)) { ctx.toast('Wpisz nazwę kursu'); cname.focus(); return; }
       for (const p of ps) st.courses = mergeCourse(st.courses, p);
       ctx.save(); ctx.render(); ctx.toast(`Dodano: ${ps.map((p) => p.name).join(', ')} ✓`);
       close();

@@ -710,3 +710,4 @@ code { background: var(--card-2); padding: 1px 5px; border-radius: 5px; }
   body.printing .ts { min-width: 0; width: 100%; font-size: 9.5px; box-sizing: border-box; padding-right: 2px; }
   body.printing .ts-t tr.sh td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+[hidden] { display: none !important; }
