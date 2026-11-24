@@ -48,7 +48,7 @@ export function renderMore(state) {
           <button data-holiday-mode="zaliczane" class="${mode === 'zaliczane' ? 'on' : ''}">Zaliczane</button>
           <button data-holiday-mode="odrabiane" class="${mode === 'odrabiane' ? 'on' : ''}">Odrabiane</button>
         </div>
-        <p class="hint small">Zaliczane = wg poradnika OIL Szczecin 2026 (s. 36).</p>
+        <p class="hint small">Zaliczane = wg poradnika OIL Szczecin 2026 (s. 37).</p>
         <div class="t-strong" style="margin-top:14px">Wygląd</div>
         <div class="segmented three">
           ${['auto', 'light', 'dark'].map((t) => `<button data-theme-set="${t}" class="${theme === t ? 'on' : ''}">${{ auto: 'Auto', light: 'Jasny', dark: 'Ciemny' }[t]}</button>`).join('')}

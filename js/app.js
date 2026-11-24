@@ -215,7 +215,7 @@ function reserveCard(sum) {
     </div>
     <div class="note">${mode === 'odrabiane'
       ? 'Wariant ostrożny: święto w trakcie bloku przepada i trzeba je odrobić.'
-      : 'Wg poradnika OIL Szczecin 2026 (s. 36): „Dni ustawowo wolne od pracy nie wydłużają stażu cząstkowego”.'}
+      : 'Wg poradnika OIL Szczecin 2026 (s. 37): „Dni ustawowo wolne od pracy nie wydłużają stażu cząstkowego”.'}
       ${r.free < 0 ? ` Staż potrwa wtedy do ok. <b>${fmtFull(sum.estimatedEnd)}</b>.` : ''}</div>
   </div>`;
 }

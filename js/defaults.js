@@ -21,7 +21,7 @@ export function defaultState() {
       endDate: '2027-10-31',
       group: '6',
       hospital: 'USK2 Szczecin',
-      // 'zaliczane' – święta liczą się jako dni stażu (poradnik OIL Szczecin 2026, s. 36) – domyślnie
+      // 'zaliczane' – święta liczą się jako dni stażu (poradnik OIL Szczecin 2026, s. 37) – domyślnie
       // 'odrabiane' – święta w trakcie bloku przepadają i trzeba je odrobić
       holidayMode: 'zaliczane',
       // Pula urlopu wg poradnika OIL Szczecin 2026: 22 dni (5 w roku rozpoczęcia + 17 w kolejnym)
