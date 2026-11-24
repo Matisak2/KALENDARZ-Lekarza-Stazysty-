@@ -1,6 +1,9 @@
 // Kalendarz Stażysty – interfejs
 import { load, save, askPersistence } from './store.js';
-import { summarize, alerts } from './engine.js';
+import { summarize, alerts, segmentAt } from './engine.js';
+import { renderBlocks, openBlockEditor } from './blocks-ui.js';
+import { renderMore, handleMoreClick, handleMoreChange } from './more-ui.js';
+import { hospitalOf } from './hospitals.js';
 import { fmtLong, fmtShort, fmtFull, fmtDayShort, toNum, todayIso, isWeekend, dni, plural } from './dates.js';
 import { holidayMap } from './holidays.js';
 
@@ -83,7 +86,8 @@ function heroCard(sum) {
 
   const b = s.block;
   const pct = s.required ? Math.min(s.done, s.required) / s.required : 0;
-  const lostPast = s.lost.filter((l) => l.date <= t);
+  const seg = segmentAt(b, t);
+  const hosp = hospitalOf(seg);
   const lostFuture = s.lost.filter((l) => l.date > t);
   const calLeft = toNum(b.end) - toNum(t);
   const pills = [];
@@ -99,7 +103,7 @@ function heroCard(sum) {
       <div class="hero-info">
         <div class="card-label"><span class="dot"></span>Teraz${b.group ? ` · ${esc(b.group)}` : ''}</div>
         <div class="hero-name">${esc(b.name)}</div>
-        <div class="hero-place">${esc(b.place || '')}${b.place ? ' · ' : ''}${fmtShort(b.start)}–${fmtShort(b.end)}</div>
+        <div class="hero-place">${fmtShort(b.start)}–${fmtShort(b.end)}</div>
       </div>
       ${ring(pct, 104, 11, `<b>${Math.round(pct * 100)}%</b><span>bloku</span>`)}
     </div>
@@ -108,6 +112,11 @@ function heroCard(sum) {
       <div class="stat"><b>${s.remainingInRange}</b><span>${plural(s.remainingInRange, 'dzień roboczy', 'dni robocze', 'dni roboczych')} do końca</span></div>
       <div class="stat"><b>${calLeft}</b><span>${plural(calLeft, 'dzień kalendarzowy', 'dni kalendarzowe', 'dni kalendarzowych')}</span></div>
     </div>
+    ${seg ? `<div class="hero-ward">
+        <div class="hw-ic">📍</div>
+        <div><b>${esc(seg.ward)}</b><span>${esc(hosp?.name || '')}${hosp?.address ? ` · ${esc(hosp.address)}` : ''}</span></div>
+      </div>` : `<button class="hero-ward empty" data-goto-block="${esc(b.id)}"><div class="hw-ic">＋</div>
+        <div><b>Przypisz oddział</b><span>Wybierz szpital i oddział dla tego bloku</span></div></button>`}
     ${pills.length ? `<div class="pills">${pills.join('')}</div>` : ''}
   </div>`;
 }
@@ -303,10 +312,11 @@ const app = document.getElementById('app');
 
 function render() {
   let html;
+  if (tab !== 'dzis') document.body.style.setProperty('--page', 'var(--accent)');
   if (tab === 'dzis') html = renderToday();
-  else if (tab === 'bloki') html = renderSoon('Bloki', 'Oś czasu bloków z postępem, edycją dat i planem odrabiania.');
+  else if (tab === 'bloki') html = renderBlocks(state, getToday());
   else if (tab === 'kalendarz') html = renderSoon('Kalendarz', 'Kalendarz miesięczny z kolorami bloków, świętami, urlopem, L4, kursami i dyżurami.');
-  else html = renderSoon('Więcej', 'Urlop, nieobecności, kursy OIL, dyżury, LEK, kopia zapasowa i eksport do Kalendarza iPhone’a.');
+  else html = renderMore(state);
   app.innerHTML = html;
   // Opóźnienie dla animacji kart i pierścieni
   app.querySelectorAll('.fade').forEach((el, i) => { el.style.animationDelay = `${Math.min(i, 10) * 45}ms`; });
@@ -324,15 +334,60 @@ document.getElementById('tabbar').addEventListener('click', (e) => {
   render();
 });
 
+/* ---------- Wspólne akcje ---------- */
+
+function applyTheme() {
+  const t = state.settings.theme || 'auto';
+  if (t === 'auto') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme', t);
+}
+
+function toast(text) {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = text;
+  document.body.appendChild(el);
+  setTimeout(() => el.classList.add('out'), 2600);
+  setTimeout(() => el.remove(), 3000);
+}
+
+function editBlock(id) {
+  openBlockEditor(state, id, (updated) => {
+    const i = state.blocks.findIndex((b) => b.id === id);
+    state.blocks[i] = updated;
+    save(state);
+    render();
+    toast('Zapisano ✓');
+  });
+}
+
+const ctx = {
+  get state() { return state; },
+  today: getToday,
+  save: () => save(state),
+  render: () => render(),
+  toast,
+  applyTheme,
+  replace(data) { state = data; save(state); applyTheme(); render(); },
+};
+
 app.addEventListener('click', (e) => {
   const m = e.target.closest('[data-holiday-mode]');
   if (m) {
     state.settings.holidayMode = m.dataset.holidayMode;
     save(state);
     render();
+    return;
   }
+  const eb = e.target.closest('[data-edit-block]');
+  if (eb) return editBlock(eb.dataset.editBlock);
+  const gb = e.target.closest('[data-goto-block]');
+  if (gb) return editBlock(gb.dataset.gotoBlock);
+  handleMoreClick(e, ctx);
 });
+app.addEventListener('change', (e) => handleMoreChange(e, ctx));
 
+applyTheme();
 render();
 askPersistence();
 

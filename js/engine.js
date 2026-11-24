@@ -239,3 +239,57 @@ export function alerts(sum) {
   }
   return out;
 }
+
+/* ---------- Tygodnie bloku i przypisane oddziały ---------- */
+
+/**
+ * Tygodnie bloku (czwartek–środa w harmonogramie grupy):
+ * { i: numer tygodnia w bloku, n: numer tygodnia stażu, start, end }.
+ */
+export function blockWeeks(block, stazStart) {
+  const out = [];
+  let s = block.start;
+  let i = 1;
+  while (s <= block.end) {
+    const e7 = addDays(s, 6);
+    const end = e7 < block.end ? e7 : block.end;
+    const n = Math.floor((toNum(s) - toNum(stazStart)) / 7) + 1;
+    out.push({ i, n, start: s, end });
+    s = addDays(s, 7);
+    i++;
+  }
+  return out;
+}
+
+/** Odcinek (oddział) bloku obowiązujący w danym dniu. */
+export function segmentAt(block, d) {
+  return (block.segments || []).find((s) => s.start <= d && d <= s.end) || null;
+}
+
+/**
+ * Sprawdza odcinki bloku: luki (dni bez oddziału), nakładanie się i wyjście poza blok.
+ * Zwraca { ok, gaps:[{start,end}], overlaps:[[a,b]], outside:[seg] }.
+ */
+export function checkSegments(block) {
+  const segs = [...(block.segments || [])].sort((a, b) => (a.start < b.start ? -1 : 1));
+  const outside = segs.filter((s) => s.start < block.start || s.end > block.end || s.start > s.end);
+  const overlaps = [];
+  for (let k = 1; k < segs.length; k++) {
+    if (segs[k].start <= segs[k - 1].end) overlaps.push([segs[k - 1], segs[k]]);
+  }
+  const gaps = [];
+  let cur = block.start;
+  for (const s of segs) {
+    if (s.start > cur) gaps.push({ start: cur, end: addDays(s.start, -1) });
+    if (s.end >= cur) cur = addDays(s.end, 1);
+  }
+  if (cur <= block.end) gaps.push({ start: cur, end: block.end });
+  return { ok: !outside.length && !overlaps.length, gaps: segs.length ? gaps : [], overlaps, outside };
+}
+
+/** Gdzie jestem danego dnia: blok + oddział (jeśli przypisany). */
+export function placeOn(state, d) {
+  const block = (state.blocks || []).find((b) => b.start <= d && d <= b.end) || null;
+  if (!block) return null;
+  return { block, segment: segmentAt(block, d) };
+}

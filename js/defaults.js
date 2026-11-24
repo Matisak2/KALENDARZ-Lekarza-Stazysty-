@@ -1,7 +1,7 @@
 // Domyślne dane: harmonogram grupy 6 (staż 01.10.2026–31.10.2027, USK2 Szczecin).
 // Wszystko można zmienić w aplikacji – to tylko punkt startowy.
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 /** Typy wpisów kalendarza (nieobecności i inne zdarzenia). */
 export const EVENT_TYPES = {
@@ -41,16 +41,19 @@ export function defaultState() {
       },
     },
     blocks: [
-      { id: 'chir', name: 'Chirurgia ogólna', short: 'Chirurgia', color: 'navy', start: '2026-10-01', end: '2026-11-25', required: 40, place: 'USK2', duties: true },
-      { id: 'pers1', name: 'Chirurgia dziecięca', short: 'Chir. dziecięca', color: 'green', group: 'Część personalizowana', start: '2026-11-26', end: '2026-12-16', required: 15, place: 'Szpital w Zdrojach', duties: true },
-      { id: 'pers2', name: 'Chirurgia plastyczna', short: 'Chir. plastyczna', color: 'green', group: 'Część personalizowana', start: '2026-12-17', end: '2027-01-13', required: 20, place: 'SPSK1 Police', duties: true },
-      { id: 'pers3', name: 'Urologia', short: 'Urologia', color: 'green', group: 'Część personalizowana', start: '2027-01-14', end: '2027-02-03', required: 15, place: 'Szpital Arkońska', duties: true },
-      { id: 'int', name: 'Choroby wewnętrzne', short: 'Interna', color: 'red', start: '2027-02-04', end: '2027-04-14', required: 50, place: 'USK2', duties: true },
-      { id: 'anest', name: 'Intensywna terapia', short: 'Anestezjologia', color: 'wine', start: '2027-04-15', end: '2027-04-28', required: 10, place: 'USK2', duties: true },
-      { id: 'rodz', name: 'Medycyna rodzinna', short: 'Med. rodzinna', color: 'yellow', start: '2027-04-29', end: '2027-06-09', required: 30, place: '', duties: false },
-      { id: 'neo', name: 'Neonatologia', short: 'Noworodki', color: 'pink', start: '2027-06-10', end: '2027-06-23', required: 10, place: 'USK2', duties: true },
-      { id: 'sor', name: 'Medycyna ratunkowa', short: 'Ratownictwo', color: 'gray', start: '2027-06-24', end: '2027-07-14', required: 15, place: 'USK2', duties: true },
-      { id: 'ped', name: 'Pediatria', short: 'Pediatria', color: 'blue', start: '2027-07-15', end: '2027-08-25', required: 30, place: 'USK2', duties: true },
+      { id: 'chir', name: 'Chirurgia ogólna', short: 'Chirurgia', color: 'navy', start: '2026-10-01', end: '2026-11-25', required: 40, duties: true },
+      { id: 'pers1', name: 'Chirurgia dziecięca', short: 'Chir. dziecięca', color: 'green', group: 'Część personalizowana', start: '2026-11-26', end: '2026-12-16', required: 15, duties: true,
+        segments: [{ id: 'pers1-a', start: '2026-11-26', end: '2026-12-16', hospital: 'zdroje', ward: 'Oddział Chirurgii Dziecięcej, Ortopedii i Urologii z Pododdziałem Centrum Leczenia Oparzeń' }] },
+      { id: 'pers2', name: 'Chirurgia plastyczna', short: 'Chir. plastyczna', color: 'green', group: 'Część personalizowana', start: '2026-12-17', end: '2027-01-13', required: 20, duties: true,
+        segments: [{ id: 'pers2-a', start: '2026-12-17', end: '2027-01-13', hospital: 'usk1-police', ward: 'Klinika Chirurgii Plastycznej, Endokrynologicznej i Ogólnej' }] },
+      { id: 'pers3', name: 'Urologia', short: 'Urologia', color: 'green', group: 'Część personalizowana', start: '2027-01-14', end: '2027-02-03', required: 15, duties: true,
+        segments: [{ id: 'pers3-a', start: '2027-01-14', end: '2027-02-03', hospital: 'arkonska', ward: 'Oddział Urologii Ogólnej i Onkologicznej' }] },
+      { id: 'int', name: 'Choroby wewnętrzne', short: 'Interna', color: 'red', start: '2027-02-04', end: '2027-04-14', required: 50, duties: true },
+      { id: 'anest', name: 'Intensywna terapia', short: 'Anestezjologia', color: 'wine', start: '2027-04-15', end: '2027-04-28', required: 10, duties: true },
+      { id: 'rodz', name: 'Medycyna rodzinna', short: 'Med. rodzinna', color: 'yellow', start: '2027-04-29', end: '2027-06-09', required: 30, duties: false },
+      { id: 'neo', name: 'Neonatologia', short: 'Noworodki', color: 'pink', start: '2027-06-10', end: '2027-06-23', required: 10, duties: true },
+      { id: 'sor', name: 'Medycyna ratunkowa', short: 'Ratownictwo', color: 'gray', start: '2027-06-24', end: '2027-07-14', required: 15, duties: true },
+      { id: 'ped', name: 'Pediatria', short: 'Pediatria', color: 'blue', start: '2027-07-15', end: '2027-08-25', required: 30, duties: true },
     ],
     // Kursy obowiązkowe z programu stażu (rozp. MZ 24.02.2023, zał. 1; poradnik OIL Szczecin 2026).
     // Terminy przydziela/ogłasza OIL Szczecin – zwykle ok. marca/kwietnia.
