@@ -1,0 +1,315 @@
+// Kalendarz Stażysty – interfejs
+import { load, save, askPersistence } from './store.js';
+import { summarize, alerts } from './engine.js';
+import { fmtLong, fmtShort, fmtFull, fmtDayShort, toNum, todayIso, isWeekend, dni, plural } from './dates.js';
+import { holidayMap } from './holidays.js';
+
+let state = load();
+let tab = 'dzis';
+
+// ?dzis=RRRR-MM-DD – podgląd aplikacji "na inny dzień" (do testów)
+function getToday() {
+  const q = new URLSearchParams(location.search).get('dzis');
+  return q && /^\d{4}-\d{2}-\d{2}$/.test(q) ? q : todayIso();
+}
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const color = (b) => `var(--c-${b.color || 'gray'})`;
+
+function ring(pct, size, stroke, center) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const p = Math.max(0, Math.min(1, pct));
+  return `<div class="ring" style="width:${size}px;height:${size}px">
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+      <circle class="track" cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke-width="${stroke}"/>
+      <circle class="bar" cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke-width="${stroke}"
+        stroke-dasharray="${c}" stroke-dashoffset="${c}" data-target="${c * (1 - p)}"/>
+    </svg>
+    <div class="ring-center">${center}</div>
+  </div>`;
+}
+
+function relDays(n) {
+  if (n === 0) return 'dziś';
+  if (n === 1) return 'jutro';
+  if (n === 2) return 'pojutrze';
+  return `za ${n} dni`;
+}
+
+function todayKind(sum) {
+  const t = sum.today;
+  const ctx = sum.ctx;
+  if (isWeekend(t)) return { icon: '☀️', text: 'Dziś weekend' };
+  const h = ctx.holidays.get(t);
+  if (h) return { icon: '🎉', text: `Dziś święto – ${h.name}` };
+  if (ctx.satOff.has(t)) return { icon: '🛋', text: 'Dziś dzień wolny za święto w sobotę' };
+  const a = ctx.absence.get(t);
+  if (a) return { icon: a.kind === 'course' ? '🎓' : '🏖', text: `Dziś: ${a.label}` };
+  return null;
+}
+
+/* ---------- Ekran: Dziś ---------- */
+
+function heroCard(sum) {
+  const t = sum.today;
+  const s = sum.current;
+  const kind = todayKind(sum);
+
+  if (!s) {
+    // Przed stażem / w rezerwie / po stażu
+    const st = state.settings;
+    if (t < st.startDate) {
+      const n = toNum(st.startDate) - toNum(t);
+      return `<div class="card hero fade" style="--block:var(--accent)">
+        <div class="card-label">Przed stażem</div>
+        <div class="hero-name">Staż zaczyna się ${relDays(n)}</div>
+        <div class="hero-place">${fmtFull(st.startDate)}</div></div>`;
+    }
+    if (t <= sum.estimatedEnd) {
+      const mk = sum.makeUpToday && state.blocks.find((b) => b.id === sum.makeUpToday.blockId);
+      const left = sum.makeUpPlan.filter((m) => m.date > t).length;
+      return `<div class="card hero fade" style="--block:${mk ? color(mk) : 'var(--c-gray)'}">
+        <div class="card-label">Rezerwa · ${fmtShort(sum.reserve.start)}–${fmtShort(sum.reserve.end)}</div>
+        <div class="hero-name">${mk ? `Odrabianie: ${esc(mk.short)}` : 'Czas rezerwy'}</div>
+        <div class="hero-place">${left ? `Zostało ${dni(left)} odrabiania` : 'Wszystkie bloki zrealizowane'}</div>
+        ${kind ? `<div class="pills"><span class="pill">${kind.icon} ${esc(kind.text)}</span></div>` : ''}</div>`;
+    }
+    return `<div class="card hero fade" style="--block:var(--ok)">
+      <div class="card-label">Koniec</div>
+      <div class="hero-name">Staż zakończony 🎉</div>
+      <div class="hero-place">Gratulacje, doktorze!</div></div>`;
+  }
+
+  const b = s.block;
+  const pct = s.required ? Math.min(s.done, s.required) / s.required : 0;
+  const lostPast = s.lost.filter((l) => l.date <= t);
+  const lostFuture = s.lost.filter((l) => l.date > t);
+  const calLeft = toNum(b.end) - toNum(t);
+  const pills = [];
+  if (kind) pills.push(`<span class="pill">${kind.icon} ${esc(kind.text)}</span>`);
+  if (s.makeUp > 0) {
+    const list = s.lost.map((l) => fmtShort(l.date)).join(', ');
+    pills.push(`<span class="pill">↺ ${s.makeUp} do odrobienia po ${fmtShort(sum.reserve.start)} <span class="muted">(${list})</span></span>`);
+  }
+  if (lostFuture.length && !s.makeUp) pills.push(`<span class="pill">${lostFuture.length} dni wolnych przed końcem bloku</span>`);
+
+  return `<div class="card hero fade" style="--block:${color(b)}">
+    <div class="hero-top">
+      <div class="hero-info">
+        <div class="card-label"><span class="dot"></span>Teraz${b.group ? ` · ${esc(b.group)}` : ''}</div>
+        <div class="hero-name">${esc(b.name)}</div>
+        <div class="hero-place">${esc(b.place || '')}${b.place ? ' · ' : ''}${fmtShort(b.start)}–${fmtShort(b.end)}</div>
+      </div>
+      ${ring(pct, 104, 11, `<b>${Math.round(pct * 100)}%</b><span>bloku</span>`)}
+    </div>
+    <div class="hero-stats">
+      <div class="stat"><b>${s.done}<small class="muted" style="font-size:14px">/${s.required}</small></b><span>dzień stażu w bloku</span></div>
+      <div class="stat"><b>${s.remainingInRange}</b><span>${plural(s.remainingInRange, 'dzień roboczy', 'dni robocze', 'dni roboczych')} do końca</span></div>
+      <div class="stat"><b>${calLeft}</b><span>${calLeft === 1 ? 'dzień' : 'dni'} kalend. · do ${fmtDayShort(b.end)}</span></div>
+    </div>
+    ${pills.length ? `<div class="pills">${pills.join('')}</div>` : ''}
+  </div>`;
+}
+
+function nextCards(sum) {
+  const t = sum.today;
+  const n = sum.next;
+  const nextHtml = n
+    ? `<div class="card fade" style="--block:${color(n.block)}">
+        <div class="card-label">Następny blok</div>
+        <div class="next-name"><span class="dot"></span>${esc(n.block.short)}</div>
+        <div class="sub">od ${fmtDayShort(n.block.start)}<br><b style="color:var(--text)">${relDays(toNum(n.block.start) - toNum(t))}</b></div>
+      </div>`
+    : `<div class="card fade"><div class="card-label">Następny blok</div><div class="next-name">Rezerwa</div>
+        <div class="sub">od ${fmtDayShort(sum.reserve.start)}</div></div>`;
+  const endHtml = `<div class="card fade">
+      <div class="card-label">Do końca stażu</div>
+      <div class="big">${sum.calendar.daysToEnd}<small>dni</small></div>
+      <div class="sub">${sum.calendar.workdaysToEnd} ${plural(sum.calendar.workdaysToEnd, 'roboczy', 'robocze', 'roboczych')} · ${fmtFull(sum.estimatedEnd)}${sum.estimatedEnd !== state.settings.endDate ? ' <span class="neg">(szac.)</span>' : ''}</div>
+    </div>`;
+  return `<div class="grid-2">${nextHtml}${endHtml}</div>`;
+}
+
+function progressCard(sum) {
+  const st = state.settings;
+  const total = toNum(st.endDate) - toNum(st.startDate) + 1;
+  const pos = (d) => ((toNum(d) - toNum(st.startDate)) / total) * 100;
+  const segs = sum.stats.map((s) => {
+    const w = ((toNum(s.block.end) - toNum(s.block.start) + 1) / total) * 100;
+    return `<div class="${s.status}" style="width:${w}%;background:${color(s.block)}" title="${esc(s.block.name)}"></div>`;
+  });
+  const resW = ((toNum(st.endDate) - toNum(sum.reserve.start) + 1) / total) * 100;
+  segs.push(`<div class="reserve" style="width:${resW}%" title="Rezerwa"></div>`);
+  const marker = sum.today >= st.startDate && sum.today <= st.endDate ? `<div class="timeline-marker" style="left:${pos(sum.today)}%"></div>` : '';
+  const pct = sum.program.total ? Math.round((sum.program.done / sum.program.total) * 100) : 0;
+
+  const seen = new Set();
+  const legend = sum.stats.filter((s) => {
+    const k = s.block.group || s.block.id;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  }).map((s) => `<span><i style="background:${color(s.block)}"></i>${esc(s.block.group ? 'Wybrana' : s.block.short)}</span>`);
+  legend.push(`<span><i style="background:var(--track)"></i>Rezerwa</span>`);
+
+  return `<div class="card fade">
+    <div class="progress-head">
+      <div class="card-label" style="margin:0">Cały staż</div>
+      <div class="big" style="font-size:28px">${pct}<small>%</small></div>
+    </div>
+    <div class="timeline"><div class="timeline-bar">${segs.join('')}</div>${marker}</div>
+    <div class="timeline-legend">${legend.join('')}</div>
+    <div class="note">${sum.program.done} z ${sum.program.total} dni programu (bloki + kursy) · ${sum.calendar.elapsed} z ${sum.calendar.total} dni kalendarzowych</div>
+  </div>`;
+}
+
+function reserveCard(sum) {
+  const r = sum.reserve;
+  const cls = r.free < 0 ? 'neg' : r.free === 0 ? 'zero' : 'pos';
+  const mode = state.settings.holidayMode;
+  return `<div class="card fade">
+    <div class="card-label">Bilans rezerwy · ${fmtShort(r.start)}–${fmtShort(r.end)}</div>
+    <div class="rows">
+      <div class="row"><span>Dni robocze w rezerwie</span><span class="v">${r.workdays}</span></div>
+      <div class="row"><span>Urlop jeszcze do wykorzystania</span><span class="v">− ${r.vacationUnplanned}</span></div>
+      <div class="row"><span>Kursy bez terminu (OIL)</span><span class="v">− ${r.coursesUnscheduled}</span></div>
+      <div class="row"><span>Dni do odrobienia z bloków</span><span class="v">− ${r.makeUp}</span></div>
+      ${r.absences ? `<div class="row"><span>Nieobecności wpisane w rezerwie</span><span class="v">− ${r.absences}</span></div>` : ''}
+      <div class="row total"><span>Zapas</span><span class="v ${cls}">${r.free > 0 ? '+' : ''}${r.free} ${plural(r.free, 'dzień', 'dni', 'dni')}</span></div>
+    </div>
+    <div class="segmented" role="group" aria-label="Jak liczyć święta">
+      <button data-holiday-mode="odrabiane" class="${mode === 'odrabiane' ? 'on' : ''}">Święta odrabiane</button>
+      <button data-holiday-mode="zaliczane" class="${mode === 'zaliczane' ? 'on' : ''}">Święta zaliczane</button>
+    </div>
+    <div class="note">${mode === 'odrabiane'
+      ? 'Wg praktyki USK2: święto w trakcie bloku przepada i trzeba je odrobić.'
+      : 'Wg poradnika OIL Szczecin 2026 (s. 36): „Dni ustawowo wolne od pracy nie wydłużają stażu cząstkowego (liczą się jako dni robocze)”.'}
+      ${r.free < 0 ? ` Przy tym założeniu staż potrwa do ok. <b>${fmtFull(sum.estimatedEnd)}</b>.` : ''}</div>
+  </div>`;
+}
+
+function vacationCard(sum) {
+  const v = sum.vacation;
+  const years = Object.entries(v.pool).map(([y, n]) => `${y}: ${n}`).join(' · ');
+  const usedPct = v.total ? ((v.used + v.planned) / v.total) * 100 : 0;
+  return `<div class="card fade" style="--block:var(--c-vacation)">
+    <div class="card-label">Urlop</div>
+    <div class="big">${v.left}<small>z ${v.total} dni</small></div>
+    <div class="minibar"><div style="width:${usedPct}%"></div></div>
+    <div class="sub">wykorzystane ${v.used} · plan ${v.planned}<br>pula ${years}</div>
+  </div>`;
+}
+
+function lekCard(sum) {
+  const lek = state.settings.lek;
+  if (!lek?.examDate) return '';
+  const n = toNum(lek.examDate) - toNum(sum.today);
+  if (n < 0) return '';
+  return `<div class="card fade" style="--block:var(--c-course)">
+    <div class="card-label">LEK · ${esc(lek.session)}</div>
+    <div class="big">${n}<small>${n === 1 ? 'dzień' : 'dni'}</small></div>
+    <div class="sub">${fmtLong(lek.examDate)} ${lek.examDate.slice(0, 4)}</div>
+  </div>`;
+}
+
+function upcomingCard(sum) {
+  const t = sum.today;
+  const map = holidayMap(t, state.settings.endDate);
+  const items = [...map.values()].filter((h) => !h.sunday).slice(0, 4);
+  if (!items.length) return '';
+  const blockOf = (d) => state.blocks.find((b) => d >= b.start && d <= b.end);
+  return `<div class="card fade">
+    <div class="card-label">Najbliższe święta</div>
+    ${items.map((h) => {
+      const b = blockOf(h.date);
+      const off = state.settings.saturdayDaysOff?.[h.date];
+      const sub = h.saturday
+        ? (off ? `sobota → wolne ${fmtDayShort(off)}` : 'sobota → dzień wolny do wyznaczenia')
+        : `${fmtDayShort(h.date)}${b ? ` · ${esc(b.short)}` : ''}`;
+      const [, m, d] = h.date.split('-');
+      return `<div class="list-item">
+        <div class="date-chip"><b>${Number(d)}</b><span>${['sty','lut','mar','kwi','maj','cze','lip','sie','wrz','paź','lis','gru'][Number(m) - 1]}</span></div>
+        <div class="grow"><div class="t">${esc(h.name)}</div><div class="s">${sub}</div></div>
+        <div class="s muted">${relDays(toNum(h.date) - toNum(t))}</div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function renderToday() {
+  const t = getToday();
+  const sum = summarize(state, t);
+  const al = alerts(sum);
+  const card = (a) => `<div class="card alert ${a.level} fade"><div class="ic">${a.icon}</div><div><b>${esc(a.title)}</b><span>${esc(a.detail || '')}</span></div></div>`;
+  const urgentHtml = al.filter((a) => a.level === 'urgent').map(card).join('');
+  const alertHtml = al.filter((a) => a.level !== 'urgent').map((a) => `<div class="card alert ${a.level} fade"><div class="ic">${a.icon}</div><div><b>${esc(a.title)}</b><span>${esc(a.detail || '')}</span></div></div>`).join('');
+
+  return `
+    <div class="eyebrow">${fmtLong(t)}</div>
+    <h1 class="large-title">Dziś</h1>
+    ${urgentHtml}
+    <div class="desk-2">
+      <div>
+        ${heroCard(sum)}
+        ${nextCards(sum)}
+        <div style="height:12px"></div>
+        ${progressCard(sum)}
+      </div>
+      <div>
+        ${alertHtml}
+        ${reserveCard(sum)}
+        <div class="grid-2">${vacationCard(sum)}${lekCard(sum)}</div>
+        <div style="height:12px"></div>
+        ${upcomingCard(sum)}
+      </div>
+    </div>`;
+}
+
+function renderSoon(title, text) {
+  return `<div class="eyebrow">Kalendarz Stażysty</div><h1 class="large-title">${title}</h1>
+    <div class="card soon fade"><b>Wkrótce</b>${text}</div>`;
+}
+
+/* ---------- Render ---------- */
+
+const app = document.getElementById('app');
+
+function render() {
+  let html;
+  if (tab === 'dzis') html = renderToday();
+  else if (tab === 'bloki') html = renderSoon('Bloki', 'Oś czasu bloków z postępem, edycją dat i planem odrabiania.');
+  else if (tab === 'kalendarz') html = renderSoon('Kalendarz', 'Kalendarz miesięczny z kolorami bloków, świętami, urlopem, L4, kursami i dyżurami.');
+  else html = renderSoon('Więcej', 'Urlop, nieobecności, kursy OIL, dyżury, LEK, kopia zapasowa i eksport do Kalendarza iPhone’a.');
+  app.innerHTML = html;
+  // Opóźnienie dla animacji kart i pierścieni
+  app.querySelectorAll('.fade').forEach((el, i) => { el.style.animationDelay = `${Math.min(i, 10) * 45}ms`; });
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    app.querySelectorAll('.ring .bar').forEach((c) => { c.style.strokeDashoffset = c.dataset.target; });
+  }));
+  document.querySelectorAll('#tabbar button').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+}
+
+document.getElementById('tabbar').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-tab]');
+  if (!b) return;
+  tab = b.dataset.tab;
+  window.scrollTo({ top: 0 });
+  render();
+});
+
+app.addEventListener('click', (e) => {
+  const m = e.target.closest('[data-holiday-mode]');
+  if (m) {
+    state.settings.holidayMode = m.dataset.holidayMode;
+    save(state);
+    render();
+  }
+});
+
+render();
+askPersistence();
+
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}

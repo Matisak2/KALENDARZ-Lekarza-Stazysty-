@@ -1,0 +1,9 @@
+{
+  "name": "kalendarz-stazysty",
+  "private": true,
+  "type": "module",
+  "description": "Kalendarz Stażysty – PWA do śledzenia stażu podyplomowego lekarza",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  }
+}
