@@ -1,7 +1,7 @@
 // Ekran „Więcej”: eksport do Kalendarza, kopia zapasowa, ustawienia, źródła.
 import { buildIcs } from './ics.js';
 import { backupText, parseBackup } from './store.js';
-import { fmtFull, fmtShort, addDays, isWeekend } from './dates.js';
+import { fmtFull, fmtShort, fmtDayShort, addDays, isWeekend, toNum } from './dates.js';
 import { holidayMap } from './holidays.js';
 import { BOOKLET_COURSES, bookletProgress, coursesSigned } from './booklet.js';
 import { syncStatus, signIn, signUp, signOutSync, syncNow } from './sync.js';
@@ -153,10 +153,9 @@ function coursesCard(state) {
   const rows = all.map((c) => `<div class="course ${c.start ? 'set' : ''}">
       <div class="course-head"><b>${esc(c.name)}</b>
         <span class="muted small">${c.days ? `${c.days} ${c.days === 1 ? 'dzień' : 'dni'}` : 'bez osobnego dnia'} · ${esc(c.provider)} · ${esc(c.mode)}</span></div>
-      ${c.days ? `<div class="row2">
-        <label>Od<input type="date" data-course="${esc(c.id)}" data-cf="start" value="${c.start || ''}"></label>
-        <label>Do<input type="date" data-course="${esc(c.id)}" data-cf="end" value="${c.end || ''}"></label>
-      </div>` : ''}
+      ${c.days ? `<div class="val-row"><span class="${c.start ? '' : 'muted'}">${c.start ? `${fmtDayShort(c.start)}${c.end && c.end !== c.start ? ` – ${fmtDayShort(c.end)}` : ''}` : 'bez terminu'}</span>
+        <span><button class="chip" data-course-edit="${esc(c.id)}">${c.start ? 'Zmień' : 'Wpisz termin'}</button>
+        ${c.start ? `<button class="chip danger-chip" data-course-clear="${esc(c.id)}">Usuń</button>` : ''}</span></div>` : ''}
     </div>`).join('');
   return `<div class="card fade">
     <div class="card-label">🎓 Kursy OIL · ${done}/${withDays.length} z terminem</div>
@@ -172,10 +171,41 @@ function satOffCard(state) {
   return `<div class="card fade">
     <div class="card-label">🛋 Dni wolne za święta w sobotę</div>
     <p class="sub">Za święto w sobotę pracodawca wyznacza inny dzień wolny. Wpisz, który – liczy się jak święto.</p>
-    ${sats.map((h) => `<label class="sat-row"><span><b>${esc(h.name)}</b><small>sobota ${fmtShort(h.date)}</small></span>
-      <input type="date" data-satoff="${h.date}" value="${st.saturdayDaysOff?.[h.date] || ''}"></label>
-      ${st.saturdayDaysOffNote?.[h.date] ? `<div class="hint small">${esc(st.saturdayDaysOffNote[h.date])}</div>` : ''}`).join('')}
+    ${sats.map((h) => {
+      const off = st.saturdayDaysOff?.[h.date];
+      const warn = off && (isWeekend(off) || Math.abs(toNum(off) - toNum(h.date)) > 45);
+      return `<div class="course"><div class="course-head"><b>${esc(h.name)}</b><span class="muted small">sobota ${fmtShort(h.date)}</span></div>
+        <div class="val-row"><span class="${off ? '' : 'muted'}">${off ? `wolne: ${fmtDayShort(off)}` : 'dzień wolny nie wpisany'}</span>
+          <span><button class="chip" data-satoff-edit="${h.date}">${off ? 'Zmień' : 'Wpisz'}</button>
+          ${off ? `<button class="chip danger-chip" data-satoff-clear="${h.date}">Usuń</button>` : ''}</span></div>
+        ${warn ? `<div class="seg-err">⚠️ ${isWeekend(off) ? 'To weekend – sprawdź datę.' : 'Data daleko od święta – czy na pewno?'}</div>` : ''}
+        ${st.saturdayDaysOffNote?.[h.date] ? `<div class="hint small">${esc(st.saturdayDaysOffNote[h.date])}</div>` : ''}</div>`;
+    }).join('')}
   </div>`;
+}
+
+/** Małe okienko do zmiany dat – zmiana zapisuje się dopiero po „Zapisz”. */
+function dateSheet({ title, sub, fields, onSave }) {
+  const root = document.createElement('div');
+  root.className = 'sheet-wrap';
+  document.body.appendChild(root);
+  document.body.classList.add('no-scroll');
+  const close = () => { root.classList.add('closing'); document.body.classList.remove('no-scroll'); setTimeout(() => root.remove(), 220); };
+  root.innerHTML = `<div class="sheet-backdrop" data-close></div>
+    <div class="sheet" role="dialog" aria-label="${esc(title)}">
+      <div class="sheet-head"><button class="link" data-close>Anuluj</button><b>${esc(title)}</b><button class="link strong" data-ok>Zapisz</button></div>
+      <div class="sheet-body"><div class="form-card">
+        ${sub ? `<p class="sub" style="margin-top:0">${esc(sub)}</p>` : ''}
+        ${fields.map((f) => `<label>${esc(f.label)}<input type="date" data-k="${f.key}" value="${f.value || ''}"></label>`).join('')}
+      </div></div></div>`;
+  root.addEventListener('click', (e) => {
+    if (e.target.closest('[data-close]')) return close();
+    if (e.target.closest('[data-ok]')) {
+      const vals = {};
+      root.querySelectorAll('[data-k]').forEach((i) => { vals[i.dataset.k] = i.value || null; });
+      if (onSave(vals) !== false) close();
+    }
+  });
 }
 
 /** Koniec kursu: start + (dni − 1) dni roboczych. */
@@ -252,6 +282,57 @@ export function handleMoreClick(e, ctx) {
     ctx.render();
     return true;
   }
+  const st0 = ctx.state;
+  const se = e.target.closest('[data-satoff-edit]');
+  if (se) {
+    const hd = se.dataset.satoffEdit;
+    dateSheet({
+      title: 'Dzień wolny za sobotę', sub: `Za święto w sobotę ${fmtShort(hd)} – jaki dzień wolny wyznaczył pracodawca?`,
+      fields: [{ key: 'off', label: 'Dzień wolny', value: st0.settings.saturdayDaysOff?.[hd] }],
+      onSave: (v) => {
+        const prev = st0.settings.saturdayDaysOff[hd] || null;
+        st0.settings.saturdayDaysOff[hd] = v.off;
+        ctx.save(); ctx.render();
+        ctx.toast('Zapisano ✓', () => { st0.settings.saturdayDaysOff[hd] = prev; ctx.save(); ctx.render(); });
+      },
+    });
+    return true;
+  }
+  const sc = e.target.closest('[data-satoff-clear]');
+  if (sc) {
+    const hd = sc.dataset.satoffClear;
+    const prev = st0.settings.saturdayDaysOff[hd];
+    st0.settings.saturdayDaysOff[hd] = null;
+    ctx.save(); ctx.render();
+    ctx.toast('Usunięto', () => { st0.settings.saturdayDaysOff[hd] = prev; ctx.save(); ctx.render(); });
+    return true;
+  }
+  const ce = e.target.closest('[data-course-edit]');
+  if (ce) {
+    const c = st0.courses.find((x) => x.id === ce.dataset.courseEdit);
+    dateSheet({
+      title: 'Termin kursu', sub: `${c.name} – ${c.days} ${c.days === 1 ? 'dzień' : 'dni'}. Koniec uzupełni się sam, jeśli go nie wpiszesz.`,
+      fields: [{ key: 'start', label: 'Od', value: c.start }, { key: 'end', label: 'Do', value: c.end }],
+      onSave: (v) => {
+        if (v.start && v.end && v.end < v.start) { ctx.toast('Koniec przed początkiem'); return false; }
+        const prev = { start: c.start, end: c.end };
+        c.start = v.start || v.end || null;
+        c.end = c.start ? (v.end || courseEnd(c.start, c.days)) : null;
+        ctx.save(); ctx.render();
+        ctx.toast('Zapisano ✓', () => { Object.assign(c, prev); ctx.save(); ctx.render(); });
+      },
+    });
+    return true;
+  }
+  const cc = e.target.closest('[data-course-clear]');
+  if (cc) {
+    const c = st0.courses.find((x) => x.id === cc.dataset.courseClear);
+    const prev = { start: c.start, end: c.end };
+    c.start = null; c.end = null;
+    ctx.save(); ctx.render();
+    ctx.toast('Usunięto termin', () => { Object.assign(c, prev); ctx.save(); ctx.render(); });
+    return true;
+  }
   if (e.target.closest('[data-ext-add]')) {
     const card = e.target.closest('.course');
     const v = (k) => card.querySelector(`[data-ext="${k}"]`).value;
@@ -293,8 +374,16 @@ export function handleMoreChange(e, ctx) {
     else cur[el.dataset.bkf] = el.value;
     st.booklet.courses[el.dataset.bkc] = cur;
     ctx.save();
-    if (el.dataset.bkf === 'check') ctx.render();
-    ctx.toast('Zapisano ✓');
+    if (el.dataset.bkf === 'check') {
+      const key = el.dataset.bkc;
+      const was = !el.checked;
+      ctx.render();
+      ctx.toast(el.checked ? 'Odhaczono ✓' : 'Odznaczono', () => {
+        const c2 = st.booklet.courses[key];
+        if (was) c2.date = c2.date || new Date().toISOString().slice(0, 10); else delete c2.date;
+        ctx.save(); ctx.render();
+      });
+    } else ctx.toast('Zapisano ✓');
     return true;
   }
   if (el.dataset.bkg) {

@@ -406,9 +406,12 @@ initSync(ctx);
 app.addEventListener('click', (e) => {
   const m = e.target.closest('[data-holiday-mode]');
   if (m) {
+    const prev = state.settings.holidayMode;
+    if (prev === m.dataset.holidayMode) return;
     state.settings.holidayMode = m.dataset.holidayMode;
     save(state);
     render();
+    toast(`Święta: ${m.dataset.holidayMode}`, () => { state.settings.holidayMode = prev; save(state); render(); });
     return;
   }
   const eb = e.target.closest('[data-edit-block]');
@@ -463,7 +466,7 @@ app.addEventListener('touchend', (e) => {
   const dx = e.changedTouches[0].clientX - touchX;
   const dy = e.changedTouches[0].clientY - touchY;
   touchX = null;
-  if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+  if (Math.abs(dx) > 90 && Math.abs(dx) > Math.abs(dy) * 2.5) {
     month = shiftMonth(month, dx < 0 ? 1 : -1);
     render();
   }
