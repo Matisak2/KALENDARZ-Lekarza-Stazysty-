@@ -267,15 +267,16 @@ function upcomingCard(sum) {
   </div>`;
 }
 
-function todoCard(al) {
+function todoCard(al, label = 'Na dziś') {
   if (!al.length) return '';
   const order = { urgent: 0, warn: 1, info: 2 };
   const rows = [...al].sort((a, b) => order[a.level] - order[b.level]).map((a) => `
     <div class="todo ${a.level}" ${a.action === 'backup' ? 'data-goto-tab="wiecej" role="button"' : ''}>
       <div class="todo-ic">${a.icon}</div>
       <div class="grow"><div class="t">${esc(a.title)}</div><div class="s">${esc(a.detail || '')}</div></div>
+      ${a.action === 'deadline-done' ? `<button class="chip" data-deadline-done="${a.date}">Zrobione ✓</button>` : ''}
     </div>`).join('');
-  return `<div class="card fade todo-card"><div class="card-label">Na dziś · ${al.length}</div>${rows}</div>`;
+  return `<div class="card fade todo-card"><div class="card-label">${label} · ${al.length}</div>${rows}</div>`;
 }
 
 function renderToday() {
@@ -290,6 +291,7 @@ function renderToday() {
       <div class="eyebrow">${fmtLong(t)}</div>
       <h1 class="large-title">Dziś</h1>
     </header>
+    ${todoCard(al.filter((a) => a.level === 'urgent'), 'Pilne')}
     <div class="desk-2">
       <div>
         ${heroCard(sum)}
@@ -297,7 +299,7 @@ function renderToday() {
         ${progressCard(sum)}
       </div>
       <div>
-        ${todoCard(al)}
+        ${todoCard(al.filter((a) => a.level !== 'urgent'))}
         ${dutyTodayCard(state, t)}
         ${reserveCard(sum)}
         <div class="grid-2">${vacationCard(sum)}${lekCard(sum)}</div>
@@ -397,6 +399,15 @@ app.addEventListener('click', (e) => {
   if (eb) return editBlock(eb.dataset.editBlock);
   const gb = e.target.closest('[data-goto-block]');
   if (gb) return editBlock(gb.dataset.gotoBlock);
+  const dd = e.target.closest('[data-deadline-done]');
+  if (dd) {
+    const dl = state.settings.lek.deadlines.find((x) => x.date === dd.dataset.deadlineDone);
+    if (dl) dl.done = true;
+    save(state);
+    render();
+    toast('Odhaczone ✓', () => { if (dl) delete dl.done; save(state); render(); });
+    return;
+  }
   const gt = e.target.closest('[data-goto-tab]');
   if (gt) { tab = gt.dataset.gotoTab; window.scrollTo({ top: 0 }); return render(); }
   const dm = e.target.closest('[data-dmonth]');

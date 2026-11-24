@@ -79,3 +79,10 @@ test('Przypomnienie o kopii: brak wpisów – brak; są wpisy bez kopii – jest
   assert.ok(!has(st, TODAY));
   assert.ok(has(st, '2026-12-14'));
 });
+
+test('Odhaczony termin LEK znika z listy „Na dziś”', () => {
+  const st = defaultState();
+  assert.ok(alerts(summarize(st, TODAY)).some((a) => a.title.includes('LEK (wiosna 2027)')));
+  st.settings.lek.deadlines[0].done = true;
+  assert.ok(!alerts(summarize(st, TODAY)).some((a) => a.title.includes('LEK (wiosna 2027)')));
+});

@@ -16,6 +16,9 @@
 - [x] Eksport .ics z adresami oddziałów i alarmami (LEK, start bloku, zmiana oddziału, kursy)
 - [x] Notatki do dnia (kalendarz) i do bloku (edycja bloku); LEK: odliczanie + terminy w .ics
 
+## Etap 2 – dodatki
+- [x] „Zrobione ✓” przy terminach LEK, pilne sprawy na górze ekranu Dziś
+
 ## Etap 3
 - [x] Umiejętności z programu stażu (Dz.U. 2023 poz. 377) do odhaczania + własne pozycje (książeczka stażowa – do uzupełnienia ze zdjęć)
 - [ ] Synchronizacja telefon ↔ komputer (np. Firebase jak w aplikacji budżetowej)

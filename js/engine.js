@@ -220,8 +220,9 @@ export function alerts(sum) {
   const today = sum.today;
 
   for (const dl of settings.lek?.deadlines || []) {
+    if (dl.done || (settings.lek?.registered && dl.label.startsWith('Zgłoszenie na LEK (wiosna'))) continue;
     const left = toNum(dl.date) - toNum(today);
-    if (left >= 0 && left <= 30) out.push({ level: left <= 7 ? 'urgent' : 'warn', icon: '📝', title: dl.label, detail: left === 0 ? 'Dziś!' : `Zostało ${left} ${left === 1 ? 'dzień' : 'dni'}` , date: dl.date });
+    if (left >= 0 && left <= 30) out.push({ level: left <= 7 ? 'urgent' : 'warn', icon: '📝', title: dl.label, detail: left === 0 ? 'Dziś!' : `Zostało ${left} ${left === 1 ? 'dzień' : 'dni'}`, date: dl.date, action: 'deadline-done' });
   }
   for (const [hDate, off] of Object.entries(settings.saturdayDaysOff || {})) {
     if (!off && hDate >= settings.startDate && hDate <= settings.endDate) {
