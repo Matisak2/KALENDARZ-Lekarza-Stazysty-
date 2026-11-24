@@ -1,7 +1,7 @@
 // Planer nauki do LEK – czysta logika (bez interfejsu), w całości testowana.
 // Wagi dziedzin: rozporządzenie MZ (Dz.U. 2021 poz. 828, t.j. 2023 poz. 105) – 200 pytań.
 // Zasada 70/30 (baza CEM / nowe pytania): art. 14c ust. 4 ustawy o zawodach lekarza (stan 11.2026).
-import { addDays, eachDay, isWeekend, toNum } from './dates.js';
+import { addDays, eachDay, isWeekend, toNum, weekday } from './dates.js';
 import { buildContext, statutoryOff } from './engine.js';
 import { EVENT_TYPES } from './defaults.js';
 
@@ -42,13 +42,36 @@ const courseTitle = (l) => {
 };
 
 /**
+ * Wstępne czyszczenie linii: pomija menu, dni tygodnia i myślniki. Rozdziela tytuł kursu sklejony z nazwą
+ * pierwszego działu („Kurs z interny Alergologia” + „(10)”) – nazwę działu powtarza pierwsza lekcja.
+ */
+function prepLines(text) {
+  const lines = String(text || '').split(/\r?\n/).map((l) => l.replace(/\s+/g, ' ').trim())
+    .filter((l) => l && !NOISE.test(l) && !WEEKDAY.test(l) && !DASH.test(l));
+  const out = [];
+  lines.forEach((l, i) => {
+    if (COUNT.test(lines[i + 1] || '')) {
+      let j = i + 2;
+      while (j < lines.length && TIME.test(lines[j]) && !lines[j].replace(TIME, '').trim()) j++;
+      const sec = lines[j];
+      if (sec && l !== sec && l.toLowerCase().endsWith(` ${sec.toLowerCase()}`)) {
+        out.push(l.slice(0, l.length - sec.length).trim(), sec);
+        return;
+      }
+    }
+    out.push(l);
+  });
+  return out;
+}
+
+/**
  * Rozbiera wklejony spis kursu na działy i lekcje. Rozpoznaje dwa układy strony WNL:
  * – telefon: działy WIELKIMI LITERAMI (opcjonalnie „(n)”), pod nimi lekcje i czasy „1.5h - 2.5h”;
  * – komputer: dział = nazwa + linia „(n)” + łączny czas; lekcja = nazwa działu, tytuł, opis, czas, dzień tygodnia.
  * Dni tygodnia, myślniki i opisy lekcji są pomijane.
  */
 export function parseCourseText(text, fallbackName = 'Kurs') {
-  const lines = String(text || '').split(/\r?\n/).map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const lines = prepLines(text);
   const desktop = lines.some((l) => COUNT.test(l));
   let name = null;
   const sections = [];
@@ -56,6 +79,7 @@ export function parseCourseText(text, fallbackName = 'Kurs') {
   let last = null;
   let pending = []; // linie tekstu czekające na czas (tytuł + ewentualny opis)
   let afterHeader = false; // następny sam czas = łączny czas działu
+  let secSkipped = false; // powtórzona nazwa działu na początku lekcji już pominięta
   const warnings = [];
   const newSection = (n, expected) => {
     sec = { name: n.replace(/\s+/g, ' ').trim(), expected, lessons: [] };
@@ -83,6 +107,8 @@ export function parseCourseText(text, fallbackName = 'Kurs') {
     if (cnt) {
       // Poprzednia linia była nazwą działu (układ z komputera)
       const header = pending.pop();
+      // Linia przed nazwą działu, gdy nie ma jeszcze żadnego działu = tytuł kursu (np. „Choroby zakaźne”)
+      if (desktop && !sec && pending.length) { if (!name) name = pending.join(' '); pending = []; }
       flush(null);
       if (header) newSection(header, Number(cnt[1]));
       else if (sec) sec.expected = Number(cnt[1]);
@@ -92,6 +118,7 @@ export function parseCourseText(text, fallbackName = 'Kurs') {
     const t = TIME.exec(raw);
     const textPart = raw.replace(TIME, '').replace(/[☐☑✓✔□■]/g, '').trim();
     if (!textPart && t) {
+      secSkipped = false;
       if (afterHeader) { afterHeader = false; continue; }
       if (!flush(t) && last) { last.hMin = num(t[1]); last.hMax = num(t[2]); }
       continue;
@@ -106,7 +133,8 @@ export function parseCourseText(text, fallbackName = 'Kurs') {
     }
     if (desktop) {
       // Każda lekcja zaczyna się powtórzoną nazwą działu – pomijamy ją
-      if (!pending.length && sec && textPart.toLowerCase() === sec.name.toLowerCase()) continue;
+      if (!pending.length && !secSkipped && sec && textPart.toLowerCase() === sec.name.toLowerCase()) { secSkipped = true; continue; }
+      secSkipped = false;
       pending.push(textPart);
       continue;
     }
@@ -123,17 +151,20 @@ export function parseCourseText(text, fallbackName = 'Kurs') {
   return { name: courseName, domain: guessDomain(courseName), sections: sections.filter((s) => s.lessons.length || s.expected), warnings };
 }
 
-/** Kilka kursów w jednym wklejeniu: każdy zaczyna się linią „Kurs …” / „KURS: …”. */
+/** Kilka kursów w jednym wklejeniu: każdy zaczyna się linią „Kurs …” / „KURS: …” albo samym tytułem (np. „Choroby zakaźne”). */
 export function parseCoursesText(text, fallbackName = 'Kurs') {
-  const lines = String(text || '').split(/\r?\n/);
+  const lines = prepLines(text);
+  const desktop = lines.some((l) => COUNT.test(l));
+  // Układ z komputera: linia tuż przed „nazwa działu + (n)”, która nie kończy lekcji czasem, to tytuł nowego kursu
+  const titleAt = (i) => desktop && COUNT.test(lines[i + 2] || '') && !COUNT.test(lines[i + 1] || '')
+    && !TIME.test(lines[i]) && !COUNT.test(lines[i]) && (i === 0 || TIME.test(lines[i - 1]));
   const chunks = [];
   let cur = [];
-  for (const l of lines) {
-    const t = l.replace(/\s+/g, ' ').trim();
-    if (isCourseLine(t) && cur.some((x) => x.trim())) { chunks.push(cur); cur = []; }
+  lines.forEach((l, i) => {
+    if ((isCourseLine(l) || titleAt(i)) && cur.length) { chunks.push(cur); cur = []; }
     cur.push(l);
-  }
-  if (cur.some((x) => x.trim())) chunks.push(cur);
+  });
+  if (cur.length) chunks.push(cur);
   return chunks.map((c) => parseCourseText(c.join('\n'), fallbackName)).filter((p) => p.sections.some((s) => s.lessons.length));
 }
 
@@ -162,18 +193,21 @@ export function mergeCourse(courses, parsed) {
  * Godziny nauki dzień po dniu (od jutra/od daty do dnia przed egzaminem).
  * Rodzaj dnia: urlop -> hVacation; weekend/święto/dzień wolny -> hWeekend;
  * dzień dyżuru albo dzień po dyżurze -> hDuty; zwykły dzień -> hWork.
+ * Dni tygodnia z `restDays` (przerwa wybrana w ankiecie) -> 0 h.
  */
 export function studyDays(state, survey, from, examDate) {
   const ctx = buildContext(state);
   const dutyDays = new Set((state.duties || []).map((d) => d.date));
   const to = addDays(examDate, -1);
   if (from > to) return [];
+  const rest = new Set((survey.restDays || []).map(Number)); // dni tygodnia bez nauki (0 = niedziela)
   return eachDay(from, to).map((d) => {
     const abs = ctx.absence.get(d);
     let kind = 'work';
     if (abs && abs.kind === 'event' && EVENT_TYPES[abs.type]?.vacation) kind = 'vacation';
     else if (isWeekend(d) || statutoryOff(ctx, d)) kind = 'free';
     else if (dutyDays.has(d) || dutyDays.has(addDays(d, -1))) kind = 'duty';
+    if (rest.has(weekday(d))) return { date: d, kind: 'rest', hours: 0 };
     const h = { work: survey.hWork, free: survey.hWeekend, duty: survey.hDuty, vacation: survey.hVacation }[kind];
     return { date: d, kind, hours: Math.max(0, Number(h) || 0) };
   });
@@ -200,6 +234,7 @@ export const DEFAULT_SURVEY = {
   baseTotal: 0, // liczba pytań bazy do przerobienia
   baseDone: 0,
   previous: [], // [{year, session, pct}]
+  restDays: [], // dni tygodnia wolne od nauki (0 = niedziela … 6 = sobota)
 };
 
 const STYLE_FACTOR = { video: 1.15, read: 1.0, questions: 0.85, mix: 1.0 };

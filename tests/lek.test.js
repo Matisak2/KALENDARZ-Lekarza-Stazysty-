@@ -202,3 +202,81 @@ test('Kilka kursów w jednym wklejeniu („Kurs …” / „KURS: …”)', () =
   // Układ z telefonu dalej działa przez to samo wejście
   assert.equal(parseCoursesText(SAMPLE)[0].name, 'Kurs z Interny');
 });
+
+test('Dni przerwy w nauce (ankieta): wybrane dni tygodnia mają 0 h', () => {
+  const st = defaultState();
+  const s = { ...DEFAULT_SURVEY, hWork: 2, hWeekend: 5, restDays: [3, 0] }; // środa i niedziela
+  const days = studyDays(st, s, '2026-11-30', '2026-12-08');
+  const k = Object.fromEntries(days.map((d) => [d.date, [d.kind, d.hours]]));
+  assert.deepEqual(k['2026-12-02'], ['rest', 0]); // środa
+  assert.deepEqual(k['2026-12-06'], ['rest', 0]); // niedziela
+  assert.deepEqual(k['2026-12-05'], ['free', 5]); // sobota
+  assert.deepEqual(k['2026-12-03'], ['work', 2]);
+  // Stare plany bez pola restDays działają jak dotąd
+  const { restDays, ...old } = s;
+  assert.ok(studyDays(st, old, '2026-11-30', '2026-12-08').every((d) => d.kind !== 'rest'));
+});
+
+test('Import z komputera: tytuł kursu bez słowa „Kurs” i kolejny kurs w tym samym wklejeniu', () => {
+  const txt = `Choroby egzotyczne
+Dział X
+(1)
+1h - 2h
+Środa
+
+Dział X
+Lekcja X1
+Opis.
+1h - 2h
+Środa
+Kurs z ginekologii
+Dział Y
+(1)
+1h - 2h
+Czwartek
+
+Dział Y
+Dział Y
+Opis lekcji o nazwie jak dział.
+1.5h - 2.5h
+Czwartek`;
+  const ps = parseCoursesText(txt);
+  assert.deepEqual(ps.map((p) => [p.name, p.domain]), [['Choroby egzotyczne', 'inne'], ['Kurs z ginekologii', 'gin']]);
+  assert.deepEqual(ps[0].sections.map((s) => [s.name, s.lessons.map((l) => l.name)]), [['Dział X', ['Lekcja X1']]]);
+  assert.deepEqual(ps[1].sections[0].lessons.map((l) => [l.name, l.hMin]), [['Dział Y', 1.5]]);
+  assert.deepEqual(ps.flatMap((p) => p.warnings), []);
+});
+
+test('Import z komputera: tytuł kursu sklejony z nazwą pierwszego działu, bez pustych linii', () => {
+  const txt = `Kurs z interny Dział A
+(2)
+2h - 4h
+Wtorek
+–
+Środa
+Dział A
+Lekcja 1
+Opis 1.
+1h - 2h
+Wtorek
+Dział A
+Lekcja 2
+Opis 2.
+1h - 2h
+Środa
+Dział B
+(1)
+1.5h - 2.5h
+Sobota
+Dział B
+Lekcja 3
+Opis 3.
+1.5h - 2.5h
+Sobota`;
+  const ps = parseCoursesText(txt);
+  assert.equal(ps.length, 1);
+  assert.equal(ps[0].name, 'Kurs z interny');
+  assert.equal(ps[0].domain, 'int');
+  assert.deepEqual(ps[0].sections.map((s) => [s.name, s.lessons.map((l) => l.name)]), [['Dział A', ['Lekcja 1', 'Lekcja 2']], ['Dział B', ['Lekcja 3']]]);
+  assert.deepEqual(ps[0].warnings, []);
+});

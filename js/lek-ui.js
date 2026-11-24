@@ -317,6 +317,9 @@ function surveySheet(state, ctx, plan) {
         <label>Dzień dyżuru / po dyżurze<input type="number" inputmode="decimal" step="0.5" min="0" data-s="hDuty" value="${s.hDuty}"></label></div>
       <div class="row2"><label>Weekend / święto<input type="number" inputmode="decimal" step="0.5" min="0" data-s="hWeekend" value="${s.hWeekend}"></label>
         <label>Dzień urlopu<input type="number" inputmode="decimal" step="0.5" min="0" data-s="hVacation" value="${s.hVacation}"></label></div>
+      <div class="t-strong small-t">W które dni tygodnia chcesz przerwę od nauki?</div>
+      <div class="chips">${[[1, 'pon'], [2, 'wt'], [3, 'śr'], [4, 'czw'], [5, 'pt'], [6, 'sob'], [0, 'nd']].map(([d, l]) => `<button class="chip ${(s.restDays || []).includes(d) ? 'on' : ''}" data-rest="${d}">${l}</button>`).join('')}</div>
+      <p class="hint small">W zaznaczone dni plan nie da żadnej lekcji. Resztę rozłoży na pozostałe dni, zgodnie z Twoim grafikiem (dyżury, urlop, święta).</p>
       <div class="t-strong small-t">Ile czasu liczyć na lekcję (przedział z WNL, np. 1,5–2,5 h)?</div>
       <div class="segmented three">${[['fast', 'Dolna granica'], ['mid', 'Środek'], ['slow', 'Górna granica']].map(([k, l]) => `<button data-sv="pace:${k}" class="${s.pace === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       <div class="t-strong small-t">Jak się uczysz najchętniej?</div>
@@ -356,6 +359,13 @@ function surveySheet(state, ctx, plan) {
     if (sv) {
       const [k, v] = sv.dataset.sv.split(':');
       s[k] = v === 'true' ? true : v === 'false' ? false : v;
+      return redraw();
+    }
+    const rd = e.target.closest('[data-rest]');
+    if (rd) {
+      const d = Number(rd.dataset.rest);
+      const cur = s.restDays || [];
+      s.restDays = cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d];
       return redraw();
     }
     const c = e.target.closest('[data-chip]');
