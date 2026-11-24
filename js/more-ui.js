@@ -4,7 +4,7 @@ import { backupText, parseBackup } from './store.js';
 import { fmtFull, fmtShort, addDays, isWeekend } from './dates.js';
 import { holidayMap } from './holidays.js';
 import { BOOKLET_COURSES, bookletProgress, coursesSigned } from './booklet.js';
-import { syncStatus, signIn, signOutSync, syncNow } from './sync.js';
+import { syncStatus, signIn, signUp, signOutSync, syncNow } from './sync.js';
 import { esc } from './blocks-ui.js';
 
 export function renderMore(state) {
@@ -84,11 +84,12 @@ function syncCard() {
       <div class="quick two"><button class="btn" data-act="sync-now">Synchronizuj teraz</button><button class="btn" data-act="sync-out">Wyloguj</button></div>
       ${s.hasBackup ? '<p class="hint small">Przy ostatnim konflikcie starsza wersja została zachowana w tym urządzeniu.</p>' : ''}`
     : `
-      <p class="sub">Zaloguj się tym samym mailem i hasłem co w aplikacji Budżet. Zmiany z telefonu pojawią się na komputerze i odwrotnie.</p>
+      <p class="sub">Pierwszy raz: wpisz e-mail i hasło (min. 6 znaków) i stuknij „Załóż konto”. Na drugim urządzeniu – „Zaloguj”. Zmiany z telefonu pojawią się na komputerze i odwrotnie.</p>
       <div class="sync-form">
         <label>E-mail<input type="email" autocomplete="username" data-sync="email" value="${esc(s.email)}"></label>
         <label>Hasło<input type="password" autocomplete="current-password" data-sync="pass"></label>
         <button class="btn primary" data-act="sync-in">Zaloguj i synchronizuj</button>
+        <button class="btn" data-act="sync-up">Załóż konto (pierwszy raz)</button>
       </div>
       ${s.error ? `<div class="seg-err">${esc(s.error)}</div>` : ''}`}
     <details class="course-list"><summary>Jednorazowe ustawienie w Firebase (dla właściciela)</summary>
@@ -224,6 +225,14 @@ export function handleMoreClick(e, ctx) {
     const pass = card.querySelector('[data-sync="pass"]').value;
     if (!email || !pass) { ctx.toast('Wpisz e-mail i hasło'); return true; }
     signIn(email, pass).then(() => ctx.render());
+    return true;
+  }
+  if (act === 'sync-up') {
+    const card = e.target.closest('.card');
+    const email = card.querySelector('[data-sync="email"]').value;
+    const pass = card.querySelector('[data-sync="pass"]').value;
+    if (!email || pass.length < 6) { ctx.toast('Wpisz e-mail i hasło (min. 6 znaków)'); return true; }
+    signUp(email, pass).then(() => ctx.render());
     return true;
   }
   if (act === 'sync-out') {

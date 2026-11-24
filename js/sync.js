@@ -36,6 +36,10 @@ const MSG = {
   'auth/wrong-password': 'Złe hasło.',
   'auth/user-not-found': 'Nie ma konta z tym adresem.',
   'auth/invalid-email': 'To nie wygląda na adres e-mail.',
+  'auth/email-already-in-use': 'Konto z tym adresem już istnieje – użyj „Zaloguj”.',
+  'auth/weak-password': 'Hasło musi mieć co najmniej 6 znaków.',
+  'auth/operation-not-allowed': 'W Firebase nie włączono logowania e-mailem (Authentication → Email/Password).',
+  'auth/unauthorized-domain': 'W Firebase brakuje domeny matisak2.github.io (Authentication → Settings → Authorized domains).',
   'auth/too-many-requests': 'Za dużo prób – spróbuj za kilka minut.',
   'auth/network-request-failed': 'Brak internetu.',
   'permission-denied': 'Brak dostępu do bazy – trzeba dodać zasadę w konsoli Firebase (instrukcja w aplikacji).',
@@ -117,6 +121,16 @@ export async function signIn(email, password) {
   try {
     await boot();
     await fb.auth.signInWithEmailAndPassword(fb.au, email.trim(), password);
+  } catch (e) {
+    changed({ phase: 'loggedOut', error: msg(e) });
+  }
+}
+
+export async function signUp(email, password) {
+  changed({ phase: 'syncing', error: '' });
+  try {
+    await boot();
+    await fb.auth.createUserWithEmailAndPassword(fb.au, email.trim(), password);
   } catch (e) {
     changed({ phase: 'loggedOut', error: msg(e) });
   }
