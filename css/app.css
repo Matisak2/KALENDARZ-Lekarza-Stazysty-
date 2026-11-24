@@ -629,3 +629,44 @@ code { background: var(--card-2); padding: 1px 5px; border-radius: 5px; }
 .val-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; font-size: 15px; font-weight: 600; }
 .val-row > span:last-child { display: flex; gap: 6px; flex: none; }
 .danger-chip { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, var(--card)); }
+
+/* ---------- Planer LEK ---------- */
+.segmented.four { grid-template-columns: repeat(4, 1fr); }
+.sticky-seg { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 6px); z-index: 5; box-shadow: 0 4px 14px rgba(0,0,0,.06); background: color-mix(in srgb, var(--track) 100%, var(--bg)); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+.empty-card { text-align: center; padding: 26px 20px; }
+.big-emoji { font-size: 40px; margin-bottom: 6px; }
+.est { margin-top: 16px; position: relative; }
+.est > div:first-child { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 14px; color: var(--text-2); font-weight: 600; }
+.est > div:first-child b { font-size: 30px; font-weight: 900; }
+.score-bar { position: relative; height: 12px; border-radius: 6px; background: var(--track); margin: 8px 0 6px; }
+.score-bar > div { height: 100%; border-radius: 6px; background: var(--c-course); }
+.score-bar i { position: absolute; top: -4px; width: 2px; height: 20px; background: var(--text-2); border-radius: 1px; }
+.score-bar i.tg { background: var(--danger); }
+.lesson { display: flex; align-items: center; gap: 8px; border-bottom: 0.5px solid var(--sep); }
+.lesson:last-child { border-bottom: 0; }
+.lesson .skill { border-bottom: 0; flex: 1; min-width: 0; }
+.lesson > .nm { flex: 1; padding: 10px 0; font-size: 14.5px; font-weight: 600; }
+.lesson .nm small { display: block; color: var(--text-2); font-size: 12px; font-weight: 600; }
+.base-row { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: var(--card-2); font-size: 14px; }
+.wk { padding: 10px 0; border-bottom: 0.5px solid var(--sep); }
+.wk-h { display: flex; justify-content: space-between; font-size: 14px; }
+.wk-h span { color: var(--text-2); font-weight: 700; }
+.wk-l { font-size: 13px; color: var(--text-2); margin-top: 3px; line-height: 1.4; }
+.wk.rv .wk-h b { color: var(--c-course); }
+.plans { margin-top: 10px; }
+.plans .val-row { flex-wrap: wrap; }
+.dom-sel { display: block; font-size: 12.5px; font-weight: 700; color: var(--text-2); margin-top: 10px; }
+.dom-sel select, .dom-sel input { display: block; width: 100%; margin-top: 5px; font: inherit; font-size: 16px; font-weight: 600; color: var(--text);
+  background: var(--card-2); border: 1px solid transparent; border-radius: 12px; padding: 10px 12px; -webkit-appearance: none; appearance: none; }
+.sec-name { font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--text-2); margin: 14px 0 2px; }
+.small-t { font-size: 15px; margin: 14px 0 6px; }
+.chips .chip.on { background: var(--accent); color: #fff; }
+.spec-t { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13.5px; }
+.spec-t th { text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-2); padding: 6px 4px; }
+.spec-t td { padding: 7px 4px; border-top: 0.5px solid var(--sep); vertical-align: top; }
+.mock-chart { width: 100%; height: auto; margin: 6px 0 10px; }
+.mock-chart .thr { stroke: var(--danger); stroke-dasharray: 4 4; stroke-width: 1.5; }
+.mock-chart .lbl { fill: var(--danger); font-size: 10px; font-weight: 700; }
+.mock-chart .ln { fill: none; stroke: var(--c-course); stroke-width: 2.5; stroke-linejoin: round; }
+.mock-chart .pt { fill: var(--c-course); }
+.tabbar button { max-width: 80px; font-size: 10px; }

@@ -82,7 +82,10 @@ test('Przypomnienie o kopii: brak wpisów – brak; są wpisy bez kopii – jest
 
 test('Odhaczony termin LEK znika z listy „Na dziś”', () => {
   const st = defaultState();
-  assert.ok(alerts(summarize(st, TODAY)).some((a) => a.title.includes('LEK (wiosna 2027)')));
+  const zgl = (a) => a.title.startsWith('Zgłoszenie na LEK (wiosna 2027)');
+  assert.ok(alerts(summarize(st, TODAY)).some(zgl));
   st.settings.lek.deadlines[0].done = true;
-  assert.ok(!alerts(summarize(st, TODAY)).some((a) => a.title.includes('LEK (wiosna 2027)')));
+  assert.ok(!alerts(summarize(st, TODAY)).some(zgl));
+  // Przypomnienie o opłacie (5 dni roboczych po 30.11.2026 = 07.12.2026) zostaje
+  assert.ok(alerts(summarize(st, TODAY)).some((a) => a.title.startsWith('Opłata za LEK (wiosna 2027)')));
 });

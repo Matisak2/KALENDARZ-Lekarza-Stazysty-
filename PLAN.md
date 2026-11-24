@@ -24,6 +24,13 @@
 - [x] Szkolenia (9 stron), koordynator, przedłużenia, zaliczenie stażu
 - [x] Przypomnienie na „Dziś”, gdy blok się kończy, a brakuje podpisów
 
+## Planer LEK i specjalizacje
+- [x] Zakładka LEK: ankieta (termin, trening/na serio, cel/specjalizacja, poprzednie wyniki, godziny, styl, słabe/mocne dziedziny, baza CEM)
+- [x] Import spisu kursów WNL (wklejony tekst), plan tygodniowy z grafiku stażu, pominięte tematy, szacunek wyniku, wiele planów
+- [x] Wyniki: podejścia do LEK, egzaminy próbne z wykresem
+- [x] Specjalizacje: miejsca i progi z 4 ostatnich naborów CMKP (scripts/nabory.py -> data/nabory.json), cel do planu
+- [x] Automat: zaplanowane zadanie 2× w roku (koniec kwietnia i listopada) odświeża data/nabory.json
+
 ## Etap 3
 - [x] Umiejętności z programu stażu (Dz.U. 2023 poz. 377) do odhaczania + własne pozycje (książeczka stażowa – do uzupełnienia ze zdjęć)
 - [x] Synchronizacja telefon ↔ komputer: Firebase (osobny projekt kalendarz-stazysty), dokument stazysta/{uid}, nowsza wersja wygrywa, kopia przy konflikcie

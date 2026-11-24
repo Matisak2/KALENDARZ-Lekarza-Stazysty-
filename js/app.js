@@ -7,6 +7,7 @@ import { renderMore, handleMoreClick, handleMoreChange } from './more-ui.js';
 import { hospitalOf } from './hospitals.js';
 import { renderCalendar, openDay, openEventEditor, shiftMonth, todayMonth } from './calendar-ui.js';
 import { renderDuties, openDutyEditor, dutyTodayCard } from './duties-ui.js';
+import { renderLek, handleLekClick, handleLekChange, handleLekInput } from './lek-ui.js';
 import { fmtLong, fmtShort, fmtFull, fmtDayShort, toNum, todayIso, isWeekend, dni, plural } from './dates.js';
 import { holidayMap } from './holidays.js';
 
@@ -323,6 +324,7 @@ function render() {
   if (tab !== 'dzis') document.body.style.setProperty('--page', 'var(--accent)');
   if (tab === 'dzis') html = renderToday();
   else if (tab === 'bloki') html = renderBlocks(state, getToday());
+  else if (tab === 'lek') html = renderLek(state, getToday(), ctx);
   else if (tab === 'dyzury') html = renderDuties(state, getToday(), dmonth || (dmonth = todayMonth(getToday())));
   else if (tab === 'kalendarz') html = renderCalendar(state, getToday(), month || (month = todayMonth(getToday())));
   else html = renderMore(state);
@@ -427,6 +429,7 @@ app.addEventListener('click', (e) => {
     toast('Odhaczone ✓', () => { if (dl) delete dl.done; save(state); render(); });
     return;
   }
+  if (tab === 'lek' && handleLekClick(e, state, ctx, getToday())) return;
   const gt = e.target.closest('[data-goto-tab]');
   if (gt) { tab = gt.dataset.gotoTab; window.scrollTo({ top: 0 }); return render(); }
   const dm = e.target.closest('[data-dmonth]');
@@ -451,7 +454,11 @@ app.addEventListener('click', (e) => {
   if (ee) return openEventEditor(state, getToday(), state.events.find((x) => x.id === ee.dataset.editEvent), ctx);
   handleMoreClick(e, ctx);
 });
-app.addEventListener('change', (e) => handleMoreChange(e, ctx));
+app.addEventListener('change', (e) => {
+  if (tab === 'lek' && handleLekChange(e, state, ctx)) return;
+  handleMoreChange(e, ctx);
+});
+app.addEventListener('input', (e) => { if (tab === 'lek') handleLekInput(e, ctx); });
 
 // Przesunięcie palcem w bok na kalendarzu = zmiana miesiąca
 let touchX = null;

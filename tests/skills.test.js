@@ -38,9 +38,24 @@ test('Migracja v2 -> v3: odhaczone umiejętności z pediatrii przechodzą na now
   st.version = 2;
   st.skills = { 'ped:0': { date: '2027-07-20' }, 'ped:10': { date: '2027-07-21' }, 'int:1': { date: '2027-02-10' } };
   const m = migrate(st);
-  assert.equal(m.version, 3);
+  assert.equal(m.version, 4);
   assert.deepEqual(m.skills['ped:2'], { date: '2027-07-20' }); // wywiad
   assert.deepEqual(m.skills['ped:3'], { date: '2027-07-21' }); // resuscytacja
   assert.ok(!m.skills['ped:0']);
   assert.deepEqual(m.skills['int:1'], { date: '2027-02-10' });
+});
+
+test('Migracja v3 -> v4: planer LEK i przypomnienia o opłacie, bez dublowania terminów', () => {
+  const st = defaultState();
+  st.version = 3;
+  delete st.study;
+  st.settings.lek.deadlines = st.settings.lek.deadlines.filter((d) => !d.label.startsWith('Opłata'));
+  st.settings.lek.deadlines[0].done = true;
+  const m = migrate(st);
+  assert.equal(m.version, 4);
+  assert.deepEqual(m.study.plans, []);
+  const dl = m.settings.lek.deadlines;
+  assert.equal(dl.filter((d) => d.label.startsWith('Opłata')).length, 2);
+  assert.equal(dl.filter((d) => d.date === '2026-11-30').length, 1);
+  assert.ok(dl.find((d) => d.date === '2026-11-30').done);
 });

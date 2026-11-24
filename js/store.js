@@ -30,6 +30,15 @@ export function migrate(data) {
     data.skills = moved;
     data.version = 3;
   }
+  if (data.version < 4) {
+    // v4: planer LEK (study) + przypomnienia o opłacie za LEK (art. 14a ust. 8 ustawy)
+    const dl = data.settings?.lek?.deadlines;
+    if (Array.isArray(dl)) {
+      for (const x of def.settings.lek.deadlines) if (!dl.some((y) => y.date === x.date && y.label === x.label)) dl.push(x);
+      dl.sort((a, b) => (a.date < b.date ? -1 : 1));
+    }
+    data.version = 4;
+  }
   // Uzupełnij brakujące pola nowszymi domyślnymi (bez nadpisywania wpisanych)
   data.settings = { ...def.settings, ...data.settings };
   data.courses = data.courses || def.courses;
@@ -39,6 +48,7 @@ export function migrate(data) {
   data.skills = data.skills || {};
   data.customSkills = data.customSkills || {};
   data.booklet = data.booklet || {};
+  data.study = { ...def.study, ...(data.study || {}) };
   data.meta = { ...def.meta, ...data.meta };
   return data.version === SCHEMA_VERSION ? data : null;
 }

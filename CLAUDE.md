@@ -29,12 +29,20 @@ Pokazuje bloki stażu, dni robocze, święta, urlop, kursy OIL, odrabianie, dyż
 - `js/booklet.js` – książeczka stażowa (rubryki per blok, szkolenia); stan w `state.booklet` (imiona tylko lokalnie, nigdy w kodzie).
 - `js/sync-core.js` (czysta logika `decideSync`) + `js/sync.js` (Firebase 10.14.1 z gstatic, osobny projekt `kalendarz-stazysty`, dokument `stazysta/{uid}` = `{data: JSON, updatedAt, device}`).
   `store.save` ustawia `meta.updatedAt`; dane z chmury zapisuj z `keepTime`. Zasady Firestore (kopia): `firebase/firestore.rules`.
+- `js/lek.js` (logika planera: wagi dziedzin LEK, import spisu WNL, godziny z grafiku, `buildPlan`, szacunek wyniku) + `js/lek-ui.js` (zakładka LEK); stan w `state.study`.
+  Spisy kursów WNL tylko w danych użytkownika (nigdy w kodzie – materiały WNL). Hasła do WNL nie przyjmujemy.
+- `js/specs.js` + `data/nabory.json` (generuje `python3 scripts/nabory.py` z PDF-ów CMKP; wymaga pdftotext). Próg = min. wynik zakwalifikowanych, gdy miejsca obsadzone.
 - `js/duties-ui.js` – zakładka Dyżury (logika: `dutyMonth`, `dutyRoomOn`, `dutyTotals` w engine.js).
 - `js/calendar-ui.js` – ekran Kalendarz (miesiąc, okno dnia, formularz wpisu z podglądem `eventImpact`).
 - Blok: `segments: [{id,start,end,hospital,ward,customName?,customAddress?}]` – oddziały; nie wpływają na liczenie dni.
-- `js/app.js` – interfejs (zakładki: Dziś, Bloki, Kalendarz, Dyżury, Więcej). Zmiany dat w ustawieniach tylko przez okienko „Zmień → Zapisz”, usuwanie z „Cofnij” (właściciel ma czuły ekran).
+- `js/app.js` – interfejs (zakładki: Dziś, Bloki, Kalendarz, Dyżury, LEK, Więcej). Zmiany dat w ustawieniach tylko przez okienko „Zmień → Zapisz”, usuwanie z „Cofnij” (właściciel ma czuły ekran).
 - `sw.js` – offline; **przy każdej zmianie plików podbij `CACHE`**.
 - Podgląd na inny dzień: `?dzis=RRRR-MM-DD`.
+
+## LEK i nabór (stan 11.2026, ustawa o zawodach lekarza t.j. Dz.U. 2026 poz. 37)
+- LEK: 200 pytań, 70% z jawnej bazy CEM / 30% nowe (art. 14c ust. 4), próg 56% (art. 14e). Projekt UD384 (likwidacja bazy) – nieprzyjęty; ew. od 1.05.2027.
+- Zapisy w SMK: do 30.11 (sesja lutowa) / do 15.07 (wrześniowa); opłata od 2. zgłoszenia (chyba że 1. niezdany/nieprzystąpienie), do 5 dni roboczych po terminie zapisów (art. 14a ust. 5, 8, 11).
+- Nabór na specjalizacje: wynik = % punktów LEK (+ doktorat, publikacje), ranking w dziedzinie i województwie (art. 16c ust. 10–13), listy CMKP.
 
 ## Zasady stażu (stan na 11.2026, źródła w README)
 - Bloki sztywne (tydzień czw–śr). Blok wymaga tygodnie × 5 dni roboczych.

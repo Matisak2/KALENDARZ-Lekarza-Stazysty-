@@ -1,7 +1,7 @@
 // Domyślne dane: harmonogram grupy 6 (staż 01.10.2026–31.10.2027, USK2 Szczecin).
 // Wszystko można zmienić w aplikacji – to tylko punkt startowy.
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /** Typy wpisów kalendarza (nieobecności i inne zdarzenia). */
 export const EVENT_TYPES = {
@@ -34,8 +34,10 @@ export function defaultState() {
         session: 'wiosna 2027',
         deadlines: [
           { date: '2026-11-30', label: 'Zgłoszenie na LEK (wiosna 2027) w SMK – ostatni dzień' },
+          { date: '2026-12-07', label: 'Opłata za LEK (wiosna 2027) – najpóźniej 5 dni roboczych po końcu zapisów' },
           { date: '2027-02-06', label: 'CEM podaje miejsce i godzinę LEK (najpóźniej 14 dni przed)' },
           { date: '2027-07-15', label: 'Zgłoszenie na LEK (jesień 2027) w SMK – jeśli potrzebne' },
+          { date: '2027-07-22', label: 'Opłata za LEK (jesień 2027) – najpóźniej 5 dni roboczych po końcu zapisów' },
         ],
         registered: false,
       },
@@ -75,6 +77,7 @@ export function defaultState() {
     skills: {},
     customSkills: {},
     booklet: {},
+    study: { courses: [], done: {}, plans: [], activePlan: null, attempts: [], mocks: [] },
     meta: { lastBackup: null, createdAt: null },
   };
 }
