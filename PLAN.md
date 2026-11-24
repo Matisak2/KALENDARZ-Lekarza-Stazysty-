@@ -12,7 +12,7 @@
 - [ ] Przypomnienie o kopii
 
 ## Etap 2
-- [ ] Dyżury: wpisy, limity tygodniowe i miesięczne, podsumowanie
+- [x] Dyżury: wpisy, norma miesiąca (bloki z dyżurami, urlop/L4), limit 10 h 05 min na tydzień miesiąca, max 8, podsumowanie, karta na „Dziś”, 🌙 w kalendarzu
 - [x] Eksport .ics z adresami oddziałów i alarmami (LEK, start bloku, zmiana oddziału, kursy)
 - [ ] Notatki do dnia/bloku, odliczanie i przypomnienia LEK (jesień)
 

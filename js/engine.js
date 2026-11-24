@@ -344,3 +344,83 @@ export function eventImpact(state, ev, today) {
     extends: !!EVENT_TYPES[ev.type]?.extends,
   };
 }
+
+/* ---------- Dyżury ---------- */
+
+export const DUTY_WEEK_LIMIT = 605; // 10 h 05 min na „tydzień” miesiąca
+export const DUTY_MONTH_MAX = 2420; // 40 h 20 min
+export const DUTY_COUNT_MAX = 8;
+
+/** Formatowanie minut: 605 -> "10 h 05 min". */
+export function fmtHM(min) {
+  const m = Math.round(Math.abs(min));
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  const s = h && r ? `${h} h ${String(r).padStart(2, '0')} min` : h ? `${h} h` : `${r} min`;
+  return min < 0 ? `−${s}` : s;
+}
+
+/** „Tygodnie” miesiąca wg zasad szpitala: 1–7, 8–14, 15–21, 22–koniec. */
+export function dutyBuckets(ym) {
+  const [y, m] = ym.split('-').map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const p = (d) => `${ym}-${String(d).padStart(2, '0')}`;
+  return [[1, 7], [8, 14], [15, 21], [22, last]].map(([a, b], i) => ({ i: i + 1, start: p(a), end: p(b) }));
+}
+
+/**
+ * Dyżury w miesiącu: norma, suma, liczba, „tygodnie” i ostrzeżenia.
+ * Norma: 10 h 05 min za każdy „tydzień”, w którym większość dni roboczych przypada na blok z dyżurami,
+ * minus 10 h 05 min za każde pełne 5 dni urlopu / L4 / bezpłatnego w miesiącu (poradnik OIL 2026).
+ */
+export function dutyMonth(state, ym) {
+  const ctx = buildContext(state);
+  const duties = (state.duties || []).filter((x) => x.date.startsWith(ym)).sort((a, b) => (a.date < b.date ? -1 : 1));
+  const blockOf = (d) => state.blocks.find((b) => b.start <= d && d <= b.end) || null;
+  const buckets = dutyBuckets(ym).map((bk) => {
+    const work = eachDay(bk.start, bk.end).filter((d) => !isWeekend(d));
+    const dutyDays = work.filter((d) => blockOf(d)?.duties).length;
+    const minutes = duties.filter((x) => x.date >= bk.start && x.date <= bk.end).reduce((a, x) => a + Number(x.minutes || 0), 0);
+    return { ...bk, dutyWeek: work.length > 0 && dutyDays * 2 > work.length, minutes, limit: DUTY_WEEK_LIMIT };
+  });
+  const [y, m] = ym.split('-').map(Number);
+  const monthDays = eachDay(`${ym}-01`, `${ym}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, '0')}`);
+  const absenceWorkdays = monthDays.filter((d) => {
+    const a = ctx.absence.get(d);
+    return a && a.kind === 'event' && ['urlop', 'urlop_zadanie', 'l4', 'opieka', 'bezplatny'].includes(a.type)
+      && !isWeekend(d) && !statutoryOff(ctx, d);
+  }).length;
+  const dutyWeeks = buckets.filter((b) => b.dutyWeek).length;
+  const reduction = Math.floor(absenceWorkdays / 5) * DUTY_WEEK_LIMIT;
+  const norm = Math.max(0, dutyWeeks * DUTY_WEEK_LIMIT - reduction);
+  const total = duties.reduce((a, x) => a + Number(x.minutes || 0), 0);
+
+  const warnings = [];
+  for (const b of buckets) {
+    if (b.minutes > b.limit) warnings.push({ level: 'warn', text: `Tydzień ${b.i} (${b.start.slice(8)}–${b.end.slice(8)}): ${fmtHM(b.minutes)} – limit ${fmtHM(b.limit)}` });
+  }
+  if (duties.length > DUTY_COUNT_MAX) warnings.push({ level: 'warn', text: `${duties.length} dyżurów – maksymalnie ${DUTY_COUNT_MAX} w miesiącu` });
+  if (total > DUTY_MONTH_MAX) warnings.push({ level: 'warn', text: `Suma ${fmtHM(total)} – maksymalnie ${fmtHM(DUTY_MONTH_MAX)} w miesiącu` });
+  for (const x of duties) {
+    const a = ctx.absence.get(x.date);
+    if (a) warnings.push({ level: 'warn', text: `${x.date.slice(8)}.${x.date.slice(5, 7)}: dyżur w dniu ${a.kind === 'course' ? 'kursu' : 'nieobecności'} (${a.label})` });
+    const b = blockOf(x.date);
+    if (b && !b.duties) warnings.push({ level: 'info', text: `${x.date.slice(8)}.${x.date.slice(5, 7)}: w bloku ${b.short} zwykle nie ma dyżurów` });
+  }
+  return { ym, duties, buckets, norm, total, left: norm - total, count: duties.length, absenceWorkdays, reduction, dutyWeeks, warnings };
+}
+
+/** Ile minut można jeszcze dyżurować w „tygodniu” danego dnia (bez danego dyżuru – przy edycji). */
+export function dutyRoomOn(state, date, exceptId = null) {
+  const ym = date.slice(0, 7);
+  const bk = dutyBuckets(ym).find((b) => b.start <= date && date <= b.end);
+  const used = (state.duties || []).filter((x) => x.id !== exceptId && x.date >= bk.start && x.date <= bk.end)
+    .reduce((a, x) => a + Number(x.minutes || 0), 0);
+  return { bucket: bk, used, room: Math.max(0, DUTY_WEEK_LIMIT - used) };
+}
+
+/** Suma dyżurów w całym stażu (max 41 tyg. × 10 h 05 min = 413 h 25 min wg poradnika OIL). */
+export function dutyTotals(state) {
+  const total = (state.duties || []).reduce((a, x) => a + Number(x.minutes || 0), 0);
+  return { total, count: (state.duties || []).length, max: 41 * DUTY_WEEK_LIMIT };
+}

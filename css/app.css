@@ -550,3 +550,20 @@ body.no-scroll { overflow: hidden; }
 .course label, .sat-row { display: block; font-size: 12.5px; font-weight: 700; color: var(--text-2); margin-top: 8px; }
 .sat-row span b { display: block; color: var(--text); font-size: 15px; }
 .sat-row span small { font-weight: 600; }
+
+/* ---------- Dyżury ---------- */
+.duty-mini { display: block; width: 100%; text-align: left; border: 0; font: inherit; color: inherit; cursor: pointer; }
+.bk { padding: 10px 0; border-bottom: 0.5px solid var(--sep); }
+.bk:last-child { border-bottom: 0; }
+.bk-head { display: flex; gap: 8px; align-items: baseline; font-size: 14.5px; }
+.bk-head .bk-v { margin-left: auto; font-weight: 800; font-variant-numeric: tabular-nums; }
+.bk-bar { height: 8px; border-radius: 4px; background: var(--track); margin-top: 7px; overflow: hidden; }
+.bk-bar > div { height: 100%; border-radius: 4px; background: var(--c-course); }
+.bk.over .bk-bar > div { background: var(--danger); }
+.bk.over .bk-v { color: var(--danger); }
+.bk.nodu { opacity: .6; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.chip { border: 0; background: var(--card-2); border-radius: 999px; padding: 8px 12px; font: inherit; font-size: 13.5px; font-weight: 700; color: var(--text); cursor: pointer; }
+.chip.on { background: var(--accent); color: #fff; }
+.duty-dot { position: absolute; bottom: 3px; right: 4px; font-size: 9px; line-height: 1; }
+.tabbar button { max-width: 96px; }

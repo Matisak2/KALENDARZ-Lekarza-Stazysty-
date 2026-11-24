@@ -4,6 +4,8 @@ import { EVENT_TYPES } from './defaults.js';
 import { hospitalOf } from './hospitals.js';
 import { addDays, fmtLong, fmtShort, fmtFull, fmtDayShort, weekday, MONTHS, toNum, plural } from './dates.js';
 import { esc } from './blocks-ui.js';
+import { openDutyEditor } from './duties-ui.js';
+import { fmtHM } from './engine.js';
 
 const color = (b) => `var(--c-${b.color || 'gray'})`;
 const WD = ['pn', 'wt', 'śr', 'cz', 'pt', 'sb', 'nd'];
@@ -61,6 +63,7 @@ export function renderCalendar(state, today, ym) {
       aria-label="${fmtLong(d)}${info.holiday ? `, ${info.holiday.name}` : ''}">
       <span class="dn">${Number(d.slice(8))}</span>
       ${badge(info) ? `<span class="bd">${badge(info)}</span>` : ''}
+      ${(state.duties || []).some((x) => x.date === d) ? '<span class="duty-dot">🌙</span>' : ''}
       ${startsBlock && !out ? '<span class="start-tick"></span>' : ''}
     </button>`;
   }).join('');
@@ -106,7 +109,7 @@ export function renderCalendar(state, today, ym) {
         <div class="wd-row">${WD.map((w, i) => `<span class="${i > 4 ? 'we' : ''}">${w}</span>`).join('')}</div>
         <div class="cal-grid">${cells}</div>
         <div class="cal-key">
-          <span><i class="k-hol"></i>święto</span><span>🏖 urlop</span><span>🤒 L4</span><span>🎓 kurs</span><span>↺ odrabianie</span><span>🛋 wolne za sobotę</span>
+          <span><i class="k-hol"></i>święto</span><span>🏖 urlop</span><span>🤒 L4</span><span>🎓 kurs</span><span>↺ odrabianie</span><span>🛋 wolne za sobotę</span><span>🌙 dyżur</span>
         </div>
       </div>
       <button class="btn primary add-ev" data-new-event="${today >= first && today <= last ? today : first}">＋ Dodaj urlop / L4 / nieobecność</button>
@@ -169,6 +172,7 @@ export function openDay(state, today, d, ctx) {
   if (info.lost) status.push(`↺ Ten dzień przepada w bloku – do odrobienia`);
   else if (info.block && !info.weekend && !info.absence) status.push('✓ Dzień stażu (liczy się do bloku)');
   const evs = (state.events || []).filter((e) => e.start <= d && d <= e.end);
+  const dus = (state.duties || []).filter((x) => x.date === d);
 
   const { root, close } = mount();
   root.innerHTML = sheet(fmtLong(d), `
@@ -176,12 +180,15 @@ export function openDay(state, today, d, ctx) {
     <div class="form-card">${status.map((s) => `<div class="st-row">${s}</div>`).join('') || '<div class="st-row muted">—</div>'}</div>
     ${evs.map((e) => `<button class="list-item ev-item card" data-edit-event="${esc(e.id)}"><div class="ev-ic">${EVENT_TYPES[e.type]?.icon}</div>
       <div class="grow"><div class="t">${esc(EVENT_TYPES[e.type]?.label)}</div><div class="s">${fmtDayShort(e.start)} – ${fmtDayShort(e.end)}</div></div><span class="chev">›</span></button>`).join('')}
+    ${dus.map((x) => `<button class="list-item ev-item card" data-edit-duty="${esc(x.id)}"><div class="ev-ic">🌙</div>
+      <div class="grow"><div class="t">Dyżur · ${fmtHM(x.minutes)}</div>${x.note ? `<div class="s">${esc(x.note)}</div>` : ''}</div><span class="chev">›</span></button>`).join('')}
     ${info.inStaz || d >= state.settings.startDate ? `
       <div class="quick">
         <button class="btn" data-quick="urlop">🏖 Urlop</button>
         <button class="btn" data-quick="l4">🤒 L4</button>
         <button class="btn" data-quick="inne">• Inna</button>
-      </div>` : ''}
+      </div>
+      <button class="btn" data-quick-duty style="background:var(--card);box-shadow:var(--shadow)">🌙 Dodaj dyżur</button>` : ''}
   `);
   root.addEventListener('click', (e) => {
     if (e.target.closest('[data-close]')) return close();
@@ -189,6 +196,9 @@ export function openDay(state, today, d, ctx) {
     if (q) { close(); return openEventEditor(state, today, { type: q.dataset.quick, start: d, end: d }, ctx); }
     const ee = e.target.closest('[data-edit-event]');
     if (ee) { close(); return openEventEditor(state, today, state.events.find((x) => x.id === ee.dataset.editEvent), ctx); }
+    if (e.target.closest('[data-quick-duty]')) { close(); return openDutyEditor(state, { date: d }, ctx); }
+    const ed = e.target.closest('[data-edit-duty]');
+    if (ed) { close(); return openDutyEditor(state, state.duties.find((x) => x.id === ed.dataset.editDuty), ctx); }
   });
 }
 

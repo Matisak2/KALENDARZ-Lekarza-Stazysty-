@@ -5,12 +5,14 @@ import { renderBlocks, openBlockEditor } from './blocks-ui.js';
 import { renderMore, handleMoreClick, handleMoreChange } from './more-ui.js';
 import { hospitalOf } from './hospitals.js';
 import { renderCalendar, openDay, openEventEditor, shiftMonth, todayMonth } from './calendar-ui.js';
+import { renderDuties, openDutyEditor, dutyTodayCard } from './duties-ui.js';
 import { fmtLong, fmtShort, fmtFull, fmtDayShort, toNum, todayIso, isWeekend, dni, plural } from './dates.js';
 import { holidayMap } from './holidays.js';
 
 let state = load();
 let tab = 'dzis';
 let month = null;
+let dmonth = null;
 
 // ?dzis=RRRR-MM-DD – podgląd aplikacji "na inny dzień" (do testów)
 function getToday() {
@@ -296,6 +298,7 @@ function renderToday() {
       </div>
       <div>
         ${todoCard(al)}
+        ${dutyTodayCard(state, t)}
         ${reserveCard(sum)}
         <div class="grid-2">${vacationCard(sum)}${lekCard(sum)}</div>
         ${upcomingCard(sum)}
@@ -317,6 +320,7 @@ function render() {
   if (tab !== 'dzis') document.body.style.setProperty('--page', 'var(--accent)');
   if (tab === 'dzis') html = renderToday();
   else if (tab === 'bloki') html = renderBlocks(state, getToday());
+  else if (tab === 'dyzury') html = renderDuties(state, getToday(), dmonth || (dmonth = todayMonth(getToday())));
   else if (tab === 'kalendarz') html = renderCalendar(state, getToday(), month || (month = todayMonth(getToday())));
   else html = renderMore(state);
   app.innerHTML = html;
@@ -393,6 +397,17 @@ app.addEventListener('click', (e) => {
   if (eb) return editBlock(eb.dataset.editBlock);
   const gb = e.target.closest('[data-goto-block]');
   if (gb) return editBlock(gb.dataset.gotoBlock);
+  const gt = e.target.closest('[data-goto-tab]');
+  if (gt) { tab = gt.dataset.gotoTab; window.scrollTo({ top: 0 }); return render(); }
+  const dm = e.target.closest('[data-dmonth]');
+  if (dm) {
+    dmonth = dm.dataset.dmonth === 'today' ? todayMonth(getToday()) : shiftMonth(dmonth, Number(dm.dataset.dmonth));
+    return render();
+  }
+  const nd = e.target.closest('[data-new-duty]');
+  if (nd) return openDutyEditor(state, { date: nd.dataset.newDuty }, ctx);
+  const ed = e.target.closest('[data-edit-duty]');
+  if (ed) return openDutyEditor(state, state.duties.find((x) => x.id === ed.dataset.editDuty), ctx);
   const mo = e.target.closest('[data-month]');
   if (mo) {
     month = mo.dataset.month === 'today' ? todayMonth(getToday()) : shiftMonth(month, Number(mo.dataset.month));
