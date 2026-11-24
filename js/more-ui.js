@@ -66,8 +66,13 @@ export function renderMore(state) {
     </div></div>`;
 }
 
-const RULE = `match /stazysta/{uid} {
-  allow read, write: if request.auth != null && request.auth.uid == uid;
+const RULE = `rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /stazysta/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
 }`;
 
 function syncCard() {
@@ -92,15 +97,10 @@ function syncCard() {
         <button class="btn" data-act="sync-up">Załóż konto (pierwszy raz)</button>
       </div>
       ${s.error ? `<div class="seg-err">${esc(s.error)}</div>` : ''}`}
-    <details class="course-list"><summary>Jednorazowe ustawienie w Firebase (dla właściciela)</summary>
-      <ol class="steps">
-        <li>Na komputerze otwórz <b>console.firebase.google.com</b> → projekt <b>budzet-panstwa-ciemcia</b>.</li>
-        <li>Z lewej: <b>Firestore Database</b> → zakładka <b>Rules</b> (Reguły).</li>
-        <li>Wklej poniższy fragment <b>przed dwiema ostatnimi liniami</b> z samym znakiem <code>}</code>.</li>
-        <li>Kliknij <b>Publish</b> (Opublikuj).</li>
-      </ol>
+    <details class="course-list"><summary>Ustawienia Firebase (już zrobione)</summary>
+      <p class="hint small">Projekt <b>kalendarz-stazysty</b>: logowanie e-mailem włączone, baza Firestore z zasadą „każdy widzi tylko swoje dane”. Kopia zasad: <code>firebase/firestore.rules</code> w repozytorium.</p>
       <pre class="rule">${esc(RULE)}</pre>
-      <button class="btn" data-act="copy-rule">Kopiuj fragment</button>
+      <button class="btn" data-act="copy-rule">Kopiuj zasady</button>
     </details>
   </div>`;
 }

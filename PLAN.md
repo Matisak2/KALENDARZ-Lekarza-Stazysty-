@@ -26,5 +26,5 @@
 
 ## Etap 3
 - [x] Umiejętności z programu stażu (Dz.U. 2023 poz. 377) do odhaczania + własne pozycje (książeczka stażowa – do uzupełnienia ze zdjęć)
-- [x] Synchronizacja telefon ↔ komputer: Firebase (projekt Budżetu), dokument stazysta/{uid}, nowsza wersja wygrywa, kopia przy konflikcie
+- [x] Synchronizacja telefon ↔ komputer: Firebase (osobny projekt kalendarz-stazysty), dokument stazysta/{uid}, nowsza wersja wygrywa, kopia przy konflikcie
 - [ ] Powiadomienia push (automat GitHub Actions)

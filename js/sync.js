@@ -1,14 +1,17 @@
-// Synchronizacja telefon ↔ komputer przez Firebase (ten sam projekt co aplikacja Budżet).
+// Synchronizacja telefon ↔ komputer przez Firebase (osobny projekt kalendarz-stazysty).
 // Dane leżą w Firestore pod stazysta/{uid} – dostęp ma tylko zalogowany właściciel (zasada w konsoli Firebase).
 // Telefon działa dalej bez internetu: lokalna pamięć jest główna, chmura to kopia i łącznik między urządzeniami.
 import { decideSync, toRemote, fromRemote, deviceName } from './sync-core.js';
 
 const V = '10.14.1';
+// Konfiguracja aplikacji webowej (dane publiczne – bezpieczeństwo zapewniają zasady Firestore).
 const CFG = {
-  apiKey: 'AIzaSyBda2N5_9Pdez3kzI4MFR7o2gGSSm8nLZM',
-  authDomain: 'budzet-panstwa-ciemcia.firebaseapp.com',
-  projectId: 'budzet-panstwa-ciemcia',
-  appId: '1:711621657322:web:d589b95213dd2211328d93',
+  apiKey: 'AIzaSyCel96CbdTIWXgMgLTODKaNIUHWVoYbr7U',
+  authDomain: 'kalendarz-stazysty.firebaseapp.com',
+  projectId: 'kalendarz-stazysty',
+  storageBucket: 'kalendarz-stazysty.firebasestorage.app',
+  messagingSenderId: '461989706723',
+  appId: '1:461989706723:web:12069f1b1c19820a4e7ed6',
 };
 const INFO_KEY = 'kalendarz-sync';
 const BACKUP_KEY = 'kalendarz-stazysty-kopia-konfliktu';
