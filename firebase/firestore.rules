@@ -1,0 +1,10 @@
+// 🔐 Zasady Firestore – projekt kalendarz-stazysty (KOPIA; prawdziwe są w konsoli Firebase → Firestore Database → Rules).
+// Każdy zalogowany widzi i zmienia wyłącznie swój dokument stazysta/{swoje uid}. Wszystko inne – brak dostępu.
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /stazysta/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}
