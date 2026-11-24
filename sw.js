@@ -1,5 +1,5 @@
 // Service worker: aplikacja działa offline, a nowe wersje pobiera w tle.
-const CACHE = 'stazysta-v1';
+const CACHE = 'stazysta-v3';
 const SHELL = [
   './', 'index.html', 'css/app.css', 'manifest.webmanifest',
   'js/app.js', 'js/store.js', 'js/engine.js', 'js/dates.js', 'js/holidays.js', 'js/defaults.js',
@@ -15,8 +15,20 @@ self.addEventListener('activate', (e) => {
 });
 
 // Najpierw sieć (żeby zawsze była najnowsza wersja), a bez internetu – kopia z pamięci.
+const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
+
 self.addEventListener('fetch', (e) => {
-  if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
+  if (e.request.method !== 'GET') return;
+  const url = new URL(e.request.url);
+  // Czcionka: najpierw z pamięci (rzadko się zmienia)
+  if (FONT_HOSTS.includes(url.hostname)) {
+    e.respondWith(caches.match(e.request).then((r) => r || fetch(e.request).then((res) => {
+      if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
+      return res;
+    })));
+    return;
+  }
+  if (url.origin !== location.origin) return;
   e.respondWith(
     fetch(e.request)
       .then((res) => {

@@ -106,7 +106,7 @@ function heroCard(sum) {
     <div class="hero-stats">
       <div class="stat"><b>${s.done}<small class="muted" style="font-size:14px">/${s.required}</small></b><span>dzień stażu w bloku</span></div>
       <div class="stat"><b>${s.remainingInRange}</b><span>${plural(s.remainingInRange, 'dzień roboczy', 'dni robocze', 'dni roboczych')} do końca</span></div>
-      <div class="stat"><b>${calLeft}</b><span>${calLeft === 1 ? 'dzień' : 'dni'} kalend. · do ${fmtDayShort(b.end)}</span></div>
+      <div class="stat"><b>${calLeft}</b><span>${plural(calLeft, 'dzień kalendarzowy', 'dni kalendarzowe', 'dni kalendarzowych')}</span></div>
     </div>
     ${pills.length ? `<div class="pills">${pills.join('')}</div>` : ''}
   </div>`;
@@ -168,15 +168,32 @@ function reserveCard(sum) {
   const r = sum.reserve;
   const cls = r.free < 0 ? 'neg' : r.free === 0 ? 'zero' : 'pos';
   const mode = state.settings.holidayMode;
+  const need = r.vacationUnplanned + r.coursesUnscheduled + r.makeUp + r.absences;
+  const scale = Math.max(r.workdays, need) || 1;
+  const seg = (n, cssColor, label) => (n > 0
+    ? `<div style="flex:${n};background:${cssColor}" title="${label}: ${n}"></div>` : '');
+  const over = Math.max(0, need - r.workdays);
+  const freeN = Math.max(0, r.workdays - need);
   return `<div class="card fade">
-    <div class="card-label">Bilans rezerwy · ${fmtShort(r.start)}–${fmtShort(r.end)}</div>
-    <div class="rows">
-      <div class="row"><span>Dni robocze w rezerwie</span><span class="v">${r.workdays}</span></div>
-      <div class="row"><span>Urlop jeszcze do wykorzystania</span><span class="v">− ${r.vacationUnplanned}</span></div>
-      <div class="row"><span>Kursy bez terminu (OIL)</span><span class="v">− ${r.coursesUnscheduled}</span></div>
-      <div class="row"><span>Dni do odrobienia z bloków</span><span class="v">− ${r.makeUp}</span></div>
-      ${r.absences ? `<div class="row"><span>Nieobecności wpisane w rezerwie</span><span class="v">− ${r.absences}</span></div>` : ''}
-      <div class="row total"><span>Zapas</span><span class="v ${cls}">${r.free > 0 ? '+' : ''}${r.free} ${plural(r.free, 'dzień', 'dni', 'dni')}</span></div>
+    <div class="card-label">Rezerwa na koniec stażu · ${fmtShort(r.start)}–${fmtShort(r.end)}</div>
+    <div class="res-head">
+      <div><div class="big ${cls}">${r.free > 0 ? '+' : ''}${r.free}</div>
+        <div class="sub">${r.free < 0 ? 'dni brakuje' : r.free === 0 ? 'zapasu – idealnie na styk' : 'dni zapasu'}</div></div>
+      <div class="sub" style="text-align:right">${r.workdays} dni roboczych<br>w rezerwie</div>
+    </div>
+    <div class="stack-bar" style="--scale:${scale}">
+      ${seg(r.vacationUnplanned, 'var(--c-vacation)', 'Urlop')}
+      ${seg(r.coursesUnscheduled, 'var(--c-course)', 'Kursy')}
+      ${seg(r.makeUp, 'var(--c-sick)', 'Odrabianie')}
+      ${seg(r.absences, 'var(--c-gray)', 'Nieobecności')}
+      ${seg(freeN, 'var(--track)', 'Zapas')}
+      ${over ? `<div class="over" style="flex:${over}" title="Brakuje: ${over}"></div>` : ''}
+    </div>
+    <div class="legend-rows">
+      <div><i style="background:var(--c-vacation)"></i>Urlop do wykorzystania<b>${r.vacationUnplanned}</b></div>
+      <div><i style="background:var(--c-course)"></i>Kursy bez terminu<b>${r.coursesUnscheduled}</b></div>
+      <div><i style="background:var(--c-sick)"></i>Odrabianie z bloków<b>${r.makeUp}</b></div>
+      ${r.absences ? `<div><i style="background:var(--c-gray)"></i>Nieobecności w rezerwie<b>${r.absences}</b></div>` : ''}
     </div>
     <div class="segmented" role="group" aria-label="Jak liczyć święta">
       <button data-holiday-mode="odrabiane" class="${mode === 'odrabiane' ? 'on' : ''}">Święta odrabiane</button>
@@ -184,8 +201,8 @@ function reserveCard(sum) {
     </div>
     <div class="note">${mode === 'odrabiane'
       ? 'Wg praktyki USK2: święto w trakcie bloku przepada i trzeba je odrobić.'
-      : 'Wg poradnika OIL Szczecin 2026 (s. 36): „Dni ustawowo wolne od pracy nie wydłużają stażu cząstkowego (liczą się jako dni robocze)”.'}
-      ${r.free < 0 ? ` Przy tym założeniu staż potrwa do ok. <b>${fmtFull(sum.estimatedEnd)}</b>.` : ''}</div>
+      : 'Wg poradnika OIL Szczecin 2026 (s. 36): „Dni ustawowo wolne od pracy nie wydłużają stażu cząstkowego”.'}
+      ${r.free < 0 ? ` Staż potrwa wtedy do ok. <b>${fmtFull(sum.estimatedEnd)}</b>.` : ''}</div>
   </div>`;
 }
 
@@ -237,30 +254,39 @@ function upcomingCard(sum) {
   </div>`;
 }
 
+function todoCard(al) {
+  if (!al.length) return '';
+  const order = { urgent: 0, warn: 1, info: 2 };
+  const rows = [...al].sort((a, b) => order[a.level] - order[b.level]).map((a) => `
+    <div class="todo ${a.level}">
+      <div class="todo-ic">${a.icon}</div>
+      <div class="grow"><div class="t">${esc(a.title)}</div><div class="s">${esc(a.detail || '')}</div></div>
+    </div>`).join('');
+  return `<div class="card fade todo-card"><div class="card-label">Na dziś · ${al.length}</div>${rows}</div>`;
+}
+
 function renderToday() {
   const t = getToday();
   const sum = summarize(state, t);
   const al = alerts(sum);
-  const card = (a) => `<div class="card alert ${a.level} fade"><div class="ic">${a.icon}</div><div><b>${esc(a.title)}</b><span>${esc(a.detail || '')}</span></div></div>`;
-  const urgentHtml = al.filter((a) => a.level === 'urgent').map(card).join('');
-  const alertHtml = al.filter((a) => a.level !== 'urgent').map((a) => `<div class="card alert ${a.level} fade"><div class="ic">${a.icon}</div><div><b>${esc(a.title)}</b><span>${esc(a.detail || '')}</span></div></div>`).join('');
+  const blk = sum.current ? color(sum.current.block) : 'var(--accent)';
+  document.body.style.setProperty('--page', blk);
 
   return `
-    <div class="eyebrow">${fmtLong(t)}</div>
-    <h1 class="large-title">Dziś</h1>
-    ${urgentHtml}
+    <header class="page-head">
+      <div class="eyebrow">${fmtLong(t)}</div>
+      <h1 class="large-title">Dziś</h1>
+    </header>
     <div class="desk-2">
       <div>
         ${heroCard(sum)}
         ${nextCards(sum)}
-        <div style="height:12px"></div>
         ${progressCard(sum)}
       </div>
       <div>
-        ${alertHtml}
+        ${todoCard(al)}
         ${reserveCard(sum)}
         <div class="grid-2">${vacationCard(sum)}${lekCard(sum)}</div>
-        <div style="height:12px"></div>
         ${upcomingCard(sum)}
       </div>
     </div>`;

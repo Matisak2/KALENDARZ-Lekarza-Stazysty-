@@ -33,7 +33,7 @@
   --r-lg: 22px;
   --r-md: 16px;
   --r-sm: 11px;
-  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font: "Nunito", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Arial, sans-serif;
   color-scheme: light;
 }
 
@@ -106,11 +106,19 @@ html, body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.4;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-body { min-height: 100vh; min-height: 100dvh; }
+body {
+  min-height: 100vh; min-height: 100dvh;
+  background:
+    radial-gradient(120% 340px at 50% -60px, color-mix(in srgb, var(--page, var(--accent)) 16%, transparent), transparent 75%),
+    var(--bg);
+  background-repeat: no-repeat;
+}
 
 button { font: inherit; color: inherit; }
 
@@ -132,7 +140,7 @@ button { font: inherit; color: inherit; }
 .large-title {
   font-size: 34px;
   line-height: 1.1;
-  font-weight: 800;
+  font-weight: 900;
   letter-spacing: -0.02em;
   margin: 0 4px 18px;
 }
@@ -156,7 +164,7 @@ button { font: inherit; color: inherit; }
 }
 .card-label {
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-2);
@@ -179,15 +187,14 @@ button { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) { .fade { animation: none; opacity: 1; transform: none; } }
 
 /* Hero – bieżący blok */
-.hero { padding: 20px; }
-.hero::before {
-  content: "";
-  position: absolute; inset: 0;
-  background: radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--block) 22%, transparent), transparent 60%);
-  pointer-events: none;
+.hero {
+  padding: 20px;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--block) 16%, var(--card)), color-mix(in srgb, var(--block) 6%, var(--card)));
+  border: 1px solid color-mix(in srgb, var(--block) 22%, transparent);
 }
+.hero .stat { background: color-mix(in srgb, var(--card-2) 75%, transparent); }
 .hero-top { display: flex; gap: 16px; align-items: center; position: relative; }
-.hero-name { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; margin: 2px 0 4px; }
+.hero-name { font-size: 27px; font-weight: 900; letter-spacing: -0.02em; line-height: 1.1; margin: 2px 0 4px; }
 .hero-place { font-size: 14px; color: var(--text-2); }
 .hero-info { flex: 1; min-width: 0; }
 .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--block); display: inline-block; flex: none; }
@@ -203,7 +210,7 @@ button { font: inherit; color: inherit; }
 .hero-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 18px; position: relative; }
 .stat { background: var(--card-2); border-radius: var(--r-md); padding: 12px 10px; text-align: center; }
 .stat b { display: block; font-size: 24px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-.stat span { font-size: 12px; color: var(--text-2); line-height: 1.25; display: block; margin-top: 2px; }
+.stat span { font-size: 12.5px; font-weight: 600; color: var(--text-2); line-height: 1.25; display: block; margin-top: 3px; }
 
 /* Pierścień postępu */
 .ring { position: relative; flex: none; }
@@ -215,7 +222,7 @@ button { font: inherit; color: inherit; }
 .ring-center span { font-size: 11px; color: var(--text-2); margin-top: -2px; }
 
 /* Duże liczby */
-.big { font-size: 34px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+.big { font-size: 34px; font-weight: 900; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
 .big small { font-size: 15px; font-weight: 600; color: var(--text-2); letter-spacing: 0; margin-left: 3px; }
 .sub { font-size: 14px; color: var(--text-2); margin-top: 6px; line-height: 1.35; }
 .next-name { font-size: 18px; font-weight: 700; margin: 2px 0 2px; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
@@ -307,3 +314,28 @@ button { font: inherit; color: inherit; }
   .desk-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
   .desk-2 > .card, .desk-2 > div > .card { margin-bottom: 12px; }
 }
+
+/* Lista „Na dziś” */
+.todo { display: flex; gap: 12px; align-items: flex-start; padding: 11px 0; border-bottom: 0.5px solid var(--sep); }
+.todo:last-child { border-bottom: 0; padding-bottom: 2px; }
+.todo-ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-size: 17px; background: var(--card-2); flex: none; }
+.todo .grow { flex: 1; min-width: 0; }
+.todo .t { font-size: 15px; font-weight: 700; line-height: 1.3; }
+.todo .s { font-size: 13px; color: var(--text-2); margin-top: 2px; }
+.todo.urgent .todo-ic { background: color-mix(in srgb, var(--danger) 16%, transparent); }
+.todo.urgent .t { color: var(--danger); }
+.todo.warn .todo-ic { background: color-mix(in srgb, var(--warn) 18%, transparent); }
+
+/* Rezerwa – pasek skumulowany */
+.res-head { display: flex; justify-content: space-between; align-items: flex-end; margin: 4px 0 14px; }
+.stack-bar { display: flex; gap: 3px; height: 16px; border-radius: 8px; overflow: hidden; }
+.stack-bar > div { min-width: 4px; }
+.stack-bar .over { background: repeating-linear-gradient(135deg, var(--danger) 0 4px, color-mix(in srgb, var(--danger) 35%, transparent) 4px 8px); }
+.legend-rows { margin-top: 12px; display: grid; gap: 7px; font-size: 14px; }
+.legend-rows > div { display: flex; align-items: center; gap: 9px; }
+.legend-rows i { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.legend-rows b { margin-left: auto; font-variant-numeric: tabular-nums; }
+
+/* Odstępy między sekcjami */
+.grid-2 { margin-bottom: 12px; }
+.page-head { margin-bottom: 4px; }
