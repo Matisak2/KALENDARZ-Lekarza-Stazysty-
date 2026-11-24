@@ -232,6 +232,18 @@ export function alerts(sum) {
     }
   }
   const st = sum.ctx.state;
+  // Karta czasu pracy: ostatnie 3 dni miesiąca i pierwsze 5 dni kolejnego
+  {
+    const [y, m, dd] = today.split('-').map(Number);
+    const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    let ym = null;
+    if (dd >= lastDay - 2) ym = today.slice(0, 7);
+    else if (dd <= 5) { const t = y * 12 + (m - 1) - 1; ym = `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}`; }
+    const inStaz = ym && `${ym}-31` >= st.settings.startDate && `${ym}-01` <= st.settings.endDate;
+    if (inStaz && !st.timesheets?.[ym]?.generatedAt) {
+      out.push({ level: 'info', icon: '🗂', action: 'timesheet', ym, title: `Karta czasu pracy za ${['styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec', 'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień'][Number(ym.slice(5)) - 1]}`, detail: 'Wygeneruj PDF i oddaj do podpisu' });
+    }
+  }
   // Książeczka: blok kończy się w ciągu 5 dni albo już się skończył, a brakuje podpisów
   const unsigned = sum.stats.filter((s) => toNum(s.block.end) - toNum(today) <= 5)
     .map((s) => ({ b: s.block, p: bookletProgress(st, s.block) })).filter((x) => x.p.missing.length);

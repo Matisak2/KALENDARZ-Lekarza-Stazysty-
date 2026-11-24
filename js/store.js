@@ -48,6 +48,7 @@ export function migrate(data) {
   data.skills = data.skills || {};
   data.customSkills = data.customSkills || {};
   data.booklet = data.booklet || {};
+  data.timesheets = data.timesheets || {};
   data.study = { ...def.study, ...(data.study || {}) };
   data.meta = { ...def.meta, ...data.meta };
   return data.version === SCHEMA_VERSION ? data : null;

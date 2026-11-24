@@ -8,6 +8,7 @@ import { hospitalOf } from './hospitals.js';
 import { renderCalendar, openDay, openEventEditor, shiftMonth, todayMonth } from './calendar-ui.js';
 import { renderDuties, openDutyEditor, dutyTodayCard } from './duties-ui.js';
 import { renderLek, handleLekClick, handleLekChange, handleLekInput } from './lek-ui.js';
+import { openTimesheet } from './timesheet-ui.js';
 import { fmtLong, fmtShort, fmtFull, fmtDayShort, toNum, todayIso, isWeekend, dni, plural } from './dates.js';
 import { holidayMap } from './holidays.js';
 
@@ -273,7 +274,7 @@ function todoCard(al, label = 'Na dziś') {
   if (!al.length) return '';
   const order = { urgent: 0, warn: 1, info: 2 };
   const rows = [...al].sort((a, b) => order[a.level] - order[b.level]).map((a) => `
-    <div class="todo ${a.level}" ${a.action === 'backup' ? 'data-goto-tab="wiecej" role="button"' : ''}${a.action === 'booklet' ? ` data-goto-block="${a.blockId}" role="button"` : ''}>
+    <div class="todo ${a.level}" ${a.action === 'backup' ? 'data-goto-tab="wiecej" role="button"' : ''}${a.action === 'booklet' ? ` data-goto-block="${a.blockId}" role="button"` : ''}${a.action === 'timesheet' ? ` data-open-ts="${a.ym}" role="button"` : ''}>
       <div class="todo-ic">${a.icon}</div>
       <div class="grow"><div class="t">${esc(a.title)}</div><div class="s">${esc(a.detail || '')}</div></div>
       ${a.action === 'deadline-done' ? `<button class="chip" data-deadline-done="${a.date}">Zrobione ✓</button>` : ''}
@@ -420,6 +421,8 @@ app.addEventListener('click', (e) => {
   if (eb) return editBlock(eb.dataset.editBlock);
   const gb = e.target.closest('[data-goto-block]');
   if (gb) return editBlock(gb.dataset.gotoBlock);
+  const ots = e.target.closest('[data-open-ts]');
+  if (ots) return openTimesheet(state, getToday(), ctx, ots.dataset.openTs);
   const dd = e.target.closest('[data-deadline-done]');
   if (dd) {
     const dl = state.settings.lek.deadlines.find((x) => x.date === dd.dataset.deadlineDone);

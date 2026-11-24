@@ -78,6 +78,7 @@ export function defaultState() {
     customSkills: {},
     booklet: {},
     study: { courses: [], done: {}, plans: [], activePlan: null, attempts: [], mocks: [] },
+    timesheets: {},
     meta: { lastBackup: null, createdAt: null },
   };
 }

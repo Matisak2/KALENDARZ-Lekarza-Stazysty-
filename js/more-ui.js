@@ -5,6 +5,7 @@ import { fmtFull, fmtShort, fmtDayShort, addDays, isWeekend, toNum } from './dat
 import { holidayMap } from './holidays.js';
 import { BOOKLET_COURSES, bookletProgress, coursesSigned } from './booklet.js';
 import { syncStatus, signIn, signUp, signOutSync, syncNow } from './sync.js';
+import { openTimesheet } from './timesheet-ui.js';
 import { esc } from './blocks-ui.js';
 
 export function renderMore(state) {
@@ -17,6 +18,9 @@ export function renderMore(state) {
       <h1 class="large-title">Więcej</h1>
     </header>
     <div class="desk-2"><div>
+      <div class="card fade"><div class="card-label">🗂 Karta czasu pracy (wzór USK2)</div>
+        <p class="sub">Wypełnia się sama z kalendarza: dni pracy, urlopy, L4, kursy, święta i dyżury. Podgląd i PDF do wysłania lub wydruku.</p>
+        <button class="btn primary" data-act="timesheet">Otwórz kartę za ten miesiąc</button></div>
       ${syncCard()}
       ${bookletCard(state)}
       ${coursesCard(state)}
@@ -270,6 +274,7 @@ export function handleMoreClick(e, ctx) {
     return true;
   }
   if (act === 'sync-now') { syncNow(); return true; }
+  if (act === 'timesheet') { openTimesheet(ctx.state, ctx.today(), ctx); return true; }
   if (act === 'copy-rule') {
     navigator.clipboard?.writeText(RULE).then(() => ctx.toast('Skopiowano ✓'), () => ctx.toast('Zaznacz tekst i skopiuj ręcznie'));
     return true;

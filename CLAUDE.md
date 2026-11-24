@@ -32,6 +32,7 @@ Pokazuje bloki stażu, dni robocze, święta, urlop, kursy OIL, odrabianie, dyż
 - `js/lek.js` (logika planera: wagi dziedzin LEK, import spisu WNL, godziny z grafiku, `buildPlan`, szacunek wyniku) + `js/lek-ui.js` (zakładka LEK); stan w `state.study`.
   Spisy kursów WNL tylko w danych użytkownika (nigdy w kodzie – materiały WNL). Hasła do WNL nie przyjmujemy.
 - `js/specs.js` + `data/nabory.json` (generuje `python3 scripts/nabory.py` z PDF-ów CMKP; wymaga pdftotext). Próg = min. wynik zakwalifikowanych, gdy miejsca obsadzone.
+- `js/timesheet.js` (karta czasu pracy wg wzoru USK2: zapis „7,35” = 7 h 35 min, sumy „166.50”) + `js/timesheet-ui.js` (podgląd, PDF przez `window.print` i CSS @media print). Imię i nazwisko w `settings.personal` – tylko lokalnie.
 - `js/duties-ui.js` – zakładka Dyżury (logika: `dutyMonth`, `dutyRoomOn`, `dutyTotals` w engine.js).
 - `js/calendar-ui.js` – ekran Kalendarz (miesiąc, okno dnia, formularz wpisu z podglądem `eventImpact`).
 - Blok: `segments: [{id,start,end,hospital,ward,customName?,customAddress?}]` – oddziały; nie wpływają na liczenie dni.

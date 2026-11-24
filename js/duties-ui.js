@@ -99,7 +99,7 @@ export function renderDuties(state, today, ym) {
 
 export function openDutyEditor(state, duty, ctx) {
   const isNew = !state.duties.some((x) => x.id === duty.id);
-  const draft = { id: duty.id || `d${Date.now()}`, date: duty.date, minutes: duty.minutes ?? null, note: duty.note || '' };
+  const draft = { id: duty.id || `d${Date.now()}`, date: duty.date, minutes: duty.minutes ?? null, note: duty.note || '', start: duty.start || '' };
   if (draft.minutes == null) draft.minutes = Math.min(DUTY_WEEK_LIMIT, dutyRoomOn(state, draft.date).room) || 300;
 
   const root = document.createElement('div');
@@ -128,6 +128,8 @@ export function openDutyEditor(state, duty, ctx) {
             <label>Minuty<input type="number" inputmode="numeric" min="0" max="59" step="1" data-f="m" value="${mi}"></label>
           </div>
           <div class="chips">${chips}</div>
+          <label>Początek dyżuru (do karty czasu pracy)<input type="time" data-f="start" value="${esc(draft.start || '')}" placeholder="15:35"></label>
+          <p class="hint small">Puste = w dzień pracy od 15:35 (po zmianie), w weekend i święto od 8:00.</p>
           <label>Notatka<input data-f="note" value="${esc(draft.note)}" placeholder="np. SOR, oddział"></label>
         </div>
         <div class="form-card impact">
@@ -167,6 +169,7 @@ export function openDutyEditor(state, duty, ctx) {
       const mm = Math.min(59, Number(root.querySelector('[data-f="m"]').value) || 0);
       draft.minutes = Math.max(0, hh * 60 + mm);
     } else if (f === 'note') { draft.note = e.target.value; return; }
+    else if (f === 'start') { draft.start = e.target.value; return; }
     draw();
   });
   root.addEventListener('input', (e) => { if (e.target.dataset.f === 'note') draft.note = e.target.value; });

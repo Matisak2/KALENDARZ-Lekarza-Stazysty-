@@ -31,6 +31,9 @@
 - [x] Specjalizacje: miejsca i progi z 4 ostatnich naborów CMKP (scripts/nabory.py -> data/nabory.json), cel do planu
 - [x] Automat: zaplanowane zadanie 2× w roku (koniec kwietnia i listopada) odświeża data/nabory.json
 
+## Karta czasu pracy
+- [x] Wzór USK2 (Wydanie 4): wypełnianie z kalendarza (praca 8.00–15.35, urlop UW, L4, kursy, święta, dyżury), sumy RA/M, PDF przez druk, przypomnienie na koniec miesiąca, godzina startu dyżuru
+
 ## Etap 3
 - [x] Umiejętności z programu stażu (Dz.U. 2023 poz. 377) do odhaczania + własne pozycje (książeczka stażowa – do uzupełnienia ze zdjęć)
 - [x] Synchronizacja telefon ↔ komputer: Firebase (osobny projekt kalendarz-stazysty), dokument stazysta/{uid}, nowsza wersja wygrywa, kopia przy konflikcie
