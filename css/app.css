@@ -580,3 +580,21 @@ body.no-scroll { overflow: hidden; }
 .note-prev { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bc-note { margin-top: 8px; font-size: 13.5px; color: var(--text-2); background: var(--card-2); border-radius: 10px; padding: 8px 10px; white-space: pre-wrap; }
 [data-goto-tab].todo { cursor: pointer; }
+
+/* Umiejętności */
+.bc-skills { display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; align-items: center; margin-top: 10px; font-size: 13.5px; color: var(--text-2); }
+.bc-skills b { justify-self: end; color: var(--text); }
+.bc-bar.sm { grid-column: 1 / -1; height: 5px; margin-top: 0; }
+.bc-bar.sm > div { background: var(--ok); }
+.skills { padding: 6px 14px; }
+.skill { display: flex !important; align-items: center; gap: 12px; padding: 11px 0; margin: 0 !important; border-bottom: 0.5px solid var(--sep); cursor: pointer;
+  font-size: 15px !important; font-weight: 600 !important; color: var(--text) !important; }
+.skill input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.skill .box { width: 24px; height: 24px; border-radius: 7px; border: 2px solid var(--text-3); flex: none; display: grid; place-items: center; transition: all .15s; }
+.skill.on .box { background: var(--ok); border-color: var(--ok); }
+.skill.on .box::after { content: "✓"; color: #fff; font-weight: 900; font-size: 15px; }
+.skill .nm { flex: 1; line-height: 1.35; }
+.skill.on .nm { color: var(--text-2); }
+.skill .nm small { display: block; font-size: 12px; color: var(--ok); font-weight: 700; }
+.row-add { display: flex; gap: 8px; align-items: center; padding: 10px 0 4px; }
+.row-add input { margin-top: 0 !important; }

@@ -17,6 +17,6 @@
 - [x] Notatki do dnia (kalendarz) i do bloku (edycja bloku); LEK: odliczanie + terminy w .ics
 
 ## Etap 3
-- [ ] Procedury z książeczki stażowej (odhaczanie)
+- [x] Umiejętności z programu stażu (Dz.U. 2023 poz. 377) do odhaczania + własne pozycje (książeczka stażowa – do uzupełnienia ze zdjęć)
 - [ ] Synchronizacja telefon ↔ komputer (np. Firebase jak w aplikacji budżetowej)
 - [ ] Powiadomienia push (automat GitHub Actions)

@@ -72,6 +72,8 @@ export function defaultState() {
     events: [],
     duties: [],
     notes: {},
+    skills: {},
+    customSkills: {},
     meta: { lastBackup: null, createdAt: null },
   };
 }

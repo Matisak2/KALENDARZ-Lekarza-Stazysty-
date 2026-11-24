@@ -24,6 +24,8 @@ export function migrate(data) {
   data.events = data.events || [];
   data.duties = data.duties || [];
   data.notes = data.notes || {};
+  data.skills = data.skills || {};
+  data.customSkills = data.customSkills || {};
   data.meta = { ...def.meta, ...data.meta };
   return data.version === SCHEMA_VERSION ? data : null;
 }

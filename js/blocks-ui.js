@@ -1,7 +1,8 @@
 // Ekran „Bloki”: oś czasu bloków, oddziały (podział na tygodnie) i edycja bloku.
 import { summarize, blockWeeks, checkSegments } from './engine.js';
 import { HOSPITALS, hospitalOf } from './hospitals.js';
-import { fmtShort, fmtDayShort, fmtFull, toNum, plural } from './dates.js';
+import { fmtShort, fmtDayShort, fmtFull, toNum, plural, todayIso } from './dates.js';
+import { SKILLS, skillProgress } from './skills.js';
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const color = (b) => `var(--c-${b.color || 'gray'})`;
@@ -56,6 +57,8 @@ export function renderBlocks(state, today) {
         ${s.makeUp ? `<span class="neg">↺ ${s.makeUp} do odrobienia</span>` : `<span class="muted">${Math.round(pct * 100)}%</span>`}</div>
       <div class="segs">${segmentsHtml(state, b)}</div>
       ${state.notes?.['block:' + b.id] ? `<div class="bc-note">📝 ${esc(state.notes['block:' + b.id])}</div>` : ''}
+      ${(() => { const sp = skillProgress(state, b.id); return sp.total ? `<div class="bc-skills"><span>✓ Umiejętności</span><b>${sp.done}/${sp.total}</b>
+        <div class="bc-bar sm"><div style="width:${(sp.done / sp.total) * 100}%"></div></div></div>` : ''; })()}
     </button>`;
   }).join('');
 
@@ -160,9 +163,31 @@ export function openBlockEditor(state, blockId, onSave) {
   };
 
   let noteDraft = state.notes?.['block:' + draft.id] || '';
+  const skillsDraft = { ...(state.skills || {}) };
+  const customDraft = [...(state.customSkills?.[draft.id] || [])];
+  let newSkill = '';
+  const skillsHtml = () => {
+    const base = (SKILLS[draft.id]?.items || []).map((name, i) => ({ key: `${draft.id}:${i}`, name }));
+    const own = customDraft.map((c) => ({ key: `${draft.id}:own:${c.id}`, name: c.name, id: c.id }));
+    const all = [...base, ...own];
+    const done = all.filter((x) => skillsDraft[x.key]).length;
+    return `<div class="section-title small-title">Umiejętności ${all.length ? `<span class="muted">${done}/${all.length}</span>` : ''}</div>
+      ${SKILLS[draft.id] ? `<p class="hint">${esc(SKILLS[draft.id].source)} (Dz.U. 2023 poz. 377).</p>` : '<p class="hint">Dla tego bloku program nie wymienia listy – możesz dopisać własne pozycje.</p>'}
+      <div class="form-card skills">
+        ${all.map((x) => `<label class="skill ${skillsDraft[x.key] ? 'on' : ''}">
+          <input type="checkbox" data-skill="${esc(x.key)}" ${skillsDraft[x.key] ? 'checked' : ''}>
+          <span class="box"></span><span class="nm">${esc(x.name)}${skillsDraft[x.key]?.date ? `<small>${fmtShort(skillsDraft[x.key].date)}</small>` : ''}</span>
+          ${x.id ? `<button class="link danger" data-skill-del="${esc(x.id)}">Usuń</button>` : ''}</label>`).join('')}
+        <div class="row-add"><input data-newskill value="${esc(newSkill)}" placeholder="Dopisz własną umiejętność / procedurę"><button class="link strong" data-skill-add>Dodaj</button></div>
+      </div>`;
+  };
   const draw = () => {
     const nEl = root.querySelector('[data-blocknote]');
     if (nEl) noteDraft = nEl.value;
+    const nsEl = root.querySelector('[data-newskill]');
+    if (nsEl) newSkill = nsEl.value;
+    const scroll = root.querySelector('.sheet-body')?.scrollTop || 0;
+    queueMicrotask(() => { const b2 = root.querySelector('.sheet-body'); if (b2) b2.scrollTop = scroll; });
     const weeks = blockWeeks(draft, state.settings.startDate);
     const errs = errors();
     root.innerHTML = `<div class="sheet-backdrop" data-close></div>
@@ -190,6 +215,7 @@ export function openBlockEditor(state, blockId, onSave) {
         ${draft.segments.map((s, k) => segEditorHtml(state, draft, weeks, s, k)).join('')}
         <button class="add-btn" data-seg-add>＋ Dodaj kolejny oddział (podział bloku)</button>
         ${errs.length ? `<div class="seg-err">${errs.map(esc).join('<br>')}</div>` : ''}
+        ${skillsHtml()}
         <div class="hint small">Daty bloku: ${fmtFull(draft.start)} – ${fmtFull(draft.end)} · ${weeks.length} ${plural(weeks.length, 'tydzień', 'tygodnie', 'tygodni')}
           (tydzień stażu ${weeks[0]?.n ?? '–'}–${weeks.at(-1)?.n ?? '–'})</div>
       </div>
@@ -210,12 +236,27 @@ export function openBlockEditor(state, blockId, onSave) {
     if (e.target.closest('[data-save]')) {
       if (errors().length) return;
       draft.segments = draft.segments.filter((s) => s.hospital).map(({ _otherWard, ...s }) => s);
+      state.skills = skillsDraft;
+      state.customSkills = { ...(state.customSkills || {}), [draft.id]: customDraft };
       const bn = root.querySelector('[data-blocknote]')?.value.trim();
       state.notes = state.notes || {};
       if (bn) state.notes['block:' + draft.id] = bn; else delete state.notes['block:' + draft.id];
       draft.required = Number(draft.required) || 0;
       onSave(draft);
       return close();
+    }
+    if (e.target.closest('[data-skill-add]')) {
+      const v = (root.querySelector('[data-newskill]')?.value || '').trim();
+      if (v) { customDraft.push({ id: String(Date.now()), name: v }); newSkill = ''; }
+      return draw();
+    }
+    const sd = e.target.closest('[data-skill-del]');
+    if (sd) {
+      e.preventDefault();
+      const i = customDraft.findIndex((c) => c.id === sd.dataset.skillDel);
+      delete skillsDraft[`${draft.id}:own:${sd.dataset.skillDel}`];
+      customDraft.splice(i, 1);
+      return draw();
     }
     const sw = e.target.closest('[data-color]');
     if (sw) { draft.color = sw.dataset.color; return draw(); }
@@ -238,6 +279,11 @@ export function openBlockEditor(state, blockId, onSave) {
 
   root.addEventListener('change', (e) => {
     const el = e.target;
+    if (el.dataset.skill) {
+      if (el.checked) skillsDraft[el.dataset.skill] = { date: todayIso() }; else delete skillsDraft[el.dataset.skill];
+      return draw();
+    }
+    if (el.dataset.newskill !== undefined) { newSkill = el.value; return; }
     if (el.dataset.b) {
       draft[el.dataset.b] = el.value;
       if (el.dataset.b === 'start' || el.dataset.b === 'end') clampSegs();
