@@ -82,14 +82,14 @@ test('Eksport .ics: adres oddziału w polu LOCATION, daty całodniowe, poprawne 
 
 import { migrate, parseBackup, backupText } from '../js/store.js';
 
-test('Migracja v1 -> v2: dodaje oddziały domyślne, zachowuje wpisy użytkownika', () => {
+test('Migracja v1 -> v3: dodaje oddziały domyślne, zachowuje wpisy użytkownika', () => {
   const v1 = defaultState();
   v1.version = 1;
   for (const b of v1.blocks) { delete b.segments; b.place = 'USK2'; }
   v1.events.push({ id: 'u1', type: 'urlop', start: '2027-09-06', end: '2027-09-10' });
   v1.blocks.find((b) => b.id === 'int').start = '2027-02-11'; // zmieniony przez użytkownika
   const m = migrate(v1);
-  assert.equal(m.version, 2);
+  assert.equal(m.version, 3);
   assert.equal(m.events.length, 1);
   assert.equal(m.blocks.find((b) => b.id === 'pers1').segments[0].hospital, 'zdroje');
   assert.deepEqual(m.blocks.find((b) => b.id === 'int').segments, []);

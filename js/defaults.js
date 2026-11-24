@@ -1,7 +1,7 @@
 // Domyślne dane: harmonogram grupy 6 (staż 01.10.2026–31.10.2027, USK2 Szczecin).
 // Wszystko można zmienić w aplikacji – to tylko punkt startowy.
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 /** Typy wpisów kalendarza (nieobecności i inne zdarzenia). */
 export const EVENT_TYPES = {

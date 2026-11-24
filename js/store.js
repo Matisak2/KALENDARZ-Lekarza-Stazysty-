@@ -18,6 +18,18 @@ export function migrate(data) {
     }
     data.version = 2;
   }
+  if (data.version < 3) {
+    // v3: lista umiejętności z pediatrii ułożona jak w książeczce – przenieś odhaczone pozycje
+    const map = { 0: 2, 1: 0, 2: 4, 3: 5, 4: 6, 5: 7, 6: 8, 7: 9, 8: 10, 9: 11, 10: 3 };
+    const sk = data.skills || {};
+    const moved = {};
+    for (const [k, v] of Object.entries(sk)) {
+      const m = /^ped:(\d+)$/.exec(k);
+      if (m) moved[`ped:${map[m[1]]}`] = v; else moved[k] = v;
+    }
+    data.skills = moved;
+    data.version = 3;
+  }
   // Uzupełnij brakujące pola nowszymi domyślnymi (bez nadpisywania wpisanych)
   data.settings = { ...def.settings, ...data.settings };
   data.courses = data.courses || def.courses;

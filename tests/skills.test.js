@@ -8,7 +8,9 @@ test('Umiejętności z programu stażu: liczby pozycji', () => {
   assert.equal(SKILLS.int.items.length, 9);
   assert.equal(SKILLS.chir.items.length, 9);
   assert.equal(SKILLS.rodz.items.length, 19);
-  assert.ok(SKILLS.ped.items.length + SKILLS.neo.items.length >= 15);
+  assert.equal(SKILLS.ped.items.length, 12);
+  assert.equal(SKILLS.neo.items.length, 6);
+  assert.equal(SKILLS.ped.items[1], 'Pielęgnacja i karmienie niemowlęcia');
 });
 
 test('Odhaczanie i własne pozycje', () => {
@@ -29,4 +31,16 @@ test('Migracja uzupełnia pola skills/customSkills', () => {
   const m = migrate(st);
   assert.deepEqual(m.skills, {});
   assert.deepEqual(m.customSkills, {});
+});
+
+test('Migracja v2 -> v3: odhaczone umiejętności z pediatrii przechodzą na nowe miejsca', () => {
+  const st = defaultState();
+  st.version = 2;
+  st.skills = { 'ped:0': { date: '2027-07-20' }, 'ped:10': { date: '2027-07-21' }, 'int:1': { date: '2027-02-10' } };
+  const m = migrate(st);
+  assert.equal(m.version, 3);
+  assert.deepEqual(m.skills['ped:2'], { date: '2027-07-20' }); // wywiad
+  assert.deepEqual(m.skills['ped:3'], { date: '2027-07-21' }); // resuscytacja
+  assert.ok(!m.skills['ped:0']);
+  assert.deepEqual(m.skills['int:1'], { date: '2027-02-10' });
 });

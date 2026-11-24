@@ -45,7 +45,7 @@ export const BOOKLET = {
     page: 'Staż cząstkowy w dziedzinie pediatrii – część neonatologiczna',
     items: [
       ...part('neo', 'Neonatologia'),
-      skills('neo', 'Postępowanie z noworodkiem i pozostałe umiejętności – data i podpis opiekuna'),
+      skills('neo', 'Umiejętności noworodkowe (Apgar, testy przesiewowe, wady wrodzone…) – data, pieczątka i podpis opiekuna'),
     ],
     note: 'Kolokwium końcowe i pieczątki są wspólne z pediatrią – odhaczysz je w bloku Pediatria.',
   },
@@ -54,7 +54,7 @@ export const BOOKLET = {
     items: [
       ...part('ped', 'Pediatria'),
       ...end('ped'),
-      skills('ped', 'Umiejętności z pediatrii – data, pieczątka i podpis opiekuna'),
+      skills('ped', 'Umiejętności z pediatrii (12 pozycji) – data, pieczątka i podpis opiekuna'),
     ],
   },
   anest: {
