@@ -24,7 +24,8 @@ Pokazuje bloki stażu, dni robocze, święta, urlop, kursy OIL, odrabianie, dyż
 - `js/hospitals.js` – szpitale Szczecin/Police z oddziałami i adresami (ze stron szpitali, 11.2026).
 - `js/ics.js` – eksport do Kalendarza (.ics) z adresem oddziału w LOCATION i alarmami LEK.
 - `js/blocks-ui.js` – ekran Bloki + arkusz edycji (podział bloku na oddziały po tygodniach).
-- `js/more-ui.js` – ekran Więcej (eksport .ics, kopia, ustawienia, źródła).
+- `js/more-ui.js` – ekran Więcej (kursy OIL z terminami, dni wolne za soboty, eksport .ics, kopia, ustawienia, źródła).
+- `js/calendar-ui.js` – ekran Kalendarz (miesiąc, okno dnia, formularz wpisu z podglądem `eventImpact`).
 - Blok: `segments: [{id,start,end,hospital,ward,customName?,customAddress?}]` – oddziały; nie wpływają na liczenie dni.
 - `js/app.js` – interfejs (zakładki: Dziś, Bloki, Kalendarz, Więcej).
 - `sw.js` – offline; **przy każdej zmianie plików podbij `CACHE`**.

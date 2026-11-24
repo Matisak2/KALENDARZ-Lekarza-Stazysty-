@@ -293,3 +293,54 @@ export function placeOn(state, d) {
   if (!block) return null;
   return { block, segment: segmentAt(block, d) };
 }
+
+/* ---------- Dzień w kalendarzu i skutki wpisu ---------- */
+
+/** Wszystko o jednym dniu – do kalendarza miesięcznego i okna dnia. */
+export function dayInfo(sum, d) {
+  const { ctx } = sum;
+  const block = ctx.state.blocks.find((b) => b.start <= d && d <= b.end) || null;
+  const makeUp = sum.makeUpPlan.find((m) => m.date === d) || null;
+  const holiday = ctx.holidays.get(d) || null;
+  const satOffFor = ctx.satOff.get(d) || null;
+  const absence = ctx.absence.get(d) || null;
+  const weekend = isWeekend(d);
+  const inStaz = d >= ctx.settings.startDate && d <= sum.estimatedEnd;
+  const reserve = !block && inStaz && d >= sum.reserve.start;
+  const cls = block ? classifyBlockDay(ctx, d) : null;
+  return {
+    date: d, block, segment: block ? segmentAt(block, d) : null, makeUp, holiday, satOffFor, absence,
+    weekend, inStaz, reserve, lost: cls?.kind === 'lost' ? cls : null,
+  };
+}
+
+/**
+ * Skutek wpisu (urlop, L4…) przed zapisaniem:
+ * dni robocze, dni urlopu, ile dni zabiera z każdego bloku, ile z rezerwy, zmiana zapasu.
+ */
+export function eventImpact(state, ev, today) {
+  const before = summarize(state, today);
+  const others = (state.events || []).filter((e) => e.id !== ev.id);
+  const after = summarize({ ...state, events: [...others, ev] }, today);
+  const ctx = after.ctx;
+  const days = eachDay(ev.start, ev.end);
+  const work = days.filter((d) => !isWeekend(d) && !statutoryOff(ctx, d));
+  const perBlock = [];
+  for (const s of after.stats) {
+    const n = work.filter((d) => s.block.start <= d && d <= s.block.end).length;
+    if (n) perBlock.push({ block: s.block, days: n, share: s.required ? n / s.required : 0 });
+  }
+  return {
+    calendarDays: days.length,
+    workdays: work.length,
+    vacationDays: EVENT_TYPES[ev.type]?.vacation ? work.length : 0,
+    vacationLeftAfter: after.vacation.left,
+    perBlock,
+    inReserve: work.filter((d) => d >= after.reserve.start && d <= after.reserve.end).length,
+    freeBefore: before.reserve.free,
+    freeAfter: after.reserve.free,
+    endBefore: before.estimatedEnd,
+    endAfter: after.estimatedEnd,
+    extends: !!EVENT_TYPES[ev.type]?.extends,
+  };
+}

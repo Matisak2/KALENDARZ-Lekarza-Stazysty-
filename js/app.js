@@ -4,11 +4,13 @@ import { summarize, alerts, segmentAt } from './engine.js';
 import { renderBlocks, openBlockEditor } from './blocks-ui.js';
 import { renderMore, handleMoreClick, handleMoreChange } from './more-ui.js';
 import { hospitalOf } from './hospitals.js';
+import { renderCalendar, openDay, openEventEditor, shiftMonth, todayMonth } from './calendar-ui.js';
 import { fmtLong, fmtShort, fmtFull, fmtDayShort, toNum, todayIso, isWeekend, dni, plural } from './dates.js';
 import { holidayMap } from './holidays.js';
 
 let state = load();
 let tab = 'dzis';
+let month = null;
 
 // ?dzis=RRRR-MM-DD – podgląd aplikacji "na inny dzień" (do testów)
 function getToday() {
@@ -315,7 +317,7 @@ function render() {
   if (tab !== 'dzis') document.body.style.setProperty('--page', 'var(--accent)');
   if (tab === 'dzis') html = renderToday();
   else if (tab === 'bloki') html = renderBlocks(state, getToday());
-  else if (tab === 'kalendarz') html = renderSoon('Kalendarz', 'Kalendarz miesięczny z kolorami bloków, świętami, urlopem, L4, kursami i dyżurami.');
+  else if (tab === 'kalendarz') html = renderCalendar(state, getToday(), month || (month = todayMonth(getToday())));
   else html = renderMore(state);
   app.innerHTML = html;
   // Opóźnienie dla animacji kart i pierścieni
@@ -342,13 +344,21 @@ function applyTheme() {
   else document.documentElement.setAttribute('data-theme', t);
 }
 
-function toast(text) {
+function toast(text, undo) {
+  document.querySelectorAll('.toast').forEach((t) => t.remove());
   const el = document.createElement('div');
   el.className = 'toast';
   el.textContent = text;
+  if (undo) {
+    const b = document.createElement('button');
+    b.textContent = 'Cofnij';
+    b.onclick = () => { undo(); el.remove(); };
+    el.appendChild(b);
+  }
   document.body.appendChild(el);
-  setTimeout(() => el.classList.add('out'), 2600);
-  setTimeout(() => el.remove(), 3000);
+  const ms = undo ? 5000 : 2600;
+  setTimeout(() => el.classList.add('out'), ms);
+  setTimeout(() => el.remove(), ms + 400);
 }
 
 function editBlock(id) {
@@ -383,9 +393,39 @@ app.addEventListener('click', (e) => {
   if (eb) return editBlock(eb.dataset.editBlock);
   const gb = e.target.closest('[data-goto-block]');
   if (gb) return editBlock(gb.dataset.gotoBlock);
+  const mo = e.target.closest('[data-month]');
+  if (mo) {
+    month = mo.dataset.month === 'today' ? todayMonth(getToday()) : shiftMonth(month, Number(mo.dataset.month));
+    return render();
+  }
+  const day = e.target.closest('[data-day]');
+  if (day) return openDay(state, getToday(), day.dataset.day, ctx);
+  const ne = e.target.closest('[data-new-event]');
+  if (ne) return openEventEditor(state, getToday(), { type: 'urlop', start: ne.dataset.newEvent }, ctx);
+  const ee = e.target.closest('[data-edit-event]');
+  if (ee) return openEventEditor(state, getToday(), state.events.find((x) => x.id === ee.dataset.editEvent), ctx);
   handleMoreClick(e, ctx);
 });
 app.addEventListener('change', (e) => handleMoreChange(e, ctx));
+
+// Przesunięcie palcem w bok na kalendarzu = zmiana miesiąca
+let touchX = null;
+let touchY = null;
+app.addEventListener('touchstart', (e) => {
+  if (tab !== 'kalendarz' || !e.target.closest('#cal-swipe')) return;
+  touchX = e.touches[0].clientX;
+  touchY = e.touches[0].clientY;
+}, { passive: true });
+app.addEventListener('touchend', (e) => {
+  if (touchX === null) return;
+  const dx = e.changedTouches[0].clientX - touchX;
+  const dy = e.changedTouches[0].clientY - touchY;
+  touchX = null;
+  if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+    month = shiftMonth(month, dx < 0 ? 1 : -1);
+    render();
+  }
+});
 
 applyTheme();
 render();

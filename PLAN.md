@@ -6,8 +6,8 @@
 - [x] Publikacja (GitHub Pages)
 - [x] Bloki: lista ze statusem i postępem, edycja dat/nazw/kolorów, plan odrabiania
 - [x] Oddziały: baza szpitali Szczecin/Police, przypisanie i podział bloku po tygodniach, adres w „Dziś”
-- [ ] Kalendarz miesięczny: kolory bloków, weekendy, święta, urlop, L4, kursy, dyżury
-- [ ] Wpisy: urlop, L4/opieka/bezpłatny, kursy z terminami, dzień wolny za sobotę
+- [x] Kalendarz miesięczny: kolory bloków, weekendy, święta, urlop, L4, kursy, odrabianie (dyżury – etap 2)
+- [x] Wpisy: urlop, L4/opieka/bezpłatny z podglądem skutków, kursy z terminami, dzień wolny za sobotę, „Cofnij” po usunięciu
 - [x] Kopia zapasowa: zapisz / wczytaj plik (AirDrop, iCloud Drive)
 - [ ] Przypomnienie o kopii
 

@@ -1,7 +1,8 @@
 // Ekran „Więcej”: eksport do Kalendarza, kopia zapasowa, ustawienia, źródła.
 import { buildIcs } from './ics.js';
 import { backupText, parseBackup } from './store.js';
-import { fmtFull } from './dates.js';
+import { fmtFull, fmtShort, addDays, isWeekend } from './dates.js';
+import { holidayMap } from './holidays.js';
 import { esc } from './blocks-ui.js';
 
 export function renderMore(state) {
@@ -14,6 +15,8 @@ export function renderMore(state) {
       <h1 class="large-title">Więcej</h1>
     </header>
     <div class="desk-2"><div>
+      ${coursesCard(state)}
+      ${satOffCard(state)}
       <div class="card fade">
         <div class="card-label">📅 Kalendarz iPhone'a</div>
         <div class="t-strong">Dodaj staż do Kalendarza</div>
@@ -57,6 +60,46 @@ export function renderMore(state) {
         </ul>
       </div>
     </div></div>`;
+}
+
+function coursesCard(state) {
+  const all = state.courses || [];
+  const withDays = all.filter((c) => c.days > 0);
+  const done = withDays.filter((c) => c.start).length;
+  const rows = all.map((c) => `<div class="course ${c.start ? 'set' : ''}">
+      <div class="course-head"><b>${esc(c.name)}</b>
+        <span class="muted small">${c.days ? `${c.days} ${c.days === 1 ? 'dzień' : 'dni'}` : 'bez osobnego dnia'} · ${esc(c.provider)} · ${esc(c.mode)}</span></div>
+      ${c.days ? `<div class="row2">
+        <label>Od<input type="date" data-course="${esc(c.id)}" data-cf="start" value="${c.start || ''}"></label>
+        <label>Do<input type="date" data-course="${esc(c.id)}" data-cf="end" value="${c.end || ''}"></label>
+      </div>` : ''}
+    </div>`).join('');
+  return `<div class="card fade">
+    <div class="card-label">🎓 Kursy OIL · ${done}/${withDays.length} z terminem</div>
+    <p class="sub">Terminy dla Twojego rocznika poda OIL Szczecin (zwykle ok. marca–kwietnia). Wpisz je, gdy przyjdą – aplikacja doliczy dni do odrobienia.</p>
+    <details class="course-list"><summary>Pokaż kursy i wpisz terminy</summary>${rows}</details>
+  </div>`;
+}
+
+function satOffCard(state) {
+  const st = state.settings;
+  const sats = [...holidayMap(st.startDate, st.endDate).values()].filter((h) => h.saturday);
+  if (!sats.length) return '';
+  return `<div class="card fade">
+    <div class="card-label">🛋 Dni wolne za święta w sobotę</div>
+    <p class="sub">Za święto w sobotę pracodawca wyznacza inny dzień wolny. Wpisz, który – liczy się jak święto.</p>
+    ${sats.map((h) => `<label class="sat-row"><span><b>${esc(h.name)}</b><small>sobota ${fmtShort(h.date)}</small></span>
+      <input type="date" data-satoff="${h.date}" value="${st.saturdayDaysOff?.[h.date] || ''}"></label>
+      ${st.saturdayDaysOffNote?.[h.date] ? `<div class="hint small">${esc(st.saturdayDaysOffNote[h.date])}</div>` : ''}`).join('')}
+  </div>`;
+}
+
+/** Koniec kursu: start + (dni − 1) dni roboczych. */
+function courseEnd(start, days) {
+  let d = start;
+  let left = Math.max(0, days - 1);
+  while (left > 0) { d = addDays(d, 1); if (!isWeekend(d)) left--; }
+  return d;
 }
 
 function download(name, text, type) {
@@ -112,6 +155,27 @@ export function handleMoreClick(e, ctx) {
 }
 
 export function handleMoreChange(e, ctx) {
+  const el = e.target;
+  if (el.dataset.course) {
+    const c = ctx.state.courses.find((x) => x.id === el.dataset.course);
+    c[el.dataset.cf] = el.value || null;
+    if (el.dataset.cf === 'start') {
+      if (!el.value) c.end = null;
+      else if (!c.end || c.end < c.start) c.end = courseEnd(c.start, c.days);
+    }
+    if (c.end && !c.start) c.start = c.end;
+    ctx.save();
+    ctx.render();
+    ctx.toast('Zapisano ✓');
+    return true;
+  }
+  if (el.dataset.satoff) {
+    ctx.state.settings.saturdayDaysOff[el.dataset.satoff] = el.value || null;
+    ctx.save();
+    ctx.render();
+    ctx.toast('Zapisano ✓');
+    return true;
+  }
   if (e.target.dataset.act !== 'restore') return false;
   const f = e.target.files?.[0];
   if (!f) return true;

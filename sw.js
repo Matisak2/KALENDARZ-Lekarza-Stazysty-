@@ -1,9 +1,9 @@
 // Service worker: aplikacja działa offline, a nowe wersje pobiera w tle.
-const CACHE = 'stazysta-v5';
+const CACHE = 'stazysta-v6';
 const SHELL = [
   './', 'index.html', 'css/app.css', 'manifest.webmanifest',
   'js/app.js', 'js/store.js', 'js/engine.js', 'js/dates.js', 'js/holidays.js', 'js/defaults.js',
-  'js/hospitals.js', 'js/ics.js', 'js/blocks-ui.js', 'js/more-ui.js',
+  'js/hospitals.js', 'js/ics.js', 'js/blocks-ui.js', 'js/more-ui.js', 'js/calendar-ui.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
 ];
 
