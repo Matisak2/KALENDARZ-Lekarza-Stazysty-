@@ -138,6 +138,8 @@ function plansList(st) {
       <button class="chip danger-chip" data-plan-del="${p.id}">Usuń</button></span></div>`).join('')}</div>`;
 }
 
+const num1 = (x) => String(Math.round(x * 10) / 10).replace('.', ',');
+
 function materialsView(st) {
   const done = st.done || {};
   const courses = st.courses || [];
@@ -153,17 +155,27 @@ function materialsView(st) {
       <div class="bc-bar"><div style="width:${ls.length ? (dn / ls.length) * 100 : 0}%;background:var(--c-course)"></div></div>
       <div class="bc-nums"><span><b>${dn}</b> z ${ls.length} lekcji</span><span class="muted">zostało ok. ${h(left)}</span></div>
       <details class="course-list"><summary>Lekcje</summary>
-        ${c.sections.map((s) => `<div class="sec-name">${esc(s.name)}</div>${s.lessons.map((l) => {
+        ${c.sections.map((s) => {
+          const lo = s.lessons.reduce((a, l) => a + (l.hMin || 0), 0);
+          const hi = s.lessons.reduce((a, l) => a + (l.hMax || 0), 0);
+          return `<div class="sec-name"><span>${esc(s.name)} <span class="sec-n">(${s.lessons.length})</span></span>${lo ? `<span class="t-chip">🕒 ${num1(lo)}–${num1(hi)} h</span>` : ''}</div>${s.lessons.map((l) => {
           const key = ls.find((x) => x.section === s.name && x.name === l.name)?.key;
           return `<label class="skill ${done[key] ? 'on' : ''}"><input type="checkbox" data-lesson="${esc(key)}" ${done[key] ? 'checked' : ''}>
-            <span class="box"></span><span class="nm">${esc(l.name)}${l.hMin != null ? `<small>${l.hMin}–${l.hMax} h</small>` : ''}</span></label>`;
-        }).join('')}`).join('')}
+            <span class="box"></span><span class="nm">${esc(l.name)}</span>${l.hMin != null ? `<span class="t-chip">${num1(l.hMin)}–${num1(l.hMax)} h</span>` : ''}</label>`;
+        }).join('')}`;
+        }).join('')}
       </details></div>`;
   }).join('');
   return `
     <div class="card fade">
       <div class="card-label">📥 Spis kursów WNL</div>
-      <p class="sub">Na komputerze otwórz kurs w WNL, <b>rozwiń wszystkie działy</b>, zaznacz listę (Ctrl/Cmd+A), skopiuj i wklej tutaj. Zapisują się tylko nazwy tematów i czasy – w Twoich danych, nie w publicznym kodzie.</p>
+      <ol class="sub steps-ol">
+        <li>Na komputerze otwórz w WNL <b>planer lekcji</b> danego kursu (np. adres <b>onkologia</b>.wiecejnizlek.pl).</li>
+        <li><b>Rozwiń wszystkie działy</b> (strzałka przy nazwie działu).</li>
+        <li>Zaznacz listę (Ctrl+A), skopiuj (Ctrl+C) i wklej tutaj.</li>
+        <li>Nazwy kursu nie ma na liście WNL – aplikacja poprosi o nią (np. „Kurs z onkologii”).</li>
+      </ol>
+      <p class="hint small">Daty i dni tygodnia z planu WNL są pomijane – plan układa ta aplikacja według Twojego grafiku. Zapisują się tylko nazwy tematów i czasy, w Twoich danych (nie w publicznym kodzie).</p>
       <button class="btn primary" data-lek="paste">Wklej spis kursu</button>
     </div>
     ${list || '<p class="hint">Brak kursów. Wklej pierwszy spis powyżej.</p>'}`;
@@ -253,8 +265,8 @@ function sheet(title, body, okLabel = 'Zapisz') {
 function pasteSheet(state, ctx) {
   const st = study(state);
   const { root, close } = sheet('Wklej spis kursu', `<div class="form-card">
-      <p class="sub" style="margin-top:0">Wklej cały skopiowany tekst ze strony kursu WNL (z rozwiniętymi działami) – z telefonu albo z komputera. Kilka kursów naraz: przed każdym linijka „Kurs Interna”, „Kurs Chirurgia”…</p>
-      <textarea data-paste rows="10" placeholder="Kurs z Interny&#10;ALERGOLOGIA (10)&#10;Wstęp do alergologii&#10;1.5h - 2.5h&#10;…"></textarea>
+      <p class="sub" style="margin-top:0">Wklej listę skopiowaną z planera lekcji WNL (z rozwiniętymi działami). Kilka kursów naraz: przed każdym dopisz linijkę z nazwą, np. „Kurs z pediatrii”.</p>
+      <textarea data-paste rows="10" placeholder="Podstawy onkologii&#10;(4)&#10;6h - 10h&#10;Podstawy onkologii&#10;Wstęp do onkologii&#10;…"></textarea>
       <label data-cname-wrap hidden>Nazwa kursu (nie ma jej w wklejonym tekście)<input data-cname placeholder="np. Kurs z onkologii"></label>
       <div data-preview class="hint small"></div></div>`);
   const ta = root.querySelector('[data-paste]');
