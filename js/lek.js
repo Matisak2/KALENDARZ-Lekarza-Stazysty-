@@ -29,42 +29,91 @@ export function guessDomain(courseName) {
 /* ---------- Import spisu kursu (wklejony tekst ze strony WNL) ---------- */
 
 const NOISE = /^(kurs|baza pytań|fiszki|powtórki|kolekcje|oferty|pomoc|zmień kurs|zmien kurs|›|>|x|×)$/i;
-const TIME = /(\d+(?:[.,]\d+)?)\s*h\s*[-–]\s*(\d+(?:[.,]\d+)?)\s*h/i;
+const TIME = /(\d+(?:[.,]\d+)?)\s*h\s*[-–—]\s*(\d+(?:[.,]\d+)?)\s*h/i;
+const WEEKDAY = /^(poniedziałek|wtorek|środa|czwartek|piątek|sobota|niedziela)\b[\s\d.,:/-]*$/i;
+const DASH = /^[-–—]+$/;
+const COUNT = /^\((\d+)\)$/;
+const COURSE = /^kurs\s*(?:z\s+|[:\-–]\s*)?(.{2,60})$/i;
 const num = (s) => parseFloat(String(s).replace(',', '.'));
+const isCourseLine = (l) => COURSE.test(l) && !NOISE.test(l);
+const courseTitle = (l) => {
+  const rest = COURSE.exec(l)[1].trim();
+  return /^kurs\s+z\s+/i.test(l) ? `Kurs z ${rest}` : `Kurs ${rest}`;
+};
 
 /**
- * Rozbiera wklejony spis kursu na działy i lekcje.
- * Rozpoznaje: tytuł „Kurs z …”, działy pisane WIELKIMI LITERAMI (opcjonalnie z „(n)”),
- * lekcje oraz czasy „1.5h - 2.5h” (w tej samej lub w następnej linii).
+ * Rozbiera wklejony spis kursu na działy i lekcje. Rozpoznaje dwa układy strony WNL:
+ * – telefon: działy WIELKIMI LITERAMI (opcjonalnie „(n)”), pod nimi lekcje i czasy „1.5h - 2.5h”;
+ * – komputer: dział = nazwa + linia „(n)” + łączny czas; lekcja = nazwa działu, tytuł, opis, czas, dzień tygodnia.
+ * Dni tygodnia, myślniki i opisy lekcji są pomijane.
  */
 export function parseCourseText(text, fallbackName = 'Kurs') {
   const lines = String(text || '').split(/\r?\n/).map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const desktop = lines.some((l) => COUNT.test(l));
   let name = null;
   const sections = [];
   let sec = null;
   let last = null;
+  let pending = []; // linie tekstu czekające na czas (tytuł + ewentualny opis)
+  let afterHeader = false; // następny sam czas = łączny czas działu
   const warnings = [];
+  const newSection = (n, expected) => {
+    sec = { name: n.replace(/\s+/g, ' ').trim(), expected, lessons: [] };
+    sections.push(sec);
+    last = null;
+  };
+  const ensureSec = () => { if (!sec) newSection('Lekcje', null); };
+  const addLesson = (n, t) => {
+    ensureSec();
+    last = { name: n, hMin: t ? num(t[1]) : null, hMax: t ? num(t[2]) : null };
+    sec.lessons.push(last);
+  };
+  // Linie bez czasu: na komputerze to tytuł (pierwsza) i opis (reszta); na telefonie każda to lekcja.
+  const flush = (t) => {
+    if (!pending.length) return false;
+    if (desktop) addLesson(pending[0], t);
+    else { pending.slice(0, -1).forEach((l) => addLesson(l, null)); addLesson(pending.at(-1), t); }
+    pending = [];
+    return true;
+  };
   for (const raw of lines) {
-    if (NOISE.test(raw)) continue;
-    if (!name && /^kurs\s+z\s+/i.test(raw)) { name = raw; continue; }
+    if (NOISE.test(raw) || WEEKDAY.test(raw) || DASH.test(raw)) continue;
+    if (!name && isCourseLine(raw)) { name = courseTitle(raw); continue; }
+    const cnt = COUNT.exec(raw);
+    if (cnt) {
+      // Poprzednia linia była nazwą działu (układ z komputera)
+      const header = pending.pop();
+      flush(null);
+      if (header) newSection(header, Number(cnt[1]));
+      else if (sec) sec.expected = Number(cnt[1]);
+      afterHeader = true;
+      continue;
+    }
     const t = TIME.exec(raw);
     const textPart = raw.replace(TIME, '').replace(/[☐☑✓✔□■]/g, '').trim();
     if (!textPart && t) {
-      if (last) { last.hMin = num(t[1]); last.hMax = num(t[2]); }
+      if (afterHeader) { afterHeader = false; continue; }
+      if (!flush(t) && last) { last.hMin = num(t[1]); last.hMax = num(t[2]); }
       continue;
     }
+    afterHeader = false;
     const head = /^([A-ZĄĆĘŁŃÓŚŹŻ0-9 ,.\-–/()&]+?)\s*(?:\((\d+)\))?$/.exec(textPart);
     const letters = textPart.replace(/[^A-Za-zĄĆĘŁŃÓŚŹŻąćęłńóśźż]/g, '');
-    if (head && letters.length >= 3 && letters === letters.toUpperCase()) {
-      sec = { name: head[1].trim().replace(/\s+/g, ' '), expected: head[2] ? Number(head[2]) : null, lessons: [] };
-      sections.push(sec);
-      last = null;
+    if (!desktop && head && letters.length >= 3 && letters === letters.toUpperCase()) {
+      flush(null);
+      newSection(head[1], head[2] ? Number(head[2]) : null);
       continue;
     }
-    if (!sec) { sec = { name: 'Lekcje', expected: null, lessons: [] }; sections.push(sec); }
-    last = { name: textPart, hMin: t ? num(t[1]) : null, hMax: t ? num(t[2]) : null };
-    sec.lessons.push(last);
+    if (desktop) {
+      // Każda lekcja zaczyna się powtórzoną nazwą działu – pomijamy ją
+      if (!pending.length && sec && textPart.toLowerCase() === sec.name.toLowerCase()) continue;
+      pending.push(textPart);
+      continue;
+    }
+    if (t) { flush(null); addLesson(textPart, t); continue; }
+    pending.push(textPart);
   }
+  flush(null);
   for (const s of sections) {
     if (s.expected != null && s.lessons.length < s.expected) {
       warnings.push(`Dział „${s.name}”: ${s.lessons.length} z ${s.expected} lekcji – rozwiń go w WNL i wklej ponownie.`);
@@ -72,6 +121,20 @@ export function parseCourseText(text, fallbackName = 'Kurs') {
   }
   const courseName = name || fallbackName;
   return { name: courseName, domain: guessDomain(courseName), sections: sections.filter((s) => s.lessons.length || s.expected), warnings };
+}
+
+/** Kilka kursów w jednym wklejeniu: każdy zaczyna się linią „Kurs …” / „KURS: …”. */
+export function parseCoursesText(text, fallbackName = 'Kurs') {
+  const lines = String(text || '').split(/\r?\n/);
+  const chunks = [];
+  let cur = [];
+  for (const l of lines) {
+    const t = l.replace(/\s+/g, ' ').trim();
+    if (isCourseLine(t) && cur.some((x) => x.trim())) { chunks.push(cur); cur = []; }
+    cur.push(l);
+  }
+  if (cur.some((x) => x.trim())) chunks.push(cur);
+  return chunks.map((c) => parseCourseText(c.join('\n'), fallbackName)).filter((p) => p.sections.some((s) => s.lessons.length));
 }
 
 /** Klucz lekcji niezależny od kolejności – odhaczenia przetrwają ponowne wklejenie spisu. */

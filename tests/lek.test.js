@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultState } from '../js/defaults.js';
-import { DOMAINS, parseCourseText, mergeCourse, guessDomain, studyDays, buildPlan, estimateScore, coverage, allLessons, lessonKey, DEFAULT_SURVEY } from '../js/lek.js';
+import { DOMAINS, parseCourseText, parseCoursesText, mergeCourse, guessDomain, studyDays, buildPlan, estimateScore, coverage, allLessons, lessonKey, DEFAULT_SURVEY } from '../js/lek.js';
 
 const SAMPLE = `Kurs z Interny
 ZMIEŃ KURS
@@ -134,4 +134,71 @@ test('Pokrycie: interna w całości = 39/200', () => {
   const courses = mergeCourse([], parseCourseText(SAMPLE));
   const ls = allLessons({ courses });
   assert.equal(Math.round(coverage(ls, new Set(ls.map((l) => l.key))) * 200), 39);
+});
+
+// Układ strony WNL z komputera (przykład zmyślony, ten sam kształt): dział + „(n)” + łączny czas,
+// lekcja = powtórzona nazwa działu, tytuł, opis, czas, dzień tygodnia.
+const DESKTOP = `Kurs Chirurgia
+Dział pierwszy
+(2)
+2.5h - 4.5h
+Środa
+–
+Czwartek
+
+Dział pierwszy
+Lekcja A
+Opis lekcji A, punkt, punkt.
+1h - 2h
+Środa
+
+Dział pierwszy
+Lekcja B
+Opis lekcji B.
+1.5h - 2.5h
+Czwartek
+
+Dział drugi
+(2)
+2h - 4h
+Piątek
+–
+Poniedziałek
+
+Dział drugi
+Lekcja C
+Opis C.
+1h - 2h
+Piątek
+KURS: Interna
+Alergologia
+(1)
+1h - 2h
+Wtorek
+–
+Wtorek
+
+Alergologia
+Astma
+Astma, opis.
+1h - 2h
+Wtorek
+`;
+
+test('Import WNL z komputera: pomija dni tygodnia, myślniki, opisy i łączny czas działu', () => {
+  const p = parseCourseText(DESKTOP.split('KURS:')[0]);
+  assert.equal(p.name, 'Kurs Chirurgia');
+  assert.equal(p.domain, 'chir');
+  assert.deepEqual(p.sections.map((s) => [s.name, s.expected]), [['Dział pierwszy', 2], ['Dział drugi', 2]]);
+  assert.deepEqual(p.sections[0].lessons.map((l) => [l.name, l.hMin, l.hMax]), [['Lekcja A', 1, 2], ['Lekcja B', 1.5, 2.5]]);
+  assert.deepEqual(p.sections[1].lessons.map((l) => l.name), ['Lekcja C']);
+  assert.deepEqual(p.warnings, ['Dział „Dział drugi”: 1 z 2 lekcji – rozwiń go w WNL i wklej ponownie.']);
+});
+
+test('Kilka kursów w jednym wklejeniu („Kurs …” / „KURS: …”)', () => {
+  const ps = parseCoursesText(DESKTOP);
+  assert.deepEqual(ps.map((p) => [p.name, p.domain]), [['Kurs Chirurgia', 'chir'], ['Kurs Interna', 'int']]);
+  assert.deepEqual(ps[1].sections[0].lessons.map((l) => [l.name, l.hMin]), [['Astma', 1]]);
+  // Układ z telefonu dalej działa przez to samo wejście
+  assert.equal(parseCoursesText(SAMPLE)[0].name, 'Kurs z Interny');
 });
