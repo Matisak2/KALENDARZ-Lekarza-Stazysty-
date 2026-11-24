@@ -56,9 +56,15 @@ export function load() {
   return s;
 }
 
-export function save(state) {
+const listeners = [];
+export function onSave(fn) { listeners.push(fn); }
+
+/** Zapis w telefonie. keepTime = dane przyszły z chmury (nie są nową zmianą). */
+export function save(state, { keepTime = false } = {}) {
   try {
+    if (!keepTime) state.meta = { ...(state.meta || {}), updatedAt: Date.now() };
     localStorage.setItem(KEY, JSON.stringify(state));
+    if (!keepTime) listeners.forEach((fn) => fn());
     return true;
   } catch (e) {
     return false;

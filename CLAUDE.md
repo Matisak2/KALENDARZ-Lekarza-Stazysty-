@@ -27,6 +27,8 @@ Pokazuje bloki stażu, dni robocze, święta, urlop, kursy OIL, odrabianie, dyż
 - `js/more-ui.js` – ekran Więcej (kursy OIL z terminami, dni wolne za soboty, eksport .ics, kopia, ustawienia, źródła).
 - `js/skills.js` – umiejętności z programu stażu (klucz = id bloku); stan w `state.skills` i `state.customSkills`.
 - `js/booklet.js` – książeczka stażowa (rubryki per blok, szkolenia); stan w `state.booklet` (imiona tylko lokalnie, nigdy w kodzie).
+- `js/sync-core.js` (czysta logika `decideSync`) + `js/sync.js` (Firebase 10.14.1 z gstatic, projekt `budzet-panstwa-ciemcia`, dokument `stazysta/{uid}` = `{data: JSON, updatedAt, device}`).
+  `store.save` ustawia `meta.updatedAt`; dane z chmury zapisuj z `keepTime`. Zasada Firestore: `firebase/firestore.rules.fragment`.
 - `js/duties-ui.js` – zakładka Dyżury (logika: `dutyMonth`, `dutyRoomOn`, `dutyTotals` w engine.js).
 - `js/calendar-ui.js` – ekran Kalendarz (miesiąc, okno dnia, formularz wpisu z podglądem `eventImpact`).
 - Blok: `segments: [{id,start,end,hospital,ward,customName?,customAddress?}]` – oddziały; nie wpływają na liczenie dni.

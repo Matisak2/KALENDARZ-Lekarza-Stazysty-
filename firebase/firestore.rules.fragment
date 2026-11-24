@@ -1,0 +1,6 @@
+// 🔐 Fragment zasad Firestore dla Kalendarza Stażysty (projekt budzet-panstwa-ciemcia – wspólny z aplikacją Budżet).
+// Wklejony w konsoli Firebase: Firestore Database → Rules, wewnątrz `match /databases/{database}/documents { … }`.
+// Każdy zalogowany widzi i zmienia wyłącznie swój dokument stazysta/{swoje uid}.
+match /stazysta/{uid} {
+  allow read, write: if request.auth != null && request.auth.uid == uid;
+}

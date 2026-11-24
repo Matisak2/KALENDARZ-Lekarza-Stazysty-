@@ -1,5 +1,6 @@
 // Kalendarz Stażysty – interfejs
-import { load, save, askPersistence } from './store.js';
+import { load, save, askPersistence, onSave, migrate } from './store.js';
+import { initSync, onLocalSave } from './sync.js';
 import { summarize, alerts, segmentAt } from './engine.js';
 import { renderBlocks, openBlockEditor } from './blocks-ui.js';
 import { renderMore, handleMoreClick, handleMoreChange } from './more-ui.js';
@@ -385,7 +386,22 @@ const ctx = {
   toast,
   applyTheme,
   replace(data) { state = data; save(state); applyTheme(); render(); },
+  replaceFromCloud(data) {
+    const m = migrate(data);
+    if (!m) return;
+    state = m;
+    save(state, { keepTime: true });
+    applyTheme();
+    if (!document.querySelector('.sheet-wrap')) render();
+  },
+  onStatus() {
+    const a = document.activeElement;
+    if (tab === 'wiecej' && !(a && /INPUT|TEXTAREA|SELECT/.test(a.tagName))) render();
+  },
 };
+
+onSave(onLocalSave);
+initSync(ctx);
 
 app.addEventListener('click', (e) => {
   const m = e.target.closest('[data-holiday-mode]');

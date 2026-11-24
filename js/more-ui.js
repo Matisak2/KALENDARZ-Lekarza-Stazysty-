@@ -4,6 +4,7 @@ import { backupText, parseBackup } from './store.js';
 import { fmtFull, fmtShort, addDays, isWeekend } from './dates.js';
 import { holidayMap } from './holidays.js';
 import { BOOKLET_COURSES, bookletProgress, coursesSigned } from './booklet.js';
+import { syncStatus, signIn, signOutSync, syncNow } from './sync.js';
 import { esc } from './blocks-ui.js';
 
 export function renderMore(state) {
@@ -16,6 +17,7 @@ export function renderMore(state) {
       <h1 class="large-title">Więcej</h1>
     </header>
     <div class="desk-2"><div>
+      ${syncCard()}
       ${bookletCard(state)}
       ${coursesCard(state)}
       ${satOffCard(state)}
@@ -62,6 +64,44 @@ export function renderMore(state) {
         </ul>
       </div>
     </div></div>`;
+}
+
+const RULE = `match /stazysta/{uid} {
+  allow read, write: if request.auth != null && request.auth.uid == uid;
+}`;
+
+function syncCard() {
+  const s = syncStatus();
+  const t = s.lastAt ? s.lastAt.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' }) : '';
+  const logged = s.enabled && s.phase !== 'loggedOut' && s.phase !== 'off';
+  const state = { ok: `✓ Zsynchronizowano${t ? ` o ${t}` : ''}`, syncing: '⏳ Synchronizuję…', error: '⚠️ Problem z synchronizacją' }[s.phase] || '';
+  return `<div class="card fade">
+    <div class="card-label">☁️ Synchronizacja telefon ↔ komputer</div>
+    ${logged ? `
+      <div class="t-strong">${esc(s.email)}</div>
+      <div class="sub ${s.phase === 'error' ? 'neg' : ''}">${state}</div>
+      ${s.error ? `<div class="seg-err">${esc(s.error)}</div>` : ''}
+      <div class="quick two"><button class="btn" data-act="sync-now">Synchronizuj teraz</button><button class="btn" data-act="sync-out">Wyloguj</button></div>
+      ${s.hasBackup ? '<p class="hint small">Przy ostatnim konflikcie starsza wersja została zachowana w tym urządzeniu.</p>' : ''}`
+    : `
+      <p class="sub">Zaloguj się tym samym mailem i hasłem co w aplikacji Budżet. Zmiany z telefonu pojawią się na komputerze i odwrotnie.</p>
+      <div class="sync-form">
+        <label>E-mail<input type="email" autocomplete="username" data-sync="email" value="${esc(s.email)}"></label>
+        <label>Hasło<input type="password" autocomplete="current-password" data-sync="pass"></label>
+        <button class="btn primary" data-act="sync-in">Zaloguj i synchronizuj</button>
+      </div>
+      ${s.error ? `<div class="seg-err">${esc(s.error)}</div>` : ''}`}
+    <details class="course-list"><summary>Jednorazowe ustawienie w Firebase (dla właściciela)</summary>
+      <ol class="steps">
+        <li>Na komputerze otwórz <b>console.firebase.google.com</b> → projekt <b>budzet-panstwa-ciemcia</b>.</li>
+        <li>Z lewej: <b>Firestore Database</b> → zakładka <b>Rules</b> (Reguły).</li>
+        <li>Wklej poniższy fragment <b>przed dwiema ostatnimi liniami</b> z samym znakiem <code>}</code>.</li>
+        <li>Kliknij <b>Publish</b> (Opublikuj).</li>
+      </ol>
+      <pre class="rule">${esc(RULE)}</pre>
+      <button class="btn" data-act="copy-rule">Kopiuj fragment</button>
+    </details>
+  </div>`;
 }
 
 function bookletCard(state) {
@@ -176,6 +216,23 @@ export function handleMoreClick(e, ctx) {
   if (act === 'ics') {
     download('kalendarz-stazu.ics', buildIcs(ctx.state, ctx.today()), 'text/calendar;charset=utf-8');
     ctx.toast('Plik kalendarza gotowy – stuknij „Dodaj wszystko”.');
+    return true;
+  }
+  if (act === 'sync-in') {
+    const card = e.target.closest('.card');
+    const email = card.querySelector('[data-sync="email"]').value;
+    const pass = card.querySelector('[data-sync="pass"]').value;
+    if (!email || !pass) { ctx.toast('Wpisz e-mail i hasło'); return true; }
+    signIn(email, pass).then(() => ctx.render());
+    return true;
+  }
+  if (act === 'sync-out') {
+    if (confirm('Wylogować z synchronizacji? Dane w tym urządzeniu zostaną.')) signOutSync().then(() => ctx.render());
+    return true;
+  }
+  if (act === 'sync-now') { syncNow(); return true; }
+  if (act === 'copy-rule') {
+    navigator.clipboard?.writeText(RULE).then(() => ctx.toast('Skopiowano ✓'), () => ctx.toast('Zaznacz tekst i skopiuj ręcznie'));
     return true;
   }
   if (act === 'backup') {
