@@ -130,6 +130,7 @@ export const DEFAULT_SURVEY = {
   hWeekend: 4,
   hVacation: 6,
   style: 'mix', // 'video' | 'read' | 'questions' | 'mix'
+  pace: 'fast', // czas lekcji z przedziału WNL: 'fast' = dolna granica, 'mid' = środek, 'slow' = górna
   weak: [],
   strong: [],
   base: true, // czy na tym terminie jest jawna baza CEM (70% pytań)
@@ -155,8 +156,15 @@ export function domainWeight(survey, id) {
   return w;
 }
 
+/** Czas lekcji z przedziału WNL wg tempa (domyślnie dolna granica). */
+export function lessonHours(lo, hi, pace = 'fast') {
+  if (pace === 'slow') return hi;
+  if (pace === 'mid') return (lo + hi) / 2;
+  return lo;
+}
+
 /** Wszystkie lekcje z zaimportowanych kursów z informacją o dziedzinie i czasie. */
-export function allLessons(study) {
+export function allLessons(study, pace = 'fast') {
   const out = [];
   for (const c of study.courses || []) {
     for (const s of c.sections || []) {
@@ -164,7 +172,7 @@ export function allLessons(study) {
         const lo = l.hMin ?? 1.5;
         const hi = l.hMax ?? lo + 1;
         out.push({ key: lessonKey(c.name, s.name, l.name), course: c.name, courseId: c.id, domain: c.domain, section: s.name,
-          name: l.name, hours: (lo + hi) / 2 });
+          name: l.name, hours: lessonHours(lo, hi, pace) });
       }
     }
   }
@@ -219,7 +227,7 @@ export function buildPlan(state, plan, today) {
   const baseHours = Math.max(0, (hoursTotal - reviewHours) * share);
   const factor = STYLE_FACTOR[survey.style] || 1;
 
-  const lessons = allLessons(study).map((l) => ({ ...l, hours: Math.round(l.hours * factor * 10) / 10 }));
+  const lessons = allLessons(study, survey.pace).map((l) => ({ ...l, hours: Math.round(l.hours * factor * 10) / 10 }));
   const todo = lessons.filter((l) => !done[l.key]);
   const doneKeys = new Set(lessons.filter((l) => done[l.key]).map((l) => l.key));
   const skipped = new Set(plan.skip || []);

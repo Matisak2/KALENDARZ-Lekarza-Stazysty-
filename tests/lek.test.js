@@ -112,6 +112,15 @@ test('Plan: dużo czasu -> wszystko zaplanowane; zrobione lekcje znikają z plan
   assert.equal(b.weeks.at(-1).lessons.length, 0); // ostatni tydzień = powtórka
 });
 
+test('Czas lekcji: domyślnie dolna granica przedziału WNL, do wyboru środek i górna', () => {
+  const courses = mergeCourse([], parseCourseText(SAMPLE));
+  const astma = (pace) => allLessons({ courses }, pace).find((l) => l.name === 'Astma').hours;
+  assert.equal(astma(), 2);
+  assert.equal(astma('mid'), 2.5);
+  assert.equal(astma('slow'), 3);
+  assert.equal(DEFAULT_SURVEY.pace, 'fast');
+});
+
 test('Pominięcie i „muszę zrobić” wpływają na wybór', () => {
   const st = defaultState();
   const courses = mergeCourse([], parseCourseText(SAMPLE));

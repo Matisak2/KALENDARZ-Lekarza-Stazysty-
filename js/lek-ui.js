@@ -313,6 +313,8 @@ function surveySheet(state, ctx, plan) {
         <label>Dzień dyżuru / po dyżurze<input type="number" inputmode="decimal" step="0.5" min="0" data-s="hDuty" value="${s.hDuty}"></label></div>
       <div class="row2"><label>Weekend / święto<input type="number" inputmode="decimal" step="0.5" min="0" data-s="hWeekend" value="${s.hWeekend}"></label>
         <label>Dzień urlopu<input type="number" inputmode="decimal" step="0.5" min="0" data-s="hVacation" value="${s.hVacation}"></label></div>
+      <div class="t-strong small-t">Ile czasu liczyć na lekcję (przedział z WNL, np. 1,5–2,5 h)?</div>
+      <div class="segmented three">${[['fast', 'Dolna granica'], ['mid', 'Środek'], ['slow', 'Górna granica']].map(([k, l]) => `<button data-sv="pace:${k}" class="${s.pace === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       <div class="t-strong small-t">Jak się uczysz najchętniej?</div>
       <div class="segmented four">${[['video', 'Wideo'], ['read', 'Czytanie'], ['questions', 'Pytania'], ['mix', 'Mieszanie']].map(([k, l]) => `<button data-sv="style:${k}" class="${s.style === k ? 'on' : ''}">${l}</button>`).join('')}</div>
     </div>
