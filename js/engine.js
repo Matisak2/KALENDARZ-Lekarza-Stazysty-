@@ -3,6 +3,7 @@
 import { addDays, eachDay, isWeekend, toNum } from './dates.js';
 import { holidayMap } from './holidays.js';
 import { EVENT_TYPES } from './defaults.js';
+import { bookletProgress } from './booklet.js';
 
 /**
  * Buduje kontekst dni: święta, dni wolne za soboty, nieobecności i kursy.
@@ -231,6 +232,18 @@ export function alerts(sum) {
     }
   }
   const st = sum.ctx.state;
+  // Książeczka: blok kończy się w ciągu 5 dni albo już się skończył, a brakuje podpisów
+  const unsigned = sum.stats.filter((s) => toNum(s.block.end) - toNum(today) <= 5)
+    .map((s) => ({ b: s.block, p: bookletProgress(st, s.block) })).filter((x) => x.p.missing.length);
+  if (unsigned.length) {
+    const first = unsigned[0];
+    out.push({
+      level: 'info', icon: '📘', action: 'booklet', blockId: first.b.id,
+      title: unsigned.length === 1 ? `Książeczka – ${first.b.short}: brakuje ${first.p.missing.length} podpisów`
+        : `Książeczka: brakuje podpisów w ${unsigned.length} blokach`,
+      detail: unsigned.map((x) => `${x.b.short} ${x.p.done}/${x.p.total}`).join(' · '),
+    });
+  }
   const entries = (st.events || []).length + (st.duties || []).length
     + (st.courses || []).filter((c) => c.start).length + Object.keys(st.notes || {}).length;
   if (entries > 0) {

@@ -19,6 +19,11 @@
 ## Etap 2 – dodatki
 - [x] „Zrobione ✓” przy terminach LEK, pilne sprawy na górze ekranu Dziś
 
+## Książeczka stażowa (ze zdjęć)
+- [x] Rubryki do podpisu przy każdym bloku (chirurgia ogólna/urazowa, interna z transfuzjologią, IT+MR, neonatologia+pediatria, rodzinna, dziedziny 1–3)
+- [x] Szkolenia (9 stron), koordynator, przedłużenia, zaliczenie stażu
+- [x] Przypomnienie na „Dziś”, gdy blok się kończy, a brakuje podpisów
+
 ## Etap 3
 - [x] Umiejętności z programu stażu (Dz.U. 2023 poz. 377) do odhaczania + własne pozycje (książeczka stażowa – do uzupełnienia ze zdjęć)
 - [ ] Synchronizacja telefon ↔ komputer (np. Firebase jak w aplikacji budżetowej)

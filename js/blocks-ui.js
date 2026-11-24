@@ -3,6 +3,8 @@ import { summarize, blockWeeks, checkSegments } from './engine.js';
 import { HOSPITALS, hospitalOf } from './hospitals.js';
 import { fmtShort, fmtDayShort, fmtFull, toNum, plural, todayIso } from './dates.js';
 import { SKILLS, skillProgress } from './skills.js';
+import { bookletFor, bookletProgress, suggestedRange } from './booklet.js';
+import { addDays } from './dates.js';
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const color = (b) => `var(--c-${b.color || 'gray'})`;
@@ -59,6 +61,8 @@ export function renderBlocks(state, today) {
       ${state.notes?.['block:' + b.id] ? `<div class="bc-note">📝 ${esc(state.notes['block:' + b.id])}</div>` : ''}
       ${(() => { const sp = skillProgress(state, b.id); return sp.total ? `<div class="bc-skills"><span>✓ Umiejętności</span><b>${sp.done}/${sp.total}</b>
         <div class="bc-bar sm"><div style="width:${(sp.done / sp.total) * 100}%"></div></div></div>` : ''; })()}
+      ${(() => { const bp = bookletProgress(state, b); return bp.total ? `<div class="bc-skills bk-sign ${bp.done === bp.total ? 'full' : ''}"><span>📘 Podpisy w książeczce</span><b>${bp.done}/${bp.total}</b>
+        <div class="bc-bar sm"><div style="width:${(bp.done / bp.total) * 100}%"></div></div></div>` : ''; })()}
     </button>`;
   }).join('');
 
@@ -166,6 +170,34 @@ export function openBlockEditor(state, blockId, onSave) {
   const skillsDraft = { ...(state.skills || {}) };
   const customDraft = [...(state.customSkills?.[draft.id] || [])];
   let newSkill = '';
+  const bkDraft = JSON.parse(JSON.stringify(state.booklet?.[draft.id] || {}));
+  const bkDef = bookletFor(state, orig);
+  const bookletHtml = () => {
+    if (!bkDef) return '';
+    const signs = bkDef.items.filter((i) => i.sign);
+    const done = signs.filter((i) => bkDraft[i.key]?.date).length;
+    const row = (i) => {
+      const v = bkDraft[i.key] || {};
+      if (i.kind === 'text') {
+        return `<label class="bk-row">${esc(i.label)}<input data-bk="${i.key}" data-bkf="text" value="${esc(v.text || '')}" placeholder="wpisz"></label>`;
+      }
+      if (i.kind === 'range') {
+        const sug = suggestedRange(draft, i.key, addDays);
+        return `<div class="bk-row"><span>${esc(i.label)}${sug && !v.from ? ` <button class="link small-link" data-bk-fill="${i.key}">Wstaw z harmonogramu (${fmtShort(sug.from)}–${fmtShort(sug.to)})</button>` : ''}</span><div class="row2">
+          <label>od<input type="date" data-bk="${i.key}" data-bkf="from" value="${v.from || ''}"></label>
+          <label>do<input type="date" data-bk="${i.key}" data-bkf="to" value="${v.to || ''}"></label></div></div>`;
+      }
+      if (i.kind === 'date') {
+        return `<label class="skill ${v.date ? 'on' : ''}"><span class="box"></span><span class="nm">${esc(i.label)}</span>
+          <input class="mini-date" type="date" data-bk="${i.key}" data-bkf="date" value="${v.date || ''}"></label>`;
+      }
+      return `<label class="skill ${v.date ? 'on' : ''}"><input type="checkbox" data-bk="${i.key}" data-bkf="check" ${v.date ? 'checked' : ''}>
+        <span class="box"></span><span class="nm">${esc(i.label)}${v.date ? `<small>podpisane ${fmtShort(v.date)}</small>` : ''}</span></label>`;
+    };
+    return `<div class="section-title small-title">📘 Książeczka <span class="muted">${done}/${signs.length}</span></div>
+      <p class="hint">${esc(bkDef.page)}. Odhacz, gdy masz podpis lub pieczątkę – zapisze się data.${bkDef.note ? ` ${esc(bkDef.note)}` : ''}</p>
+      <div class="form-card skills booklet">${bkDef.items.map(row).join('')}</div>`;
+  };
   const skillsHtml = () => {
     const base = (SKILLS[draft.id]?.items || []).map((name, i) => ({ key: `${draft.id}:${i}`, name }));
     const own = customDraft.map((c) => ({ key: `${draft.id}:own:${c.id}`, name: c.name, id: c.id }));
@@ -216,6 +248,7 @@ export function openBlockEditor(state, blockId, onSave) {
         <button class="add-btn" data-seg-add>＋ Dodaj kolejny oddział (podział bloku)</button>
         ${errs.length ? `<div class="seg-err">${errs.map(esc).join('<br>')}</div>` : ''}
         ${skillsHtml()}
+        ${bookletHtml()}
         <div class="hint small">Daty bloku: ${fmtFull(draft.start)} – ${fmtFull(draft.end)} · ${weeks.length} ${plural(weeks.length, 'tydzień', 'tygodnie', 'tygodni')}
           (tydzień stażu ${weeks[0]?.n ?? '–'}–${weeks.at(-1)?.n ?? '–'})</div>
       </div>
@@ -237,6 +270,7 @@ export function openBlockEditor(state, blockId, onSave) {
       if (errors().length) return;
       draft.segments = draft.segments.filter((s) => s.hospital).map(({ _otherWard, ...s }) => s);
       state.skills = skillsDraft;
+      state.booklet = { ...(state.booklet || {}), [draft.id]: bkDraft };
       state.customSkills = { ...(state.customSkills || {}), [draft.id]: customDraft };
       const bn = root.querySelector('[data-blocknote]')?.value.trim();
       state.notes = state.notes || {};
@@ -244,6 +278,12 @@ export function openBlockEditor(state, blockId, onSave) {
       draft.required = Number(draft.required) || 0;
       onSave(draft);
       return close();
+    }
+    const fill = e.target.closest('[data-bk-fill]');
+    if (fill) {
+      const sug = suggestedRange(draft, fill.dataset.bkFill, addDays);
+      bkDraft[fill.dataset.bkFill] = { ...(bkDraft[fill.dataset.bkFill] || {}), ...sug };
+      return draw();
     }
     if (e.target.closest('[data-skill-add]')) {
       const v = (root.querySelector('[data-newskill]')?.value || '').trim();
@@ -279,6 +319,16 @@ export function openBlockEditor(state, blockId, onSave) {
 
   root.addEventListener('change', (e) => {
     const el = e.target;
+    if (el.dataset.bk) {
+      const k = el.dataset.bk;
+      const f = el.dataset.bkf;
+      const cur = { ...(bkDraft[k] || {}) };
+      if (f === 'check') { if (el.checked) cur.date = todayIso(); else delete cur.date; }
+      else if (f === 'date') { if (el.value) cur.date = el.value; else delete cur.date; }
+      else cur[f] = el.value;
+      if (Object.keys(cur).length) bkDraft[k] = cur; else delete bkDraft[k];
+      return f === 'text' ? undefined : draw();
+    }
     if (el.dataset.skill) {
       if (el.checked) skillsDraft[el.dataset.skill] = { date: todayIso() }; else delete skillsDraft[el.dataset.skill];
       return draw();
@@ -304,6 +354,10 @@ export function openBlockEditor(state, blockId, onSave) {
   });
   root.addEventListener('input', (e) => {
     const el = e.target;
+    if (el.dataset.bk && el.dataset.bkf === 'text') {
+      bkDraft[el.dataset.bk] = { ...(bkDraft[el.dataset.bk] || {}), text: el.value };
+      return;
+    }
     if (el.dataset.b && el.type !== 'date') { draft[el.dataset.b] = el.value; return; }
     const box = el.closest('[data-seg]');
     if (box && el.tagName === 'INPUT') draft.segments[Number(box.dataset.seg)][el.dataset.f] = el.value;

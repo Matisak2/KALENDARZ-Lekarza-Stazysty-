@@ -74,6 +74,7 @@ export function defaultState() {
     notes: {},
     skills: {},
     customSkills: {},
+    booklet: {},
     meta: { lastBackup: null, createdAt: null },
   };
 }

@@ -26,6 +26,7 @@ export function migrate(data) {
   data.notes = data.notes || {};
   data.skills = data.skills || {};
   data.customSkills = data.customSkills || {};
+  data.booklet = data.booklet || {};
   data.meta = { ...def.meta, ...data.meta };
   return data.version === SCHEMA_VERSION ? data : null;
 }

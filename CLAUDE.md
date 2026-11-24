@@ -26,6 +26,7 @@ Pokazuje bloki stażu, dni robocze, święta, urlop, kursy OIL, odrabianie, dyż
 - `js/blocks-ui.js` – ekran Bloki + arkusz edycji (podział bloku na oddziały po tygodniach).
 - `js/more-ui.js` – ekran Więcej (kursy OIL z terminami, dni wolne za soboty, eksport .ics, kopia, ustawienia, źródła).
 - `js/skills.js` – umiejętności z programu stażu (klucz = id bloku); stan w `state.skills` i `state.customSkills`.
+- `js/booklet.js` – książeczka stażowa (rubryki per blok, szkolenia); stan w `state.booklet` (imiona tylko lokalnie, nigdy w kodzie).
 - `js/duties-ui.js` – zakładka Dyżury (logika: `dutyMonth`, `dutyRoomOn`, `dutyTotals` w engine.js).
 - `js/calendar-ui.js` – ekran Kalendarz (miesiąc, okno dnia, formularz wpisu z podglądem `eventImpact`).
 - Blok: `segments: [{id,start,end,hospital,ward,customName?,customAddress?}]` – oddziały; nie wpływają na liczenie dni.

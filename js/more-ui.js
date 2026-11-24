@@ -3,6 +3,7 @@ import { buildIcs } from './ics.js';
 import { backupText, parseBackup } from './store.js';
 import { fmtFull, fmtShort, addDays, isWeekend } from './dates.js';
 import { holidayMap } from './holidays.js';
+import { BOOKLET_COURSES, bookletProgress, coursesSigned } from './booklet.js';
 import { esc } from './blocks-ui.js';
 
 export function renderMore(state) {
@@ -15,6 +16,7 @@ export function renderMore(state) {
       <h1 class="large-title">Więcej</h1>
     </header>
     <div class="desk-2"><div>
+      ${bookletCard(state)}
       ${coursesCard(state)}
       ${satOffCard(state)}
       <div class="card fade">
@@ -60,6 +62,47 @@ export function renderMore(state) {
         </ul>
       </div>
     </div></div>`;
+}
+
+function bookletCard(state) {
+  const bk = state.booklet || {};
+  const g = bk.general || {};
+  const blocks = state.blocks.map((b) => ({ b, p: bookletProgress(state, b) })).filter((x) => x.p.total);
+  const tot = blocks.reduce((a, x) => a + x.p.total, 0);
+  const done = blocks.reduce((a, x) => a + x.p.done, 0);
+  const cs = coursesSigned(state);
+  const ext = g.extensions || [];
+  const crs = BOOKLET_COURSES.map((c) => {
+    const v = bk.courses?.[c.key] || {};
+    return `<div class="course ${v.date ? 'set' : ''}">
+      <label class="skill ${v.date ? 'on' : ''}"><input type="checkbox" data-bkc="${c.key}" data-bkf="check" ${v.date ? 'checked' : ''}>
+        <span class="box"></span><span class="nm">${esc(c.label)}${v.date ? `<small>podpisane ${fmtShort(v.date)}</small>` : ''}</span></label>
+      <div class="row2">
+        <label>Organizator<input data-bkc="${c.key}" data-bkf="org" value="${esc(v.org || '')}"></label>
+        <label>Wykładowca<input data-bkc="${c.key}" data-bkf="lect" value="${esc(v.lect || '')}"></label>
+      </div></div>`;
+  }).join('');
+  return `<div class="card fade">
+    <div class="card-label">📘 Książeczka stażowa</div>
+    <div class="res-head" style="margin-bottom:8px"><div><div class="big">${done + cs.done}<small>/ ${tot + cs.total}</small></div>
+      <div class="sub">podpisów w blokach i szkoleniach</div></div></div>
+    <div class="bk-mini">${blocks.map((x) => `<span class="${x.p.done === x.p.total ? 'ok' : ''}" style="--block:var(--c-${x.b.color})"><i></i>${esc(x.b.short)} ${x.p.done}/${x.p.total}</span>`).join('')}
+      <span class="${cs.done === cs.total ? 'ok' : ''}"><i style="background:var(--c-course)"></i>Szkolenia ${cs.done}/${cs.total}</span></div>
+    <p class="hint small">Podpisy w blokach odhaczasz w zakładce Bloki → stuknij blok → „📘 Książeczka”.</p>
+    <details class="course-list"><summary>Szkolenia (strony z podpisem wykładowcy)</summary>${crs}</details>
+    <details class="course-list"><summary>Koordynator, przedłużenia, zaliczenie stażu</summary>
+      <div class="course"><label>Koordynator stażu (imię i nazwisko)<input data-bkg="coordinator" value="${esc(g.coordinator || '')}"></label></div>
+      <div class="course"><b>Przedłużenie stażu podyplomowego</b>
+        ${ext.map((x, i) => `<div class="ext-row"><span>${x.from ? fmtShort(x.from) : '?'}–${x.to ? fmtShort(x.to) : '?'} · ${esc(x.reason || '')}</span><button class="link danger" data-ext-del="${i}">Usuń</button></div>`).join('') || '<div class="hint small">Brak przedłużeń.</div>'}
+        <div class="row2"><label>Od<input type="date" data-ext="from"></label><label>Do<input type="date" data-ext="to"></label></div>
+        <label>Powód<input data-ext="reason" placeholder="np. zwolnienie lekarskie"></label>
+        <button class="btn" data-ext-add>＋ Dodaj przedłużenie</button></div>
+      <div class="course"><b>Zaliczenie stażu podyplomowego</b>
+        <div class="row2"><label>Odbył staż od<input type="date" data-bkg="finalFrom" value="${g.finalFrom || ''}"></label>
+          <label>do<input type="date" data-bkg="finalTo" value="${g.finalTo || ''}"></label></div>
+        <label>Data podpisu koordynatora<input type="date" data-bkg="finalDate" value="${g.finalDate || ''}"></label></div>
+    </details>
+  </div>`;
 }
 
 function coursesCard(state) {
@@ -143,6 +186,25 @@ export function handleMoreClick(e, ctx) {
     ctx.render();
     return true;
   }
+  if (e.target.closest('[data-ext-add]')) {
+    const card = e.target.closest('.course');
+    const v = (k) => card.querySelector(`[data-ext="${k}"]`).value;
+    if (!v('from') || !v('to')) { ctx.toast('Wpisz daty od i do'); return true; }
+    const st = ctx.state;
+    st.booklet = st.booklet || {};
+    st.booklet.general = st.booklet.general || {};
+    st.booklet.general.extensions = [...(st.booklet.general.extensions || []), { from: v('from'), to: v('to'), reason: v('reason') }];
+    ctx.save(); ctx.render(); ctx.toast('Dodano ✓');
+    return true;
+  }
+  const xd = e.target.closest('[data-ext-del]');
+  if (xd) {
+    const g = ctx.state.booklet.general;
+    const removed = g.extensions.splice(Number(xd.dataset.extDel), 1)[0];
+    ctx.save(); ctx.render();
+    ctx.toast('Usunięto', () => { g.extensions.push(removed); ctx.save(); ctx.render(); });
+    return true;
+  }
   const th = e.target.closest('[data-theme-set]');
   if (th) {
     ctx.state.settings.theme = th.dataset.themeSet;
@@ -156,6 +218,27 @@ export function handleMoreClick(e, ctx) {
 
 export function handleMoreChange(e, ctx) {
   const el = e.target;
+  const st = ctx.state;
+  if (el.dataset.bkc) {
+    st.booklet = st.booklet || {};
+    st.booklet.courses = st.booklet.courses || {};
+    const cur = { ...(st.booklet.courses[el.dataset.bkc] || {}) };
+    if (el.dataset.bkf === 'check') { if (el.checked) cur.date = new Date().toISOString().slice(0, 10); else delete cur.date; }
+    else cur[el.dataset.bkf] = el.value;
+    st.booklet.courses[el.dataset.bkc] = cur;
+    ctx.save();
+    if (el.dataset.bkf === 'check') ctx.render();
+    ctx.toast('Zapisano ✓');
+    return true;
+  }
+  if (el.dataset.bkg) {
+    st.booklet = st.booklet || {};
+    st.booklet.general = { ...(st.booklet.general || {}), [el.dataset.bkg]: el.value };
+    ctx.save();
+    ctx.toast('Zapisano ✓');
+    return true;
+  }
+  if (el.dataset.ext) return true;
   if (el.dataset.course) {
     const c = ctx.state.courses.find((x) => x.id === el.dataset.course);
     c[el.dataset.cf] = el.value || null;

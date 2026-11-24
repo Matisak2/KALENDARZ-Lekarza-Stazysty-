@@ -599,3 +599,20 @@ body.no-scroll { overflow: hidden; }
 .row-add { display: flex; gap: 8px; align-items: center; padding: 10px 0 4px; }
 .row-add input { margin-top: 0 !important; }
 .todo .chip { align-self: center; flex: none; background: color-mix(in srgb, var(--ok) 15%, var(--card)); color: var(--ok); }
+
+/* Książeczka */
+.bk-sign > div > div { background: var(--c-navy) !important; }
+.bk-sign.full > div > div { background: var(--ok) !important; }
+.booklet .bk-row { display: block; padding: 10px 0; border-bottom: 0.5px solid var(--sep); font-size: 14px; font-weight: 700; color: var(--text-2); margin: 0 !important; }
+.booklet .bk-row span { display: block; }
+.booklet .bk-row input { margin-top: 6px; }
+.mini-date { width: auto !important; flex: none; margin: 0 !important; padding: 6px 8px !important; font-size: 14px !important; max-width: 150px; }
+.skill .mini-date { position: static; opacity: 1; width: auto; height: auto; }
+.bk-mini { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.bk-mini span { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 700; padding: 5px 9px; border-radius: 999px; background: var(--card-2); }
+.bk-mini span i { width: 8px; height: 8px; border-radius: 50%; background: var(--block); }
+.bk-mini span.ok { background: color-mix(in srgb, var(--ok) 15%, var(--card)); color: var(--ok); }
+.course .skill { border-bottom: 0; padding: 4px 0; }
+.ext-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 14px; }
+.hero-ward.empty, [data-goto-block].todo { cursor: pointer; }
+.small-link { font-size: 13px; padding: 2px 0; display: block; margin-top: 2px; text-align: left; }

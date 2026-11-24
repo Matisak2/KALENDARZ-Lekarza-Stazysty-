@@ -271,7 +271,7 @@ function todoCard(al, label = 'Na dziś') {
   if (!al.length) return '';
   const order = { urgent: 0, warn: 1, info: 2 };
   const rows = [...al].sort((a, b) => order[a.level] - order[b.level]).map((a) => `
-    <div class="todo ${a.level}" ${a.action === 'backup' ? 'data-goto-tab="wiecej" role="button"' : ''}>
+    <div class="todo ${a.level}" ${a.action === 'backup' ? 'data-goto-tab="wiecej" role="button"' : ''}${a.action === 'booklet' ? ` data-goto-block="${a.blockId}" role="button"` : ''}>
       <div class="todo-ic">${a.icon}</div>
       <div class="grow"><div class="t">${esc(a.title)}</div><div class="s">${esc(a.detail || '')}</div></div>
       ${a.action === 'deadline-done' ? `<button class="chip" data-deadline-done="${a.date}">Zrobione ✓</button>` : ''}
