@@ -27,7 +27,7 @@ Pokazuje bloki stażu, dni robocze, święta, urlop, kursy OIL, odrabianie, dyż
 - Bloki sztywne (tydzień czw–śr). Blok wymaga tygodnie × 5 dni roboczych.
 - Dni stracone w bloku (urlop, L4, kurs, dzień wolny za sobotnie święto, święto w trybie „odrabiane”) odrabia się po całym harmonogramie, na tym samym oddziale.
 - Rezerwa 26.08–31.10.2027 = 47 dni roboczych. 282 dni robocze umowy = 235 bloki + 25 kursy + 22 urlop.
-- Święta: przełącznik `holidayMode` – `odrabiane` (praktyka USK2) / `zaliczane` (poradnik OIL 2026, s. 36).
+- Święta: `holidayMode` domyślnie `zaliczane` (poradnik OIL 2026, s. 36 – decyzja właściciela); `odrabiane` zostaje jako opcja.
 - Urlop 22 dni (5 za 2026 + 17 za 2027). Kursy OIL: 25 dni, terminy dla rocznika 2026/27 jeszcze nieogłoszone.
 - Dyżury 40 h 20 min/mies.; „tygodnie” miesiąca: 1–7, 8–14, 15–21, 22–koniec; max 10 h 05 min na tydzień, max 8 dyżurów;
   każde 5 dni urlopu/L4 w miesiącu zmniejsza normę o 10 h 05 min; brak dyżurów na med. rodzinnej i w dni kursów.

@@ -196,11 +196,11 @@ function reserveCard(sum) {
       ${r.absences ? `<div><i style="background:var(--c-gray)"></i>Nieobecności w rezerwie<b>${r.absences}</b></div>` : ''}
     </div>
     <div class="segmented" role="group" aria-label="Jak liczyć święta">
-      <button data-holiday-mode="odrabiane" class="${mode === 'odrabiane' ? 'on' : ''}">Święta odrabiane</button>
       <button data-holiday-mode="zaliczane" class="${mode === 'zaliczane' ? 'on' : ''}">Święta zaliczane</button>
+      <button data-holiday-mode="odrabiane" class="${mode === 'odrabiane' ? 'on' : ''}">Święta odrabiane</button>
     </div>
     <div class="note">${mode === 'odrabiane'
-      ? 'Wg praktyki USK2: święto w trakcie bloku przepada i trzeba je odrobić.'
+      ? 'Wariant ostrożny: święto w trakcie bloku przepada i trzeba je odrobić.'
       : 'Wg poradnika OIL Szczecin 2026 (s. 36): „Dni ustawowo wolne od pracy nie wydłużają stażu cząstkowego”.'}
       ${r.free < 0 ? ` Staż potrwa wtedy do ok. <b>${fmtFull(sum.estimatedEnd)}</b>.` : ''}</div>
   </div>`;

@@ -6,6 +6,7 @@ import { eachDay, isWeekend, weekday } from '../js/dates.js';
 
 const TODAY = '2026-11-24';
 const S = () => defaultState();
+const O = () => { const s = defaultState(); s.settings.holidayMode = 'odrabiane'; return s; };
 const byId = (sum, id) => sum.stats.find((s) => s.block.id === id);
 
 test('Harmonogram grupy 6: każdy blok zaczyna się w czwartek i kończy w środę', () => {
@@ -25,7 +26,7 @@ test('Dni robocze w okresie umowy: 282 = 235 (bloki) + 47 (rezerwa)', () => {
 });
 
 test('Chirurgia 24.11.2026: 38 dni zrobione, 1 w bloku, 11.11 do odrobienia', () => {
-  const sum = summarize(S(), TODAY);
+  const sum = summarize(O(), TODAY);
   const chir = byId(sum, 'chir');
   assert.equal(chir.status, 'current');
   assert.equal(chir.required, 40);
@@ -39,7 +40,7 @@ test('Chirurgia 24.11.2026: 38 dni zrobione, 1 w bloku, 11.11 do odrobienia', ()
 });
 
 test('Chirurgia plastyczna traci 5 z 20 dni (23.12 za 26.12, Wigilia, święta, Nowy Rok, Trzech Króli)', () => {
-  const sum = summarize(S(), TODAY);
+  const sum = summarize(O(), TODAY);
   const p = byId(sum, 'pers2');
   assert.deepEqual(p.lost.map((l) => l.date), ['2026-12-23', '2026-12-24', '2026-12-25', '2027-01-01', '2027-01-06']);
   assert.equal(p.makeUp, 5);
@@ -47,7 +48,7 @@ test('Chirurgia plastyczna traci 5 z 20 dni (23.12 za 26.12, Wigilia, święta, 
 });
 
 test('Tryb "odrabiane" (USK2): 9 dni do odrobienia, rezerwy brakuje 9 dni', () => {
-  const sum = summarize(S(), TODAY);
+  const sum = summarize(O(), TODAY);
   assert.equal(sum.reserve.makeUp, 9); // 1 chir + 5 plast + 1 interna + 2 rodzinna
   assert.equal(sum.reserve.coursesUnscheduled, 25);
   assert.equal(sum.reserve.vacationUnplanned, 22);
@@ -55,9 +56,9 @@ test('Tryb "odrabiane" (USK2): 9 dni do odrobienia, rezerwy brakuje 9 dni', () =
   assert.equal(sum.estimatedEnd, '2027-11-15'); // 9 dni roboczych po 31.10 (1.11 i 11.11 to święta)
 });
 
-test('Tryb "zaliczane" (poradnik OIL): święta liczą się do stażu, bilans wychodzi na zero', () => {
+test('Domyślnie tryb "zaliczane" (poradnik OIL): święta liczą się do stażu, bilans wychodzi na zero', () => {
   const st = S();
-  st.settings.holidayMode = 'zaliczane';
+  assert.equal(st.settings.holidayMode, 'zaliczane');
   const sum = summarize(st, TODAY);
   assert.equal(sum.reserve.makeUp, 0);
   assert.equal(sum.reserve.free, 0);
@@ -66,14 +67,14 @@ test('Tryb "zaliczane" (poradnik OIL): święta liczą się do stażu, bilans wy
 });
 
 test('Urlop kosztuje tyle samo w bloku i w rezerwie (bilans się nie zmienia)', () => {
-  const base = summarize(S(), TODAY).reserve.free;
-  const a = S();
+  const base = summarize(O(), TODAY).reserve.free;
+  const a = O();
   a.events.push({ id: 'u1', type: 'urlop', start: '2027-08-16', end: '2027-08-20' });
   const sa = summarize(a, TODAY);
   assert.equal(byId(sa, 'ped').makeUp, 5);
   assert.equal(sa.vacation.planned, 5);
   assert.equal(sa.reserve.free, base);
-  const b = S();
+  const b = O();
   b.events.push({ id: 'u2', type: 'urlop', start: '2027-09-06', end: '2027-09-10' });
   const sb = summarize(b, TODAY);
   assert.equal(sb.reserve.absences, 5);
@@ -81,7 +82,7 @@ test('Urlop kosztuje tyle samo w bloku i w rezerwie (bilans się nie zmienia)', 
 });
 
 test('Urlop nie zużywa dni w święta ani w dzień wolny za sobotę', () => {
-  const st = S();
+  const st = O();
   st.events.push({ id: 'u', type: 'urlop', start: '2026-12-21', end: '2026-12-31' });
   const sum = summarize(st, TODAY);
   assert.equal(sum.vacation.planned, 6); // 21,22,28,29,30,31 (23,24,25 wolne)
@@ -89,7 +90,7 @@ test('Urlop nie zużywa dni w święta ani w dzień wolny za sobotę', () => {
 });
 
 test('L4 wydłuża: 3 dni L4 w bloku = 3 dni więcej do odrobienia', () => {
-  const st = S();
+  const st = O();
   st.events.push({ id: 'l', type: 'l4', start: '2027-02-08', end: '2027-02-10' });
   const sum = summarize(st, TODAY);
   assert.equal(byId(sum, 'int').makeUp, 4);
@@ -97,7 +98,7 @@ test('L4 wydłuża: 3 dni L4 w bloku = 3 dni więcej do odrobienia', () => {
 });
 
 test('Kurs w trakcie bloku: dni bloku przepadają, a kurs przestaje być "bez terminu"', () => {
-  const st = S();
+  const st = O();
   st.courses.find((c) => c.id === 'krew').start = '2027-03-01';
   st.courses.find((c) => c.id === 'krew').end = '2027-03-05';
   const sum = summarize(st, TODAY);
@@ -107,7 +108,7 @@ test('Kurs w trakcie bloku: dni bloku przepadają, a kurs przestaje być "bez te
 });
 
 test('Kurs piątek–sobota zabiera tylko piątek', () => {
-  const st = S();
+  const st = O();
   const bol = st.courses.find((c) => c.id === 'bol');
   bol.start = '2027-06-04'; // piątek
   bol.end = '2027-06-05';   // sobota
@@ -117,7 +118,7 @@ test('Kurs piątek–sobota zabiera tylko piątek', () => {
 });
 
 test('Plan odrabiania zaczyna się 26.08.2027 od chirurgii', () => {
-  const sum = summarize(S(), TODAY);
+  const sum = summarize(O(), TODAY);
   assert.equal(sum.makeUpPlan[0].date, '2027-08-26');
   assert.equal(sum.makeUpPlan[0].blockId, 'chir');
   assert.equal(sum.makeUpPlan.length, 9);
@@ -125,12 +126,12 @@ test('Plan odrabiania zaczyna się 26.08.2027 od chirurgii', () => {
 });
 
 test('Dzień wolny za 01.05.2027 – po wpisaniu daty przepada w bloku', () => {
-  const st = S();
+  const st = O();
   st.settings.saturdayDaysOff['2027-05-01'] = '2027-05-04';
   const sum = summarize(st, TODAY);
   assert.equal(byId(sum, 'rodz').makeUp, 3);
   assert.ok(!alerts(sum).some((a) => a.title.includes('Święto Pracy')));
-  assert.ok(alerts(summarize(S(), TODAY)).some((a) => a.title.includes('Święto Pracy')));
+  assert.ok(alerts(summarize(O(), TODAY)).some((a) => a.title.includes('Święto Pracy')));
 });
 
 test('Przypomnienie o zapisach na LEK pojawia się na 30 dni przed terminem', () => {
@@ -157,7 +158,17 @@ test('Przed stażem i po stażu', () => {
 });
 
 test('Postęp programu: 260 dni (235 bloków + 25 kursów)', () => {
-  const sum = summarize(S(), TODAY);
+  const sum = summarize(O(), TODAY);
   assert.equal(sum.program.total, 260);
   assert.equal(sum.program.done, 38);
+});
+
+test('Tryb "zaliczane": chirurgia plastyczna bez dni do odrobienia, urlop w bloku nadal do odrobienia', () => {
+  const st = S();
+  st.events.push({ id: 'u', type: 'urlop', start: '2027-08-16', end: '2027-08-20' });
+  const sum = summarize(st, TODAY);
+  assert.equal(byId(sum, 'pers2').makeUp, 0);
+  assert.equal(byId(sum, 'ped').makeUp, 5);
+  assert.equal(sum.reserve.free, 0);
+  assert.ok(!alerts(sum).some((a) => a.title.includes('plastyczna')));
 });

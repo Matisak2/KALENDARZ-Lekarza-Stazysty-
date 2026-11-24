@@ -1,5 +1,5 @@
 // Service worker: aplikacja działa offline, a nowe wersje pobiera w tle.
-const CACHE = 'stazysta-v3';
+const CACHE = 'stazysta-v4';
 const SHELL = [
   './', 'index.html', 'css/app.css', 'manifest.webmanifest',
   'js/app.js', 'js/store.js', 'js/engine.js', 'js/dates.js', 'js/holidays.js', 'js/defaults.js',
