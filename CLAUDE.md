@@ -32,7 +32,7 @@ Pokazuje bloki stażu, dni robocze, święta, urlop, kursy OIL, odrabianie, dyż
 - `js/duties-ui.js` – zakładka Dyżury (logika: `dutyMonth`, `dutyRoomOn`, `dutyTotals` w engine.js).
 - `js/calendar-ui.js` – ekran Kalendarz (miesiąc, okno dnia, formularz wpisu z podglądem `eventImpact`).
 - Blok: `segments: [{id,start,end,hospital,ward,customName?,customAddress?}]` – oddziały; nie wpływają na liczenie dni.
-- `js/app.js` – interfejs (zakładki: Dziś, Bloki, Kalendarz, Więcej).
+- `js/app.js` – interfejs (zakładki: Dziś, Bloki, Kalendarz, Dyżury, Więcej). Zmiany dat w ustawieniach tylko przez okienko „Zmień → Zapisz”, usuwanie z „Cofnij” (właściciel ma czuły ekran).
 - `sw.js` – offline; **przy każdej zmianie plików podbij `CACHE`**.
 - Podgląd na inny dzień: `?dzis=RRRR-MM-DD`.
 
