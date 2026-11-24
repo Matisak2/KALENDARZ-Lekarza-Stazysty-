@@ -55,6 +55,7 @@ export function renderBlocks(state, today) {
       <div class="bc-nums"><span><b>${s.done}</b> z ${s.required} dni roboczych</span>
         ${s.makeUp ? `<span class="neg">↺ ${s.makeUp} do odrobienia</span>` : `<span class="muted">${Math.round(pct * 100)}%</span>`}</div>
       <div class="segs">${segmentsHtml(state, b)}</div>
+      ${state.notes?.['block:' + b.id] ? `<div class="bc-note">📝 ${esc(state.notes['block:' + b.id])}</div>` : ''}
     </button>`;
   }).join('');
 
@@ -158,7 +159,10 @@ export function openBlockEditor(state, blockId, onSave) {
     return out;
   };
 
+  let noteDraft = state.notes?.['block:' + draft.id] || '';
   const draw = () => {
+    const nEl = root.querySelector('[data-blocknote]');
+    if (nEl) noteDraft = nEl.value;
     const weeks = blockWeeks(draft, state.settings.startDate);
     const errs = errors();
     root.innerHTML = `<div class="sheet-backdrop" data-close></div>
@@ -179,6 +183,8 @@ export function openBlockEditor(state, blockId, onSave) {
           <label>Wymagane dni robocze<input type="number" inputmode="numeric" min="0" data-b="required" value="${draft.required}"></label>
           <div class="swatches">${COLORS.map((c) => `<button class="sw ${c === draft.color ? 'on' : ''}" data-color="${c}" style="background:var(--c-${c})" aria-label="${c}"></button>`).join('')}</div>
         </div>
+        <div class="form-card"><label class="note-label">📝 Notatki do bloku
+          <textarea data-blocknote rows="3" placeholder="np. co nadrobić, kolokwium, opiekun stażu">${esc(noteDraft)}</textarea></label></div>
         <div class="section-title small-title">Oddziały</div>
         <p class="hint">Na każdy okres wybierz szpital i oddział. Jeśli robisz blok na kilku oddziałach, dodaj kolejny i ustaw tygodnie.</p>
         ${draft.segments.map((s, k) => segEditorHtml(state, draft, weeks, s, k)).join('')}
@@ -204,6 +210,9 @@ export function openBlockEditor(state, blockId, onSave) {
     if (e.target.closest('[data-save]')) {
       if (errors().length) return;
       draft.segments = draft.segments.filter((s) => s.hospital).map(({ _otherWard, ...s }) => s);
+      const bn = root.querySelector('[data-blocknote]')?.value.trim();
+      state.notes = state.notes || {};
+      if (bn) state.notes['block:' + draft.id] = bn; else delete state.notes['block:' + draft.id];
       draft.required = Number(draft.required) || 0;
       onSave(draft);
       return close();

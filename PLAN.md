@@ -9,12 +9,12 @@
 - [x] Kalendarz miesięczny: kolory bloków, weekendy, święta, urlop, L4, kursy, odrabianie (dyżury – etap 2)
 - [x] Wpisy: urlop, L4/opieka/bezpłatny z podglądem skutków, kursy z terminami, dzień wolny za sobotę, „Cofnij” po usunięciu
 - [x] Kopia zapasowa: zapisz / wczytaj plik (AirDrop, iCloud Drive)
-- [ ] Przypomnienie o kopii
+- [x] Przypomnienie o kopii (brak kopii albo > 30 dni, gdy są wpisy)
 
 ## Etap 2
 - [x] Dyżury: wpisy, norma miesiąca (bloki z dyżurami, urlop/L4), limit 10 h 05 min na tydzień miesiąca, max 8, podsumowanie, karta na „Dziś”, 🌙 w kalendarzu
 - [x] Eksport .ics z adresami oddziałów i alarmami (LEK, start bloku, zmiana oddziału, kursy)
-- [ ] Notatki do dnia/bloku, odliczanie i przypomnienia LEK (jesień)
+- [x] Notatki do dnia (kalendarz) i do bloku (edycja bloku); LEK: odliczanie + terminy w .ics
 
 ## Etap 3
 - [ ] Procedury z książeczki stażowej (odhaczanie)

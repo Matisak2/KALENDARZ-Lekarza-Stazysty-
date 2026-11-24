@@ -567,3 +567,16 @@ body.no-scroll { overflow: hidden; }
 .chip.on { background: var(--accent); color: #fff; }
 .duty-dot { position: absolute; bottom: 3px; right: 4px; font-size: 9px; line-height: 1; }
 .tabbar button { max-width: 96px; }
+
+/* Notatki */
+.sheet textarea, .note-label textarea {
+  display: block; width: 100%; margin-top: 6px; font: inherit; font-size: 16px; color: var(--text); resize: vertical;
+  background: var(--card-2); border: 1px solid transparent; border-radius: 12px; padding: 10px 12px; min-height: 76px;
+}
+.sheet textarea:focus { outline: none; border-color: var(--accent); }
+.note-label { font-size: 12.5px; font-weight: 700; color: var(--text-2); }
+.note-dot { position: absolute; top: 5px; left: 6px; width: 5px; height: 5px; border-radius: 50%; background: var(--c-yellow); }
+.k-note { width: 7px; height: 7px; border-radius: 50%; background: var(--c-yellow); display: inline-block; }
+.note-prev { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bc-note { margin-top: 8px; font-size: 13.5px; color: var(--text-2); background: var(--card-2); border-radius: 10px; padding: 8px 10px; white-space: pre-wrap; }
+[data-goto-tab].todo { cursor: pointer; }

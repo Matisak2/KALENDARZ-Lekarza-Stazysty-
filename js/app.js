@@ -271,7 +271,7 @@ function todoCard(al) {
   if (!al.length) return '';
   const order = { urgent: 0, warn: 1, info: 2 };
   const rows = [...al].sort((a, b) => order[a.level] - order[b.level]).map((a) => `
-    <div class="todo ${a.level}">
+    <div class="todo ${a.level}" ${a.action === 'backup' ? 'data-goto-tab="wiecej" role="button"' : ''}>
       <div class="todo-ic">${a.icon}</div>
       <div class="grow"><div class="t">${esc(a.title)}</div><div class="s">${esc(a.detail || '')}</div></div>
     </div>`).join('');

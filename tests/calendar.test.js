@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultState } from '../js/defaults.js';
-import { summarize, dayInfo, eventImpact } from '../js/engine.js';
+import { summarize, dayInfo, eventImpact, alerts } from '../js/engine.js';
 
 const TODAY = '2026-11-24';
 
@@ -67,4 +67,15 @@ test('eventImpact: edycja istniejącego wpisu nie liczy go podwójnie', () => {
 test('eventImpact: urlop na przełomie bloków dzieli się na dwa bloki', () => {
   const imp = eventImpact(defaultState(), { id: 'n', type: 'urlop', start: '2027-04-26', end: '2027-04-30' }, TODAY);
   assert.deepEqual(imp.perBlock.map((p) => [p.block.id, p.days]), [['anest', 3], ['rodz', 2]]);
+});
+
+test('Przypomnienie o kopii: brak wpisów – brak; są wpisy bez kopii – jest; kopia 10 dni temu – brak; 30 dni – jest', () => {
+  const st = defaultState();
+  const has = (s, t) => alerts(summarize(s, t)).some((a) => a.icon === '💾');
+  assert.ok(!has(st, TODAY));
+  st.duties.push({ id: 'd', date: '2026-11-03', minutes: 300 });
+  assert.ok(has(st, TODAY));
+  st.meta.lastBackup = '2026-11-14T10:00:00.000Z';
+  assert.ok(!has(st, TODAY));
+  assert.ok(has(st, '2026-12-14'));
 });

@@ -64,6 +64,7 @@ export function renderCalendar(state, today, ym) {
       <span class="dn">${Number(d.slice(8))}</span>
       ${badge(info) ? `<span class="bd">${badge(info)}</span>` : ''}
       ${(state.duties || []).some((x) => x.date === d) ? '<span class="duty-dot">🌙</span>' : ''}
+      ${state.notes?.[d] ? '<span class="note-dot"></span>' : ''}
       ${startsBlock && !out ? '<span class="start-tick"></span>' : ''}
     </button>`;
   }).join('');
@@ -82,7 +83,10 @@ export function renderCalendar(state, today, ym) {
   // Wpisy w miesiącu
   const evs = (state.events || []).filter((e) => e.start <= last && e.end >= first).sort((a, b) => (a.start < b.start ? -1 : 1));
   const courses = (state.courses || []).filter((c) => c.start && c.start <= last && c.end >= first);
+  const notes = Object.entries(state.notes || {}).filter(([k]) => /^\d{4}-\d{2}-\d{2}$/.test(k) && k >= first && k <= last).sort();
   const items = [
+    ...notes.map(([k, v]) => `<button class="list-item ev-item" data-day="${k}"><div class="ev-ic">📝</div>
+      <div class="grow"><div class="t">${fmtDayShort(k)}</div><div class="s note-prev">${esc(v)}</div></div><span class="chev">›</span></button>`),
     ...evs.map((e) => `<button class="list-item ev-item" data-edit-event="${esc(e.id)}">
       <div class="ev-ic">${EVENT_TYPES[e.type]?.icon || '•'}</div>
       <div class="grow"><div class="t">${esc(EVENT_TYPES[e.type]?.label || e.type)}</div>
@@ -109,7 +113,7 @@ export function renderCalendar(state, today, ym) {
         <div class="wd-row">${WD.map((w, i) => `<span class="${i > 4 ? 'we' : ''}">${w}</span>`).join('')}</div>
         <div class="cal-grid">${cells}</div>
         <div class="cal-key">
-          <span><i class="k-hol"></i>święto</span><span>🏖 urlop</span><span>🤒 L4</span><span>🎓 kurs</span><span>↺ odrabianie</span><span>🛋 wolne za sobotę</span><span>🌙 dyżur</span>
+          <span><i class="k-hol"></i>święto</span><span>🏖 urlop</span><span>🤒 L4</span><span>🎓 kurs</span><span>↺ odrabianie</span><span>🛋 wolne za sobotę</span><span>🌙 dyżur</span><span><i class="k-note"></i>notatka</span>
         </div>
       </div>
       <button class="btn primary add-ev" data-new-event="${today >= first && today <= last ? today : first}">＋ Dodaj urlop / L4 / nieobecność</button>
@@ -182,6 +186,8 @@ export function openDay(state, today, d, ctx) {
       <div class="grow"><div class="t">${esc(EVENT_TYPES[e.type]?.label)}</div><div class="s">${fmtDayShort(e.start)} – ${fmtDayShort(e.end)}</div></div><span class="chev">›</span></button>`).join('')}
     ${dus.map((x) => `<button class="list-item ev-item card" data-edit-duty="${esc(x.id)}"><div class="ev-ic">🌙</div>
       <div class="grow"><div class="t">Dyżur · ${fmtHM(x.minutes)}</div>${x.note ? `<div class="s">${esc(x.note)}</div>` : ''}</div><span class="chev">›</span></button>`).join('')}
+    <div class="form-card"><label class="note-label">📝 Notatka do dnia
+      <textarea data-note="${d}" rows="3" placeholder="np. czego się nauczyłem, co nadrobić, kto był opiekunem">${esc(state.notes?.[d] || '')}</textarea></label></div>
     ${info.inStaz || d >= state.settings.startDate ? `
       <div class="quick">
         <button class="btn" data-quick="urlop">🏖 Urlop</button>
@@ -190,6 +196,14 @@ export function openDay(state, today, d, ctx) {
       </div>
       <button class="btn" data-quick-duty style="background:var(--card);box-shadow:var(--shadow)">🌙 Dodaj dyżur</button>` : ''}
   `);
+  root.addEventListener('change', (e) => {
+    const n = e.target.dataset.note;
+    if (!n) return;
+    state.notes = state.notes || {};
+    const v = e.target.value.trim();
+    if (v) state.notes[n] = v; else delete state.notes[n];
+    ctx.save(); ctx.render(); ctx.toast('Notatka zapisana ✓');
+  });
   root.addEventListener('click', (e) => {
     if (e.target.closest('[data-close]')) return close();
     const q = e.target.closest('[data-quick]');

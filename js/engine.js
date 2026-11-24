@@ -229,6 +229,15 @@ export function alerts(sum) {
       out.push({ level: 'info', icon: '📅', title: `Wpisz dzień wolny za ${h?.name || 'święto'} (${hDate.slice(8, 10)}.${hDate.slice(5, 7)}, sobota)`, detail: 'Pracodawca musi wyznaczyć inny dzień wolny' });
     }
   }
+  const st = sum.ctx.state;
+  const entries = (st.events || []).length + (st.duties || []).length
+    + (st.courses || []).filter((c) => c.start).length + Object.keys(st.notes || {}).length;
+  if (entries > 0) {
+    const last = st.meta?.lastBackup ? st.meta.lastBackup.slice(0, 10) : null;
+    const ago = last ? toNum(today) - toNum(last) : null;
+    if (!last) out.push({ level: 'info', icon: '💾', title: 'Zrób kopię zapasową', detail: 'Dane są tylko w tym telefonie – Więcej → Zapisz kopię', action: 'backup' });
+    else if (ago >= 30) out.push({ level: 'info', icon: '💾', title: `Ostatnia kopia ${ago} dni temu`, detail: 'Zapisz nową kopię: Więcej → Zapisz kopię', action: 'backup' });
+  }
   if (sum.reserve.free < 0) {
     out.push({ level: 'warn', icon: '⏳', title: `Brakuje ${-sum.reserve.free} dni roboczych w rezerwie`, detail: `Przy obecnych założeniach staż może potrwać do ${sum.estimatedEnd.slice(8, 10)}.${sum.estimatedEnd.slice(5, 7)}.${sum.estimatedEnd.slice(0, 4)}` });
   }
