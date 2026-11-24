@@ -5,7 +5,9 @@ Pokazuje bloki stażu, dni robocze, święta, urlop, kursy OIL, odrabianie, dyż
 
 ## Jak pracować z właścicielem
 - Właściciel jest lekarzem i **nie programuje**. Pisz po polsku, prosto, krok po kroku przy każdej czynności technicznej.
-- Zmiany robisz sam: edytujesz, testujesz (`npm test`), robisz commit i push. Właściciel tylko odświeża aplikację.
+- Zmiany robisz sam: edytujesz, testujesz (`npm test`), robisz commit i push na `main` **oraz** na `gh-pages`
+  (`git push origin HEAD:main HEAD:gh-pages`). GitHub Pages publikuje z gałęzi `gh-pages` w 1–2 min.
+  Adres: https://matisak2.github.io/KALENDARZ-Lekarza-Stazysty-/. Właściciel tylko odświeża aplikację.
 - Przed większą zmianą krótko zaproponuj plan; drobne poprawki rób od razu.
 - **Dokładność wyliczeń jest najważniejsza.** Każda zmiana w `js/engine.js` / `js/holidays.js` = nowy test w `tests/`.
 - Wygląd jest bardzo ważny: styl iOS, zaokrąglone karty, Nunito, pastelowe tła w kolorze bloku, tryb jasny i ciemny, czytelność.
