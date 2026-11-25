@@ -53,6 +53,7 @@ export function buildTimesheet(state, ym) {
   const days = eachDay(`${ym}-01`, `${ym}-${String(last).padStart(2, '0')}`);
   const st = state.settings;
   const overrides = state.timesheets?.[ym]?.rows || {};
+  const warnings = [];
   const rows = days.map((d) => {
     const day = Number(d.slice(8));
     const free = isWeekend(d) || !!statutoryOff(ctx, d);
@@ -72,6 +73,8 @@ export function buildTimesheet(state, ym) {
         r.dutyNightHoliday = nightMinutes(start, dutyMin);
       }
     } else if (abs) {
+      // Dyżur w dniu nieobecności/kursu nie trafia na kartę – ostrzeżenie zamiast cichego pominięcia (audyt B5)
+      if (dutyMin) warnings.push(`${d.slice(8)}.${d.slice(5, 7)}: dyżur (${hm(dutyMin)}) w dniu ${abs.kind === 'course' ? 'kursu' : 'nieobecności'} (${abs.label}) – nie ma go na karcie. Popraw dyżur albo nieobecność.`);
       if (abs.kind === 'course') {
         r.hours = `${clock(WORK_START)}-${clock(WORK_START + WORK_MIN)}`;
         r.nominal = WORK_MIN;
@@ -93,7 +96,49 @@ export function buildTimesheet(state, ym) {
   const totals = { nominal: sum('nominal'), duty: sum('duty'), dutyHoliday: sum('dutyHoliday'), dutyNightHoliday: sum('dutyNightHoliday'), dutyPhone: sum('dutyPhone') };
   totals.all = totals.nominal + totals.duty + totals.dutyHoliday;
   return {
-    ym, monthLabel: `${MONTHS_GEN[m - 1]} ${y}`, monthTitle: MONTHS[m - 1], rows, totals,
+    ym, monthLabel: `${MONTHS_GEN[m - 1]} ${y}`, monthTitle: MONTHS[m - 1], rows, totals, warnings,
     name: st.personal?.name || '', unit: st.personal?.unit || 'LEKARZ STAŻYSTA', group: st.group || '',
   };
+}
+
+/**
+ * Szacunek wynagrodzenia za dyżury w miesiącu (brutto). Rozporządzenie MZ w sprawie stażu (Dz.U. 2023 poz. 377),
+ * § 12 pkt 1 lit. a: za każdą godzinę dyżuru (w porze dziennej i nocnej) – 125% stawki godzinowej zasadniczego
+ * wynagrodzenia miesięcznego. Stawka godzinowa = pensja zasadnicza / wymiar godzin miesiąca (dni robocze × 7 h 35 min).
+ * To szacunek do porównania z paskiem – sposób liczenia stawki w USK2 może się różnić.
+ */
+export function dutyPay(state, ym) {
+  const ctx = buildContext(state);
+  const [y, m] = ym.split('-').map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const st = state.settings;
+  const days = eachDay(`${ym}-01`, `${ym}-${String(last).padStart(2, '0')}`);
+  const nominalMin = days.filter((d) => !isWeekend(d) && !statutoryOff(ctx, d)).length * WORK_MIN;
+  const dutyMin = (state.duties || []).filter((x) => x.date.startsWith(ym)).reduce((a, x) => a + Number(x.minutes || 0), 0);
+  const base = Number(st.pay?.base) || 0;
+  const hourly = base && nominalMin ? base / (nominalMin / 60) : 0;
+  const pay = Math.round((dutyMin / 60) * hourly * 1.25 * 100) / 100;
+  return { base, nominalMin, hourly: Math.round(hourly * 100) / 100, dutyMin, rate: 1.25, pay };
+}
+
+/**
+ * Lista obecności na miesiąc: dzień pracy = miejsce na podpis; nieobecność = kod z legendy USK2
+ * (ZL, UW, OP, UB, NU, SZ – szkolenie/kurs); weekend i święto – zacienione.
+ */
+export function buildAttendance(state, ym) {
+  const ctx = buildContext(state);
+  const [y, m] = ym.split('-').map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const st = state.settings;
+  const WD = ['nd', 'pn', 'wt', 'śr', 'cz', 'pt', 'sb'];
+  const rows = eachDay(`${ym}-01`, `${ym}-${String(last).padStart(2, '0')}`).map((d) => {
+    const off = statutoryOff(ctx, d);
+    const free = isWeekend(d) || !!off;
+    const inStaz = d >= st.startDate && d <= st.endDate;
+    const abs = ctx.absence.get(d);
+    let code = '';
+    if (inStaz && !free && abs) code = abs.kind === 'course' ? 'SZ' : (ABS_CODE[abs.type] || 'NU');
+    return { day: Number(d.slice(8)), date: d, wd: WD[new Date(`${d}T00:00:00Z`).getUTCDay()], shaded: free || !inStaz, code, note: off ? off.label : '' };
+  });
+  return { ym, monthLabel: `${MONTHS_GEN[m - 1]} ${y}`, rows, name: st.personal?.name || '', group: st.group || '' };
 }

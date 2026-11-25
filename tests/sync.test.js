@@ -23,6 +23,12 @@ test('Nowe urządzenie (nigdy nie synchronizowane) z pustymi danymi pobiera chmu
   assert.equal(decideSync(0, 5000, 0), 'pull');
 });
 
+test('Audyt B1: nowe urządzenie z drobną zmianą (np. motyw) NIE nadpisuje chmury – pobiera ją, swoje zostawia w kopii', () => {
+  // Komputer zmienił coś przed zalogowaniem (2000 > 1000 w chmurze) – dawniej: conflict-push = utrata danych z telefonu
+  assert.equal(decideSync(2000, 1000, 0), 'conflict-pull');
+  assert.equal(decideSync(500, 1000, 0), 'conflict-pull');
+});
+
 test('Zapis do chmury i odczyt zwracają te same dane', () => {
   const st = defaultState();
   st.meta.updatedAt = 12345;

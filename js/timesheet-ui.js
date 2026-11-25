@@ -1,5 +1,6 @@
 // Karta czasu pracy – podgląd i PDF (druk przeglądarki: na iPhonie „Udostępnij → Zapisz w Plikach”).
-import { buildTimesheet, hm } from './timesheet.js';
+import { buildTimesheet, buildAttendance, hm } from './timesheet.js';
+import { dutySheetHtml } from './duties-ui.js';
 import { esc } from './blocks-ui.js';
 import { todayIso } from './dates.js';
 
@@ -63,6 +64,24 @@ export function timesheetHtml(k) {
   </div>`;
 }
 
+/**
+ * Lista obecności (do podpisu). Układ przybliżony – kody z legendy listy obecności USK2 (Wydanie 5).
+ * Gdy będzie zdjęcie wzoru, można dopasować układ 1:1.
+ */
+export function attendanceHtml(a) {
+  const rows = a.rows.map((r) => `<tr class="${r.shaded ? 'sh' : ''}"><td class="c">${r.day}</td><td class="c">${r.wd}</td>
+    <td></td><td class="c"><b>${esc(r.code)}</b></td><td class="note">${r.shaded ? esc(r.note) : ''}</td></tr>`).join('');
+  return `<div class="att">
+    <div class="att-title">LISTA OBECNOŚCI</div>
+    <div class="att-line">Lekarz stażysta: <b>${esc(a.name) || '……………………………………'}</b> · grupa stażowa ${esc(a.group)} · miesiąc: <b>${esc(a.monthLabel)}</b></div>
+    <table class="att-t"><thead><tr><th>Dzień</th><th>Dz. tyg.</th><th>Podpis</th><th>Kod</th><th>Uwagi</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="att-legend">Kody: ZL – zwolnienie lekarskie, UW – urlop wypoczynkowy, OP – opieka, UB – urlop bezpłatny, NU – nieobecność usprawiedliwiona płatna, SZ – szkolenie, WD – wolne po dyżurze medycznym.</div>
+    <div class="att-sign"><div>……………………………<br>podpis lekarza kierującego / koordynatora</div></div>
+  </div>`;
+}
+
+const MON = ['styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec', 'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień'];
+
 export function openTimesheet(state, today, ctx, ym) {
   curYm = ym || curYm || today.slice(0, 7);
   const root = document.createElement('div');
@@ -74,7 +93,7 @@ export function openTimesheet(state, today, ctx, ym) {
     const k = buildTimesheet(state, curYm);
     const gen = state.timesheets?.[curYm]?.generatedAt;
     root.innerHTML = `<div class="sheet-backdrop" data-close></div><div class="sheet wide" role="dialog" aria-label="Karta czasu pracy">
-      <div class="sheet-head"><button class="link" data-close>Zamknij</button><b>Karta czasu pracy</b><button class="link strong" data-print>PDF</button></div>
+      <div class="sheet-head"><button class="link" data-close>Zamknij</button><b>Dokumenty za miesiąc</b><button class="link strong" data-print>PDF</button></div>
       <div class="sheet-body">
         <div class="form-card">
           <div class="cal-nav ts-nav"><button class="round" data-m="-1">‹</button><b>${esc(k.monthLabel)}</b><button class="round" data-m="1">›</button></div>
@@ -82,6 +101,11 @@ export function openTimesheet(state, today, ctx, ym) {
             <label>Komórka<input data-p="unit" value="${esc(state.settings.personal?.unit || 'LEKARZ STAŻYSTA')}"></label></div>
           <p class="hint small">Karta wypełnia się z kalendarza: dni pracy 8.00–15.35 (7 h 35 min), urlop (UW), L4, kursy, święta i dyżury. Sprawdź podgląd i stuknij <b>PDF</b> → na iPhonie „Udostępnij” → „Zapisz w Plikach” albo wyślij mailem.
           ${gen ? `<br>Ostatnio wygenerowana: ${gen}.` : ''}</p>
+          ${k.warnings.map((w) => `<div class="imp-row warn">⚠️ ${esc(w)}</div>`).join('')}
+          <div class="card-label" style="margin-top:12px">Komplet do Kadr (${esc(k.monthLabel)})</div>
+          <button class="btn primary" data-pack>🖨 Wszystko naraz: karta czasu pracy + karta dyżurów + lista obecności</button>
+          <div class="quick two"><button class="btn" data-print-duty>🖨 Karta dyżurów</button><button class="btn" data-print-att>🖨 Lista obecności</button></div>
+          <p class="hint small">Lista obecności ma układ przybliżony (kody z legendy USK2). Prześlij zdjęcie wzoru, a dopasuję ją 1:1.</p>
         </div>
         <div class="ts-preview">${timesheetHtml(k)}</div>
       </div></div>`;
@@ -90,6 +114,19 @@ export function openTimesheet(state, today, ctx, ym) {
     if (e.target.closest('[data-close]')) return close();
     const m = e.target.closest('[data-m]');
     if (m) { curYm = shift(curYm, Number(m.dataset.m)); return draw(); }
+    const mark = () => {
+      state.timesheets = { ...(state.timesheets || {}), [curYm]: { ...(state.timesheets?.[curYm] || {}), generatedAt: todayIso() } };
+      ctx.save();
+    };
+    const label = `${MON[Number(curYm.slice(5)) - 1]} ${curYm.slice(0, 4)}`;
+    if (e.target.closest('[data-pack]')) {
+      mark();
+      const page = (h) => `<div class="print-page">${h}</div>`;
+      printHtml(page(timesheetHtml(buildTimesheet(state, curYm))) + page(dutySheetHtml(state, curYm)) + page(attendanceHtml(buildAttendance(state, curYm))), `Dokumenty ${label}`);
+      return draw();
+    }
+    if (e.target.closest('[data-print-duty]')) return printHtml(dutySheetHtml(state, curYm), `Karta dyżurów ${label}`);
+    if (e.target.closest('[data-print-att]')) return printHtml(attendanceHtml(buildAttendance(state, curYm)), `Lista obecności ${label}`);
     if (e.target.closest('[data-print]')) {
       const k = buildTimesheet(state, curYm);
       state.timesheets = { ...(state.timesheets || {}), [curYm]: { ...(state.timesheets?.[curYm] || {}), generatedAt: todayIso() } };

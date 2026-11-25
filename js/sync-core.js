@@ -13,6 +13,9 @@ export function decideSync(localAt, remoteAt, lastSync) {
   if (remoteAt == null) return l ? 'push' : 'none';
   const r = Number(remoteAt) || 0;
   if (l === r) return 'none';
+  // Pierwsza synchronizacja na tym urządzeniu (lub po wylogowaniu), a w chmurze już są dane:
+  // zawsze pobierz chmurę (to „prawdziwe” dane z drugiego urządzenia); to, co było tutaj, zostaje jako kopia.
+  if (!s) return l ? 'conflict-pull' : 'pull';
   const localChanged = l > s;
   const remoteChanged = r > s;
   if (localChanged && remoteChanged) return l >= r ? 'conflict-push' : 'conflict-pull';

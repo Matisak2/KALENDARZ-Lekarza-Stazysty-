@@ -2,6 +2,15 @@
 import { defaultState, SCHEMA_VERSION } from './defaults.js';
 
 const KEY = 'kalendarz-stazysty';
+const SNAP_KEY = 'kalendarz-stazysty-kopie';
+const RAW_KEY = 'kalendarz-stazysty-nieczytelne';
+const SNAP_MAX = 6;
+
+/**
+ * Problem przy odczycie zapisanych danych: null | 'broken' (uszkodzone) | 'newer' (zapisała je nowsza wersja aplikacji).
+ * Wtedy aplikacja startuje z danymi domyślnymi, ale stare dane NIE są kasowane (kopia pod RAW_KEY).
+ */
+export let loadProblem = null;
 
 /** Przenosi dane ze starszych wersji – nic, co wpisał użytkownik, nie ginie. */
 export function migrate(data) {
@@ -39,29 +48,40 @@ export function migrate(data) {
     }
     data.version = 4;
   }
+  if (data.version < 5) {
+    // v5: przypadki z oddziału, publikacje/doktorat, eksport .ics „tylko zmiany” – same nowe, puste pola
+    data.cases = Array.isArray(data.cases) ? data.cases : [];
+    data.version = 5;
+  }
   // Uzupełnij brakujące pola nowszymi domyślnymi (bez nadpisywania wpisanych)
   data.settings = { ...def.settings, ...data.settings };
   data.courses = data.courses || def.courses;
   data.events = data.events || [];
   data.duties = data.duties || [];
+  data.cases = data.cases || [];
   data.notes = data.notes || {};
   data.skills = data.skills || {};
   data.customSkills = data.customSkills || {};
   data.booklet = data.booklet || {};
   data.timesheets = data.timesheets || {};
   data.study = { ...def.study, ...(data.study || {}) };
+  data.study.extras = { ...def.study.extras, ...(data.study.extras || {}) };
   data.meta = { ...def.meta, ...data.meta };
   return data.version === SCHEMA_VERSION ? data : null;
 }
 
 export function load() {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (raw) {
-      const data = migrate(JSON.parse(raw));
-      if (data) return data;
-    }
-  } catch (e) { /* brak dostępu do pamięci – używamy danych domyślnych */ }
+  let raw = null;
+  try { raw = localStorage.getItem(KEY); } catch (e) { /* brak dostępu do pamięci – używamy danych domyślnych */ }
+  if (raw) {
+    let parsed = null;
+    try { parsed = JSON.parse(raw); } catch (e) { /* uszkodzone */ }
+    const data = parsed ? migrate(parsed) : null;
+    if (data) return data;
+    // Nie udało się odczytać – zachowaj surowe dane, nic nie kasuj
+    loadProblem = Number(parsed?.version) > SCHEMA_VERSION ? 'newer' : 'broken';
+    try { if (!localStorage.getItem(RAW_KEY)) localStorage.setItem(RAW_KEY, raw); } catch (e) { /* brak miejsca */ }
+  }
   const s = defaultState();
   s.meta.createdAt = new Date().toISOString();
   return s;
@@ -72,6 +92,8 @@ export function onSave(fn) { listeners.push(fn); }
 
 /** Zapis w telefonie. keepTime = dane przyszły z chmury (nie są nową zmianą). */
 export function save(state, { keepTime = false } = {}) {
+  // Dane z nowszej wersji aplikacji: nie nadpisujemy ich starszą wersją (wystarczy odświeżyć aplikację)
+  if (loadProblem === 'newer') return false;
   try {
     if (!keepTime) state.meta = { ...(state.meta || {}), updatedAt: Date.now() };
     localStorage.setItem(KEY, JSON.stringify(state));
@@ -94,6 +116,54 @@ export function parseBackup(text) {
   const data = migrate(obj?.format === 'kalendarz-stazysty' ? obj.data : obj);
   if (!data) throw new Error('Ten plik nie wygląda na kopię Kalendarza Stażysty.');
   return data;
+}
+
+/** Surowe (nieczytelne) dane zachowane przy starcie – do zapisania w pliku. */
+export function rawProblemData() {
+  try { return localStorage.getItem(RAW_KEY); } catch (e) { return null; }
+}
+
+/* ---------- Kopie automatyczne w tym urządzeniu ---------- */
+
+/** Lista kopii automatycznych (najnowsza pierwsza): [{ id, at, reason, data: tekst JSON }]. */
+export function snapshots() {
+  try {
+    const list = JSON.parse(localStorage.getItem(SNAP_KEY) || '[]');
+    return Array.isArray(list) ? list.filter((x) => x && typeof x.data === 'string') : [];
+  } catch (e) { return []; }
+}
+
+/**
+ * Zapisuje kopię danych (obiekt stanu albo tekst JSON) przed ryzykowną operacją.
+ * Trzyma do 6 ostatnich; gdy brakuje miejsca – usuwa najstarsze. Zwraca id kopii albo null.
+ */
+export function snapshot(data, reason, now = Date.now()) {
+  const text = typeof data === 'string' ? data : JSON.stringify(data);
+  let list = snapshots();
+  if (list[0] && list[0].data === text) return list[0].id; // ta sama wersja – bez dublowania
+  const item = { id: `k${now}`, at: new Date(now).toISOString(), reason: String(reason || ''), data: text };
+  list = [item, ...list].slice(0, SNAP_MAX);
+  while (list.length) {
+    try { localStorage.setItem(SNAP_KEY, JSON.stringify(list)); return item.id; } catch (e) {
+      if (list.length === 1) return null;
+      list = list.slice(0, -1);
+    }
+  }
+  return null;
+}
+
+/** Dane z kopii automatycznej (po migracji) – albo błąd z opisem po polsku. */
+export function snapshotData(id) {
+  const s = snapshots().find((x) => x.id === id);
+  if (!s) throw new Error('Nie ma już tej kopii.');
+  return parseBackup(s.data);
+}
+
+/** Kopia „raz dziennie” przy otwarciu aplikacji. */
+export function dailySnapshot(state, now = Date.now()) {
+  const last = snapshots().find((x) => x.reason === 'kopia dzienna');
+  if (last && now - Date.parse(last.at) < 20 * 3600 * 1000) return null;
+  return snapshot(state, 'kopia dzienna', now);
 }
 
 export async function askPersistence() {

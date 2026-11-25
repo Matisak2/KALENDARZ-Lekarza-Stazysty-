@@ -1,16 +1,19 @@
 // Kalendarz Stażysty – interfejs
-import { load, save, askPersistence, onSave, migrate } from './store.js';
+import { load, save, askPersistence, onSave, migrate, loadProblem, rawProblemData, dailySnapshot } from './store.js';
 import { initSync, onLocalSave } from './sync.js';
-import { summarize, alerts, segmentAt, vacationIdeas } from './engine.js';
+import { summarize, alerts, segmentAt, vacationIdeas, weekSummary, fmtHM } from './engine.js';
 import { buildPlan, currentWeek } from './lek.js';
 import { renderBlocks, openBlockEditor } from './blocks-ui.js';
 import { renderMore, handleMoreClick, handleMoreChange } from './more-ui.js';
 import { hospitalOf } from './hospitals.js';
 import { renderCalendar, openDay, openEventEditor, shiftMonth, todayMonth } from './calendar-ui.js';
-import { renderDuties, openDutyEditor, dutyTodayCard, openDutyProposal, printDutySheet } from './duties-ui.js';
-import { renderLek, handleLekClick, handleLekChange, handleLekInput } from './lek-ui.js';
+import { renderDuties, openDutyEditor, dutyTodayCard, dutyPlanCard, openDutyProposal, printDutySheet } from './duties-ui.js';
+import { renderLek, handleLekClick, handleLekChange, handleLekInput, openLekRegistration } from './lek-ui.js';
 import { openTimesheet } from './timesheet-ui.js';
-import { fmtLong, fmtShort, fmtFull, fmtDayShort, toNum, todayIso, isWeekend, dni, plural } from './dates.js';
+import { openLetters } from './letters-ui.js';
+import { openCaseEditor } from './cases-ui.js';
+import { fmtLong, fmtShort, fmtFull, fmtDayShort, toNum, toIso, todayIso, isWeekend, dni, plural } from './dates.js';
+import { esc, helpBox } from './blocks-ui.js';
 import { holidayMap } from './holidays.js';
 
 let state = load();
@@ -21,10 +24,9 @@ let dmonth = null;
 // ?dzis=RRRR-MM-DD – podgląd aplikacji "na inny dzień" (do testów)
 function getToday() {
   const q = new URLSearchParams(location.search).get('dzis');
-  return q && /^\d{4}-\d{2}-\d{2}$/.test(q) ? q : todayIso();
+  // tylko istniejąca data (np. 2026-13-45 jest pomijana)
+  return q && /^\d{4}-\d{2}-\d{2}$/.test(q) && toIso(toNum(q)) === q ? q : todayIso();
 }
-
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const color = (b) => `var(--c-${b.color || 'gray'})`;
 
 function ring(pct, size, stroke, center) {
@@ -139,8 +141,13 @@ function nextCards(sum) {
         <div class="next-name"><span class="dot"></span>${esc(n.block.short)}</div>
         <div class="sub">od ${fmtDayShort(n.block.start)}<br><b style="color:var(--text)">${relDays(toNum(n.block.start) - toNum(t))}</b></div>
       </div>`
-    : `<div class="card fade"><div class="card-label">Następny blok</div><div class="next-name">Rezerwa</div>
-        <div class="sub">od ${fmtDayShort(sum.reserve.start)}</div></div>`;
+    : t < sum.reserve.start
+      ? `<div class="card fade"><div class="card-label">Następny blok</div><div class="next-name">Rezerwa</div>
+        <div class="sub">od ${fmtDayShort(sum.reserve.start)}</div></div>`
+      // W rezerwie i po stażu nie pokazujemy „następnego bloku” z datą, która minęła (audyt B9)
+      : `<div class="card fade"><div class="card-label">${t > sum.estimatedEnd ? 'Staż' : 'Koniec stażu'}</div>
+        <div class="next-name">${t > sum.estimatedEnd ? 'zakończony ✓' : fmtShort(sum.estimatedEnd)}</div>
+        <div class="sub">${t > sum.estimatedEnd ? fmtFull(sum.estimatedEnd) : relDays(toNum(sum.estimatedEnd) - toNum(t))}</div></div>`;
   const endHtml = `<div class="card fade">
       <div class="card-label">Do końca stażu</div>
       <div class="big">${sum.calendar.daysToEnd}<small>dni</small></div>
@@ -255,6 +262,30 @@ function todayPlanCard(sum) {
   return `<div class="card fade"><div class="card-label">Plan na dziś</div>${rows.join('')}</div>`;
 }
 
+/** „Ten tydzień” – wszystko z tygodnia w jednym miejscu (gdzie jestem, dyżury, nieobecności, terminy, lekcje LEK). */
+function weekCard(sum) {
+  const t = sum.today;
+  const w = weekSummary(state, t);
+  if (w.days.every((d) => d.kind === 'none')) return '';
+  let lessons = 0;
+  const st = state.study;
+  const plan = (st?.plans || []).find((p) => p.id === st.activePlan && !p.archived);
+  if (plan && (st.courses || []).length) {
+    try { lessons = (currentWeek(buildPlan(state, plan, t), t)?.lessons || []).filter((l) => !st.done?.[l.key]).length; } catch { /* bez planu */ }
+  }
+  const DAYS = ['pn', 'wt', 'śr', 'cz', 'pt', 'sb', 'nd'];
+  const ic = { work: '', free: '☀️', absence: '🏖', course: '🎓', none: '' };
+  const rows = w.days.map((d, i) => `<div class="wk-row ${d.date === t ? 'today' : ''} ${d.kind}">
+      <span class="wk-d">${DAYS[i]} ${Number(d.date.slice(8))}</span>
+      <span class="wk-l">${ic[d.kind]} ${esc(d.label)}</span>
+      ${d.duties.length ? `<span class="wk-du">🌙 ${d.duties.map((x) => fmtHM(x.minutes)).join(', ')}</span>` : ''}</div>`).join('');
+  return `<div class="card fade"><details class="course-list week-card" open>
+    <summary>🗓 Ten tydzień · ${fmtShort(w.start)}–${fmtShort(w.end)} · ${w.workdays} ${plural(w.workdays, 'dzień pracy', 'dni pracy', 'dni pracy')}${w.dutyMin ? ` · dyżury ${fmtHM(w.dutyMin)}` : ''}${lessons ? ` · ${lessons} ${plural(lessons, 'lekcja', 'lekcje', 'lekcji')} LEK` : ''}</summary>
+    ${rows}
+    ${w.items.length ? `<div class="wk-items">${w.items.map((x) => `<div>${x.icon} <b>${fmtDayShort(x.date)}</b> ${esc(x.text)}</div>`).join('')}</div>` : ''}
+  </details></div>`;
+}
+
 /** Gdzie 1–3 dni urlopu dają najdłuższy odpoczynek (mosty, długie weekendy). */
 function vacationIdeasCard(sum) {
   if (sum.vacation.left <= 0) return '';
@@ -323,10 +354,27 @@ function todoCard(al, label = 'Na dziś') {
     <div class="todo ${a.level}" ${a.action === 'backup' ? 'data-goto-tab="wiecej" role="button"' : ''}${a.action === 'booklet' ? ` data-goto-block="${a.blockId}" role="button"` : ''}${a.action === 'timesheet' ? ` data-open-ts="${a.ym}" role="button"` : ''}>
       <div class="todo-ic">${a.icon}</div>
       <div class="grow"><div class="t">${esc(a.title)}</div><div class="s">${esc(a.detail || '')}</div></div>
+      <div class="todo-acts">
       ${a.action === 'deadline-done' ? `<button class="chip" data-deadline-done="${a.date}">Zrobione ✓</button>` : ''}
+      ${a.pack ? `<button class="chip alt" data-open-ts="${a.pack}">🖨 Druki</button>` : ''}
+      ${a.letter ? `<button class="chip alt" data-letters="${esc(JSON.stringify(a.letter))}">✉️ Pismo</button>` : ''}
+      ${a.action === 'lek-reg' ? '<button class="chip" data-lek-reg>Zapisałem się…</button>' : ''}
       ${a.action === 'hr-done' ? `<button class="chip" data-hr-done="${esc(a.id)}">Zrobione ✓</button>` : ''}
+      </div>
     </div>`).join('');
   return `<div class="card fade todo-card"><div class="card-label">${label} · ${al.length}</div>${rows}</div>`;
+}
+
+/** Ostrzeżenie, gdy przy starcie nie udało się odczytać zapisanych danych (nic nie zostało skasowane). */
+function loadProblemCard() {
+  if (!loadProblem) return '';
+  const newer = loadProblem === 'newer';
+  return `<div class="card fade todo-card"><div class="todo urgent"><div class="todo-ic">⚠️</div><div class="grow">
+    <div class="t">${newer ? 'Dane zapisała nowsza wersja aplikacji' : 'Nie udało się odczytać Twoich danych'}</div>
+    <div class="s">${newer
+      ? 'Nic nie zostało usunięte. Zamknij aplikację całkowicie i otwórz ją ponownie (z internetem) – pobierze się nowa wersja. Do tego czasu zmiany nie są zapisywane.'
+      : 'Nic nie zostało usunięte – oryginał jest zachowany. Wczytaj kopię (Więcej → Kopie automatyczne albo Wczytaj kopię…) albo zapisz nieczytelne dane do pliku i wyślij je do naprawy.'}</div>
+    ${rawProblemData() ? '<button class="chip" data-act="raw-save">Zapisz nieczytelne dane do pliku</button>' : ''}</div></div></div>`;
 }
 
 function renderToday() {
@@ -341,6 +389,8 @@ function renderToday() {
       <div class="eyebrow">${fmtLong(t)}</div>
       <h1 class="large-title">Dziś</h1>
     </header>
+    ${helpBox('dzis')}
+    ${loadProblemCard()}
     ${todoCard(al.filter((a) => a.level === 'urgent'), 'Pilne')}
     <div class="desk-2">
       <div>
@@ -349,9 +399,11 @@ function renderToday() {
         ${progressCard(sum)}
       </div>
       <div>
+        ${weekCard(sum)}
         ${todayPlanCard(sum)}
         ${todoCard(al.filter((a) => a.level !== 'urgent'))}
         ${dutyTodayCard(state, t)}
+        ${dutyPlanCard(state, t)}
         ${reserveCard(sum)}
         <div class="grid-2">${vacationCard(sum)}${lekCard(sum)}</div>
         ${vacationIdeasCard(sum)}
@@ -403,7 +455,7 @@ function applyTheme() {
   else document.documentElement.setAttribute('data-theme', t);
 }
 
-function toast(text, undo) {
+function toast(text, undo, ms0) {
   document.querySelectorAll('.toast').forEach((t) => t.remove());
   const el = document.createElement('div');
   el.className = 'toast';
@@ -415,7 +467,7 @@ function toast(text, undo) {
     el.appendChild(b);
   }
   document.body.appendChild(el);
-  const ms = undo ? 5000 : 2600;
+  const ms = ms0 || (undo ? 5000 : 2600);
   setTimeout(() => el.classList.add('out'), ms);
   setTimeout(() => el.remove(), ms + 400);
 }
@@ -430,6 +482,15 @@ function editBlock(id) {
   });
 }
 
+/**
+ * Podmiana danych „w miejscu” (ten sam obiekt): przyciski „Cofnij” otwarte chwilę wcześniej działają dalej
+ * na aktualnych danych, nawet gdy w międzyczasie przyszły zmiany z chmury.
+ */
+function swapState(data) {
+  for (const k of Object.keys(state)) delete state[k];
+  Object.assign(state, data);
+}
+
 const ctx = {
   get state() { return state; },
   today: getToday,
@@ -437,11 +498,11 @@ const ctx = {
   render: () => render(),
   toast,
   applyTheme,
-  replace(data) { state = data; save(state); applyTheme(); render(); },
+  replace(data) { swapState(data); save(state); applyTheme(); render(); },
   replaceFromCloud(data) {
     const m = migrate(data);
     if (!m) return;
-    state = m;
+    swapState(m);
     save(state, { keepTime: true });
     applyTheme();
     if (!document.querySelector('.sheet-wrap')) render();
@@ -466,10 +527,16 @@ app.addEventListener('click', (e) => {
     toast(`Święta: ${m.dataset.holidayMode}`, () => { state.settings.holidayMode = prev; save(state); render(); });
     return;
   }
+  if (e.target.closest('[data-case-new]')) return openCaseEditor(state, ctx);
+  const ce = e.target.closest('[data-case-edit]');
+  if (ce) return openCaseEditor(state, ctx, ce.dataset.caseEdit);
   const eb = e.target.closest('[data-edit-block]');
   if (eb) return editBlock(eb.dataset.editBlock);
   const gb = e.target.closest('[data-goto-block]');
   if (gb) return editBlock(gb.dataset.gotoBlock);
+  if (e.target.closest('[data-lek-reg]') && tab !== 'lek') return openLekRegistration(state, ctx);
+  const lt = e.target.closest('[data-letters]');
+  if (lt) { try { return openLetters(state, ctx, JSON.parse(lt.dataset.letters)); } catch { return; } }
   const ots = e.target.closest('[data-open-ts]');
   if (ots) return openTimesheet(state, getToday(), ctx, ots.dataset.openTs);
   const hd = e.target.closest('[data-hr-done]');
@@ -549,6 +616,7 @@ app.addEventListener('touchend', (e) => {
 applyTheme();
 render();
 askPersistence();
+if (!loadProblem) dailySnapshot(state);
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});

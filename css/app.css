@@ -311,7 +311,12 @@ button { font: inherit; color: inherit; }
 @media (min-width: 760px) {
   .app { padding-top: 40px; }
   .large-title { font-size: 40px; }
-  .desk-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+  /* minmax(0, …): długi tekst nie rozpycha kolumny (audyt B4) */
+  .desk-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+  /* Kalendarz na komputerze: miesiąc szerszy niż lista wpisów */
+  .desk-2.cal-desk { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+  .cal-desk .day .dn { font-size: 18px; }
+  .cal-desk .day .bd { font-size: 13px; height: 14px; }
   .desk-2 > .card, .desk-2 > div > .card { margin-bottom: 12px; }
 }
 
@@ -449,8 +454,9 @@ body.no-scroll { overflow: hidden; }
 .btn.primary { background: var(--accent); color: #fff; }
 .btn:active { transform: scale(.98); }
 .steps { margin: 14px 0 0; padding-left: 20px; font-size: 14px; color: var(--text-2); line-height: 1.6; }
-.links { margin: 4px 0 0; padding-left: 18px; line-height: 1.8; font-size: 14.5px; }
-.links a { color: var(--accent); text-decoration: none; }
+.links { margin: 4px 0 0; padding-left: 18px; line-height: 1.35; font-size: 14.5px; }
+/* min. 44 px wysokości – łatwe trafienie przy czułym ekranie (audyt B14) */
+.links a { color: var(--accent); text-decoration: none; display: inline-flex; align-items: center; min-height: 44px; }
 .segmented.three { grid-template-columns: 1fr 1fr 1fr; }
 
 /* ---------- Komunikat ---------- */
@@ -746,3 +752,50 @@ code { background: var(--card-2); padding: 1px 5px; border-radius: 5px; }
 .dom-h b { flex: 1; font-size: 14px; }
 .dom-p { font-weight: 800; }
 .hero-ward .go-chip { align-self: center; text-decoration: none; flex: none; }
+
+/* Długie słowa (np. adresy) łamią się zamiast rozpychać karty */
+.app { overflow-wrap: break-word; }
+.duty-bad { box-shadow: inset 3px 0 0 var(--danger); }
+.snap-row { padding: 8px 0; border-top: 0.5px solid var(--sep); }
+
+.todo-acts { display: flex; flex-direction: column; gap: 6px; align-items: stretch; align-self: center; flex: none; }
+.todo-acts:empty { display: none; }
+.todo .chip.alt { background: var(--card-2); color: var(--accent); }
+.todo .chip { min-height: 34px; }
+.quick.three { grid-template-columns: repeat(3, 1fr); margin-top: 4px; }
+.letter-body { white-space: pre-wrap; font: 500 14px/1.45 Nunito, system-ui, sans-serif; margin: 8px 0 0; color: var(--text); }
+.letter-subj { font-size: 14px; }
+.letter-print pre { white-space: pre-wrap; font: 12pt/1.5 "Times New Roman", serif; color: #000; margin: 0; padding: 10mm 8mm; }
+.print-page { break-after: page; page-break-after: always; }
+.print-page:last-child { break-after: auto; page-break-after: auto; }
+
+/* Lista obecności (druk) */
+.att { background: #fff; color: #000; font: 11px/1.3 Arial, Helvetica, sans-serif; padding: 6px; }
+.att-title { text-align: center; font-weight: 700; font-size: 15px; margin: 4px 0 8px; }
+.att-line { margin-bottom: 8px; }
+.att-t { width: 100%; border-collapse: collapse; }
+.att-t th, .att-t td { border: 1px solid #000; padding: 2px 4px; height: 17px; }
+.att-t th { font-weight: 700; background: #eee; }
+.att-t td.c { text-align: center; }
+.att-t td.note { font-size: 9px; }
+.att-t tr.sh td { background: #d9d9d9; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.att-t th:nth-child(3) { width: 40%; }
+.att-legend { font-size: 9px; margin-top: 6px; }
+.att-sign { display: flex; justify-content: flex-end; margin-top: 26px; text-align: center; }
+
+/* Pomoc na ekranach */
+.help-box { margin: -4px 0 12px; background: var(--card); border-radius: 14px; padding: 0 14px; box-shadow: var(--shadow); font-size: 14px; }
+.help-box summary { min-height: 44px; display: flex; align-items: center; font-weight: 700; color: var(--accent); cursor: pointer; list-style: none; }
+.help-box summary::-webkit-details-marker { display: none; }
+.help-box ul { margin: 0 0 12px; padding-left: 18px; color: var(--text-2); line-height: 1.45; }
+.help-box li { margin: 4px 0; }
+
+/* Ten tydzień */
+.wk-row { display: flex; gap: 10px; align-items: baseline; padding: 7px 0; border-top: 0.5px solid var(--sep); font-size: 14px; }
+.wk-row.today { font-weight: 800; }
+.wk-row.free, .wk-row.none { color: var(--text-2); }
+.wk-d { width: 46px; flex: none; font-variant-numeric: tabular-nums; color: var(--text-2); }
+.wk-row.today .wk-d { color: var(--accent); }
+.wk-l { flex: 1; min-width: 0; }
+.wk-du { flex: none; font-weight: 700; }
+.wk-items { margin-top: 8px; padding-top: 8px; border-top: 0.5px solid var(--sep); font-size: 14px; line-height: 1.6; }

@@ -3,7 +3,7 @@ import { shareOrDownload } from './more-ui.js';
 import { DOMAINS, domainOf, guessDomain, parseCoursesText, coursesFromFile, mergeCourses, coursesFileJson, mergeCourse, allLessons, buildPlan, currentWeek, DEFAULT_SURVEY } from './lek.js';
 import { specNames, wojNames, specStats, suggestTarget, chance, MY_SPECS, TRYBY } from './specs.js';
 import { fmtShort, fmtFull, fmtDayShort, toNum, plural, todayIso } from './dates.js';
-import { esc } from './blocks-ui.js';
+import { esc, helpBox } from './blocks-ui.js';
 
 let seg = 'plan';
 let specWoj = 'Zachodniopomorskie';
@@ -35,10 +35,11 @@ export function renderLek(state, today, ctx) {
   let body = '';
   if (seg === 'plan') body = planView(state, st, today);
   else if (seg === 'mat') body = materialsView(st);
-  else if (seg === 'wyn') body = resultsView(st);
+  else if (seg === 'wyn') body = resultsView(st, state);
   else body = specsView(st, state);
   return `
     <header class="page-head"><div class="eyebrow">Planer nauki</div><h1 class="large-title">LEK</h1></header>
+    ${helpBox('lek')}
     <div class="segmented four sticky-seg">${tabs.map(([k, l]) => `<button data-lekseg="${k}" class="${seg === k ? 'on' : ''}">${l}</button>`).join('')}</div>
     <div style="height:12px"></div>
     ${body}`;
@@ -178,6 +179,7 @@ function materialsView(st) {
     return `<div class="card fade">
       <div class="bc-top"><div class="bc-name">${esc(c.name)}</div><button class="chip danger-chip" data-course-del="${c.id}">Usuń</button></div>
       <label class="dom-sel">Dziedzina LEK<select data-course-dom="${c.id}">${domOpts(c.domain)}</select></label>
+      ${c.domain === 'inne' ? '<div class="imp-row warn">⚠️ Ten kurs nie pasuje sam do żadnej dziedziny LEK. Wybierz dziedzinę powyżej (np. neurologia lub choroby zakaźne → Choroby wewnętrzne) – inaczej lekcje, których nazwa nie pasuje do żadnej dziedziny, wypadną z planu.</div>' : ''}
       <div class="bc-bar"><div style="width:${ls.length ? (dn / ls.length) * 100 : 0}%;background:var(--c-course)"></div></div>
       <div class="bc-nums"><span><b>${dn}</b> z ${ls.length} lekcji</span><span class="muted">zostało ok. ${h(left)}</span></div>
       <details class="course-list"><summary>Lekcje</summary>
@@ -212,11 +214,48 @@ function materialsView(st) {
     ${list || '<p class="hint">Brak kursów. Wklej pierwszy spis powyżej.</p>'}`;
 }
 
-function resultsView(st) {
+/** Karta „Zapis na LEK” (SMK): data zgłoszenia, numer, opłata. */
+function registrationCard(state) {
+  const l = state.settings.lek || {};
+  const fee = { '': 'nie wiem – sprawdzę w SMK', nie: 'nie – pierwsze zgłoszenie (bezpłatne)', tak: 'tak – kolejne zgłoszenie' };
+  return `<div class="card fade"><div class="card-label">🗳 Zapis na LEK · ${esc(l.session || '')}</div>
+    ${l.registered ? `<div class="val-row"><span>Zgłoszenie w SMK</span><b class="pos">✓ ${l.registeredAt ? fmtFull(l.registeredAt) : 'wysłane'}</b></div>
+      ${l.smkNo ? `<div class="val-row"><span>Numer / identyfikator</span><b>${esc(l.smkNo)}</b></div>` : ''}
+      <div class="val-row"><span>Opłata</span><b>${esc(fee[l.feeNeeded || ''])}${l.feeNeeded === 'tak' ? (l.feePaid ? ' · opłacona ✓' : ' · <span class="neg">nieopłacona</span>') : ''}</b></div>`
+    : '<p class="sub">Zapisy w SMK: do 30.11 na sesję lutową, do 15.07 na wrześniową (art. 14a ustawy). Wpisz, gdy się zapiszesz – przypomnienia same się wyłączą.</p>'}
+    <button class="btn" data-lek-reg>${l.registered ? 'Zmień dane zapisu' : 'Zapisałem się…'}</button></div>`;
+}
+
+/** Okno zapisu na LEK – zmiany dopiero po „Zapisz”. */
+export function openLekRegistration(state, ctx) {
+  const l = state.settings.lek;
+  const { root, close } = sheet('Zapis na LEK', `<div class="form-card">
+    <label class="skill ${l.registered ? 'on' : ''}"><input type="checkbox" data-r="registered" ${l.registered ? 'checked' : ''}><span class="box"></span><span class="nm">Zgłoszenie w SMK wysłane</span></label>
+    <label>Data zgłoszenia<input type="date" data-r="registeredAt" value="${esc(l.registeredAt || ctx.today())}"></label>
+    <label>Numer / identyfikator zgłoszenia (opcjonalnie)<input data-r="smkNo" value="${esc(l.smkNo || '')}" placeholder="z SMK"></label>
+    <label>Czy trzeba zapłacić?<select data-r="feeNeeded">
+      <option value="" ${!l.feeNeeded ? 'selected' : ''}>nie wiem – sprawdzę w SMK</option>
+      <option value="nie" ${l.feeNeeded === 'nie' ? 'selected' : ''}>nie – pierwsze zgłoszenie (bezpłatne)</option>
+      <option value="tak" ${l.feeNeeded === 'tak' ? 'selected' : ''}>tak – kolejne zgłoszenie</option></select></label>
+    <label class="skill ${l.feePaid ? 'on' : ''}"><input type="checkbox" data-r="feePaid" ${l.feePaid ? 'checked' : ''}><span class="box"></span><span class="nm">Opłata wniesiona</span></label>
+    <p class="hint small">Opłata obowiązuje od drugiego zgłoszenia (chyba że pierwszy LEK był niezdany albo nie przystąpiłeś), do 5 dni roboczych po końcu zapisów – art. 14a ust. 8 i 11 ustawy o zawodach lekarza.</p></div>`);
+  root.addEventListener('change', (e) => { const c = e.target.closest('.skill'); if (c && e.target.type === 'checkbox') c.classList.toggle('on', e.target.checked); });
+  root.addEventListener('click', (e) => {
+    if (e.target.closest('[data-close]')) return close();
+    if (!e.target.closest('[data-ok]')) return;
+    const v = (k) => root.querySelector(`[data-r="${k}"]`);
+    const prev = { ...l };
+    Object.assign(l, { registered: v('registered').checked, registeredAt: v('registeredAt').value || null, smkNo: v('smkNo').value.trim(), feeNeeded: v('feeNeeded').value, feePaid: v('feePaid').checked });
+    ctx.save(); ctx.render(); close();
+    ctx.toast('Zapisano ✓', () => { Object.assign(l, prev); ctx.save(); ctx.render(); });
+  });
+}
+
+function resultsView(st, state) {
   const at = [...(st.attempts || [])].sort((a, b) => (a.date < b.date ? 1 : -1));
   const mocks = [...(st.mocks || [])].sort((a, b) => (a.date < b.date ? -1 : 1));
   const best = at.reduce((m, a) => (a.pct != null && a.pct > m ? a.pct : m), -1);
-  return `
+  return `${registrationCard(state)}
     <div class="card fade"><div class="card-label">📝 Twoje podejścia do LEK</div>
       ${at.map((a) => `<div class="val-row"><span><b>${esc(a.session)}</b> <small class="muted">${fmtFull(a.date)}</small></span>
         <span><b class="${a.pct >= 56 ? 'pos' : 'neg'}">${a.pct != null ? `${a.pct}%` : '—'}</b>
@@ -276,7 +315,23 @@ function specsView(st, state) {
       <p class="hint small">Próg = najniższy wynik zakwalifikowanych, gdy wszystkie miejsca zostały obsadzone. „Zostały wolne miejsca” = każdy chętny się dostał.
         Wynik w naborze to % punktów z LEK (+ ewentualne punkty za doktorat i publikacje). Dane: CMKP, ostatnia aktualizacja ${fmtFull(nabory.updated)}.</p>
     </div>
-    ${list.map(card).join('') || '<p class="hint">Brak wyników wyszukiwania.</p>'}`;
+    ${list.map(card).join('') || '<p class="hint">Brak wyników wyszukiwania.</p>'}
+    ${extrasCard(st)}`;
+}
+
+/** Doktorat i publikacje – dodatkowe punkty w naborze (art. 16c ust. 10 pkt 1 ustawy o zawodach lekarza). */
+function extrasCard(st) {
+  const x = { phd: '', pubs: [], ...(st.extras || {}) };
+  const phd = { '': '— wybierz —', nie: 'nie', trakcie: 'w trakcie (szkoła doktorska)', tak: 'tak – stopień doktora nauk medycznych' };
+  const ok = x.pubs.filter((p) => p.listed).length;
+  return `<div class="card fade"><div class="card-label">🎓 Doktorat i publikacje (punkty w naborze)</div>
+    <p class="sub">W trybie rezydenckim poza wynikiem LEK liczą się dodatkowe punkty za stopień doktora nauk medycznych i publikacje w czasopismach z wykazu ministra (aktualnego w dniu publikacji) – art. 16c ust. 10 pkt 1. Do wniosku dołącza się skany dokumentów; udział w publikacji potwierdza Główna Biblioteka Lekarska albo biblioteka uczelni medycznej (art. 16c ust. 2 pkt 15 i ust. 2a).</p>
+    <label class="dom-sel">Stopień doktora<select data-phd>${Object.entries(phd).map(([k, v]) => `<option value="${k}" ${x.phd === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>
+    <div class="t-strong" style="margin-top:10px">Publikacje · ${x.pubs.length}${x.pubs.length ? ` (z wykazu: ${ok})` : ''}</div>
+    ${x.pubs.map((p) => `<div class="val-row"><span><b>${esc(p.title)}</b><br><small class="muted">${esc(p.journal || '')}${p.year ? ` · ${esc(p.year)}` : ''}${p.listed ? ' · z wykazu ✓' : ' · <span class="neg">sprawdź wykaz</span>'}${p.confirmed ? ' · potwierdzenie z biblioteki ✓' : ' · brak potwierdzenia z biblioteki'}</small></span>
+      <button class="chip danger-chip" data-pub-del="${esc(p.id)}">Usuń</button></div>`).join('') || '<p class="hint small">Brak publikacji.</p>'}
+    <button class="btn" data-lek="add-pub">＋ Dodaj publikację</button>
+    <p class="hint small">Ile punktów daje doktorat i publikacja, określa rozporządzenie o specjalizacjach – sprawdź aktualne zasady w CMKP przed naborem.</p></div>`;
 }
 
 /* ---------- Okna ---------- */
@@ -320,7 +375,7 @@ function pasteSheet(state, ctx) {
       : ps.map((p) => {
         const n = p.sections.reduce((a, s) => a + s.lessons.length, 0);
         const h = p.sections.reduce((a, s) => a + s.lessons.reduce((b, l) => b + (l.hMin || 0), 0), 0);
-        return `<div>Rozpoznano: <b>${esc(p.name)}</b> → ${esc(domainOf(p.domain).name)} · ${p.sections.length} ${plural(p.sections.length, 'dział', 'działy', 'działów')} · ${n} ${plural(n, 'lekcja', 'lekcje', 'lekcji')} · ok. ${String(Math.round(h * 10) / 10).replace('.', ',')} h</div>
+        return `<div>Rozpoznano: <b>${esc(p.name)}</b> → ${p.domain === 'inne' ? '⚠️ bez dziedziny LEK (wybierzesz po dodaniu)' : esc(domainOf(p.domain).name)} · ${p.sections.length} ${plural(p.sections.length, 'dział', 'działy', 'działów')} · ${n} ${plural(n, 'lekcja', 'lekcje', 'lekcji')} · ok. ${String(Math.round(h * 10) / 10).replace('.', ',')} h</div>
         ${p.warnings.length ? `<div class="seg-err">${p.warnings.map(esc).join('<br>')}</div>` : ''}`;
       }).join('');
   });
@@ -335,7 +390,8 @@ function pasteSheet(state, ctx) {
       if (!r.added.length && !r.updated.length) { ctx.toast('Nic nowego – ten kurs już jest ✓'); close(); return; }
       st.courses = r.courses;
       ctx.save(); ctx.render();
-      ctx.toast(`${[...r.added.map((n) => `dodano ${n}`), ...r.updated.map((u) => `${u.name} +${u.lessons} lekcji`)].join(', ')} ✓`, () => { st.courses = old; ctx.save(); ctx.render(); });
+      const other = ps.filter((p) => p.domain === 'inne' && r.added.includes(p.name)).length;
+      ctx.toast(`${[...r.added.map((n) => `dodano ${n}`), ...r.updated.map((u) => `${u.name} +${u.lessons} lekcji`)].join(', ')} ✓${other ? ' – wybierz dziedzinę LEK dla kursu oznaczonego ⚠️' : ''}`, () => { st.courses = old; ctx.save(); ctx.render(); });
       close();
     }
   });
@@ -479,6 +535,16 @@ export function handleLekClick(e, state, ctx, today) {
   const st = study(state);
   const t = (sel) => e.target.closest(sel);
   let el;
+  if ((el = t('[data-lek-reg]'))) { openLekRegistration(state, ctx); return true; }
+  if ((el = t('[data-pub-del]'))) {
+    const pubs = st.extras?.pubs || [];
+    const i = pubs.findIndex((p) => p.id === el.dataset.pubDel);
+    if (i < 0) return true;
+    const removed = pubs.splice(i, 1)[0];
+    ctx.save(); ctx.render();
+    ctx.toast('Usunięto', () => { st.extras.pubs.splice(i, 0, removed); ctx.save(); ctx.render(); });
+    return true;
+  }
   if ((el = t('[data-lekseg]'))) { seg = el.dataset.lekseg; ctx.render(); window.scrollTo({ top: 0 }); return true; }
   if ((el = t('[data-lek]'))) {
     const a = el.dataset.lek;
@@ -486,7 +552,23 @@ export function handleLekClick(e, state, ctx, today) {
     else if (a === 'save-courses') shareOrDownload(`kursy-wnl-${todayIso()}.json`, coursesFileJson(st.courses), 'application/json');
     else if (a === 'new-plan') surveySheet(state, ctx, null);
     else if (a === 'edit-plan') surveySheet(state, ctx, activePlan(st));
-    else if (a === 'add-att') {
+    else if (a === 'add-pub') {
+      const { root, close } = sheet('Publikacja', `<div class="form-card">
+        <label>Tytuł<input data-k="title"></label><label>Czasopismo<input data-k="journal"></label>
+        <label>Rok<input data-k="year" type="number" inputmode="numeric" placeholder="np. 2026"></label>
+        <label class="skill"><input type="checkbox" data-k="listed"><span class="box"></span><span class="nm">Czasopismo z wykazu ministra (w dniu publikacji)</span></label>
+        <label class="skill"><input type="checkbox" data-k="confirmed"><span class="box"></span><span class="nm">Mam potwierdzenie z GBL / biblioteki uczelni</span></label></div>`);
+      root.addEventListener('change', (ev) => { const c = ev.target.closest('.skill'); if (c) c.classList.toggle('on', ev.target.checked); });
+      root.addEventListener('click', (ev) => {
+        if (ev.target.closest('[data-close]')) return close();
+        if (!ev.target.closest('[data-ok]')) return;
+        const v = (k) => root.querySelector(`[data-k="${k}"]`);
+        if (!v('title').value.trim()) { ctx.toast('Wpisz tytuł'); return; }
+        st.extras = { phd: '', pubs: [], ...(st.extras || {}) };
+        st.extras.pubs = [...st.extras.pubs, { id: `pub${Date.now()}`, title: v('title').value.trim(), journal: v('journal').value.trim(), year: v('year').value, listed: v('listed').checked, confirmed: v('confirmed').checked }];
+        ctx.save(); ctx.render(); ctx.toast('Zapisano ✓'); close();
+      });
+    } else if (a === 'add-att') {
       simpleSheet('Podejście do LEK', [
         { key: 'session', label: 'Sesja', ph: 'np. jesień 2025' }, { key: 'date', label: 'Data egzaminu', type: 'date' },
         { key: 'pct', label: 'Wynik (%)', type: 'number', step: '0.01' }], (v) => {
@@ -592,6 +674,11 @@ export function handleLekChange(e, state, ctx) {
   if (el.dataset.courseDom) {
     const c = st.courses.find((x) => x.id === el.dataset.courseDom);
     c.domain = el.value; ctx.save(); ctx.render(); ctx.toast('Zapisano ✓');
+    return true;
+  }
+  if (el.dataset.phd !== undefined) {
+    st.extras = { phd: '', pubs: [], ...(st.extras || {}), phd: el.value };
+    ctx.save(); ctx.toast('Zapisano ✓');
     return true;
   }
   if (el.dataset.specWoj !== undefined) { specWoj = el.value; ctx.render(); return true; }

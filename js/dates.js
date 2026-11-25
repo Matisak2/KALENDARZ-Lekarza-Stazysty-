@@ -26,25 +26,11 @@ export function isWeekend(iso) {
   return w === 0 || w === 6;
 }
 
-export function diffDays(a, b) {
-  return toNum(b) - toNum(a);
-}
-
 /** Wszystkie dni od a do b włącznie. */
 export function eachDay(a, b) {
   const out = [];
   for (let n = toNum(a), e = toNum(b); n <= e; n++) out.push(toIso(n));
   return out;
-}
-
-export function clampRange(a, b, lo, hi) {
-  const s = a > lo ? a : lo;
-  const e = b < hi ? b : hi;
-  return s <= e ? [s, e] : null;
-}
-
-export function inRange(iso, a, b) {
-  return iso >= a && iso <= b;
 }
 
 export function todayIso(now = new Date()) {

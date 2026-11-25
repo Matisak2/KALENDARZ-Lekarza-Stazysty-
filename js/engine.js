@@ -106,12 +106,6 @@ export function blockStats(ctx, block, today) {
   };
 }
 
-/** Liczba dni roboczych urlopu w wydarzeniu (bez świąt i dni wolnych za soboty). */
-export function vacationDaysOf(ctx, ev) {
-  if (!EVENT_TYPES[ev.type]?.vacation) return 0;
-  return eachDay(ev.start, ev.end).filter((d) => !isWeekend(d) && !statutoryOff(ctx, d)).length;
-}
-
 export function vacationSummary(ctx, today) {
   const pool = ctx.settings.vacationPool || {};
   const total = Object.values(pool).reduce((a, b) => a + Number(b || 0), 0);
@@ -215,23 +209,68 @@ export function summarize(state, today) {
   };
 }
 
+const MONTHS_GEN = ['styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec', 'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień'];
+
+/** N-ty dzień roboczy miesiąca (bez weekendów, świąt i dni wolnych za soboty). */
+export function nthWorkday(ctx, ym, n) {
+  let d = `${ym}-01`;
+  let k = 0;
+  for (;;) {
+    if (!isWeekend(d) && !statutoryOff(ctx, d) && ++k === n) return d;
+    d = addDays(d, 1);
+  }
+}
+
+/**
+ * Terminy Kadr na cały staż: listopad i grudzień 2026 z e-maili Kadr (HR_DEADLINES), dalej co miesiąc
+ * „dokumenty za miesiąc do 3. dnia roboczego następnego miesiąca” – tak jak za listopad (03.12). Do potwierdzenia w Kadrach.
+ */
+export function hrDeadlines(state, ctx = buildContext(state)) {
+  const out = [...HR_DEADLINES];
+  const known = new Set(HR_DEADLINES.map((d) => d.id.replace(/^[a-z]+-/, '')));
+  const st = state.settings;
+  let ym = st.startDate.slice(0, 7);
+  const last = st.endDate.slice(0, 7);
+  while (ym <= last) {
+    const [y, m] = ym.split('-').map(Number);
+    const next = `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, '0')}`;
+    if (!known.has(ym) && ym > '2026-10') {
+      out.push({ id: `kp-${ym}`, due: nthWorkday(ctx, next, 3), title: `Oddaj w Kadrach dokumenty za ${MONTHS_GEN[m - 1]}`,
+        detail: 'Karta czasu pracy, karta dyżurów i lista obecności (z podpisami) – termin jak za listopad (3. dzień roboczy), potwierdź w Kadrach', guess: true });
+    }
+    ym = next;
+  }
+  return out.sort((a, b) => (a.due < b.due ? -1 : 1));
+}
+
 /** Lista ostrzeżeń i przypomnień do pokazania na ekranie "Dziś". */
 export function alerts(sum) {
   const out = [];
   const { settings } = sum.ctx;
   const today = sum.today;
 
-  for (const dl of settings.lek?.deadlines || []) {
-    if (dl.done || (settings.lek?.registered && dl.label.startsWith('Zgłoszenie na LEK (wiosna'))) continue;
+  const lek = settings.lek || {};
+  for (const dl of lek.deadlines || []) {
+    if (dl.done || (lek.registered && dl.label.startsWith('Zgłoszenie na LEK (wiosna'))) continue;
+    // Opłata: pomijamy, gdy wpisano „nie trzeba płacić” albo „opłacone”
+    if (lek.registered && dl.label.startsWith('Opłata za LEK (wiosna') && (lek.feeNeeded === 'nie' || lek.feePaid)) continue;
     const left = toNum(dl.date) - toNum(today);
-    if (left >= 0 && left <= 30) out.push({ level: left <= 7 ? 'urgent' : 'warn', icon: '📝', title: dl.label, detail: left === 0 ? 'Dziś!' : `Zostało ${left} ${left === 1 ? 'dzień' : 'dni'}`, date: dl.date, action: 'deadline-done' });
+    const reg = dl.label.startsWith('Zgłoszenie na LEK (wiosna');
+    if (left >= 0 && left <= 30) out.push({ level: left <= 7 ? 'urgent' : 'warn', icon: '📝', title: dl.label, detail: left === 0 ? 'Dziś!' : `Zostało ${left} ${left === 1 ? 'dzień' : 'dni'}`, date: dl.date, action: reg ? 'lek-reg' : 'deadline-done' });
+  }
+  // Po zapisie: czy trzeba zapłacić? (art. 14a ust. 8 i 11 – opłata od 2. zgłoszenia, chyba że 1. niezdany/nieprzystąpienie)
+  if (lek.registered && !lek.feeNeeded && lek.examDate && today <= lek.examDate) {
+    out.push({ level: 'info', icon: '💳', action: 'lek-reg', title: 'LEK: sprawdź w SMK, czy musisz zapłacić',
+      detail: 'Pierwsze zgłoszenie jest bezpłatne; opłata od kolejnego – do 5 dni roboczych po końcu zapisów. Wpisz odpowiedź w „Zapis na LEK”.' });
   }
   // Terminy Kadr USK2 (karty czasu pracy, dyżurów, listy obecności)
   const hrDone = settings.hrDone || {};
-  for (const d of HR_DEADLINES) {
+  for (const d of hrDeadlines(sum.ctx.state)) {
     const left = toNum(d.due) - toNum(today);
     if (!hrDone[d.id] && left >= 0 && left <= 21) {
-      out.push({ level: left <= 3 ? 'urgent' : 'warn', icon: '📋', title: d.title, detail: `${d.detail} · ${left === 0 ? 'dziś!' : `zostało ${left} ${left === 1 ? 'dzień' : 'dni'}`}`, action: 'hr-done', id: d.id });
+      const ym = /^kp-(\d{4}-\d{2})$/.exec(d.id)?.[1];
+      out.push({ level: left <= 3 ? 'urgent' : 'warn', icon: '📋', title: d.title, detail: `${d.detail} · ${left === 0 ? 'dziś!' : `zostało ${left} ${left === 1 ? 'dzień' : 'dni'}`}`, action: 'hr-done', id: d.id,
+        letter: ym ? { kind: 'dokumenty', month: ym } : null, pack: ym || (d.id.endsWith('2026-12') ? '2026-12' : null) });
     }
   }
   // Staż cząstkowy poza USK2: pismo ze zgodą koordynatora + kopia książeczki zdrowia, pisemna informacja do Kadr
@@ -241,7 +280,7 @@ export function alerts(sum) {
     const h = hospitalOf(seg);
     const id = `ext-${b.id}-${b.start}`;
     if (h && h.id !== 'usk2' && left >= -7 && left <= 21 && !hrDone[id]) {
-      out.push({ level: left <= 3 ? 'urgent' : 'warn', icon: '🏥', action: 'hr-done', id,
+      out.push({ level: left <= 3 ? 'urgent' : 'warn', icon: '🏥', action: 'hr-done', id, letter: { kind: 'zewn-koord', blockId: b.id },
         title: `${b.short} (${h.short || h.name})${left > 0 ? ` od ${b.start.slice(8)}.${b.start.slice(5, 7)}` : ''} – formalności`,
         detail: 'Poinformuj koordynatora; do placówki pismo ze zgodą koordynatora + kopia książeczki zdrowia; pisemna informacja do Kadr USK2 o miejscu stażu (Informacja USK2, pkt 10–11)' });
     }
@@ -457,18 +496,39 @@ export function dutyMonth(state, ym) {
   }
   if (duties.length > DUTY_COUNT_MAX) warnings.push({ level: 'warn', text: `${duties.length} dyżurów – maksymalnie ${DUTY_COUNT_MAX} w miesiącu` });
   if (total > DUTY_MONTH_MAX) warnings.push({ level: 'warn', text: `Suma ${fmtHM(total)} – maksymalnie ${fmtHM(DUTY_MONTH_MAX)} w miesiącu` });
+  const issues = {};
   for (const x of duties) {
+    const list = dutyDayIssues(state, x.date, ctx);
+    if (![300, 305].includes(Number(x.minutes))) list.push({ level: 'info', text: `nietypowa długość ${fmtHM(Number(x.minutes) || 0)} – w USK2 dyżur trwa 5 h 05 min albo 5 h` });
+    if (list.length) issues[x.id] = list;
     const dd = `${x.date.slice(8)}.${x.date.slice(5, 7)}`;
-    // Informacja USK2 dla stażysty, pkt 2 i 6: dyżury tylko pn–pt, nie w soboty, niedziele i święta
-    if (isWeekend(x.date) || statutoryOff(ctx, x.date)) warnings.push({ level: 'warn', text: `${dd}: dyżurów nie pełni się w soboty, niedziele i święta (USK2) – tylko pn–pt` });
-    const br = DUTY_BREAKS.find((r) => r.start <= x.date && x.date <= r.end);
-    if (br) warnings.push({ level: 'warn', text: `${dd}: ${br.label} – bez dyżurów` });
-    const a = ctx.absence.get(x.date);
-    if (a) warnings.push({ level: 'warn', text: `${x.date.slice(8)}.${x.date.slice(5, 7)}: dyżur w dniu ${a.kind === 'course' ? 'kursu' : 'nieobecności'} (${a.label})` });
-    const b = blockOf(x.date);
-    if (b && !b.duties) warnings.push({ level: 'info', text: `${x.date.slice(8)}.${x.date.slice(5, 7)}: w bloku ${b.short} zwykle nie ma dyżurów` });
+    for (const w of list) warnings.push({ level: w.level, text: `${dd}: ${w.text}`, id: x.id });
   }
-  return { ym, duties, buckets, norm, total, left: norm - total, count: duties.length, absenceWorkdays, reduction, dutyWeeks, warnings };
+  return { ym, duties, buckets, norm, total, left: norm - total, count: duties.length, absenceWorkdays, reduction, dutyWeeks, warnings, issues };
+}
+
+/**
+ * Dlaczego w danym dniu nie może być dyżuru (zasady USK2): weekend, święto/dzień wolny, przerwa świąteczna,
+ * kurs albo nieobecność, poza stażem/rezerwa, blok bez dyżurów. Pusta lista = dzień w porządku.
+ */
+export function dutyDayIssues(state, d, ctx = buildContext(state)) {
+  const out = [];
+  const st = state.settings;
+  // Informacja USK2 dla stażysty, pkt 2 i 6: dyżury tylko pn–pt, nie w soboty, niedziele i święta
+  if (isWeekend(d)) out.push({ level: 'warn', text: 'weekend – w USK2 dyżurów nie pełni się w soboty, niedziele i święta (tylko pn–pt)' });
+  const off = statutoryOff(ctx, d);
+  if (off) out.push({ level: 'warn', text: `${off.label} – w święta i dni wolne nie ma dyżurów` });
+  const br = DUTY_BREAKS.find((r) => r.start <= d && d <= r.end);
+  if (br) out.push({ level: 'warn', text: `${br.label} – bez dyżurów` });
+  const a = ctx.absence.get(d);
+  if (a) out.push({ level: 'warn', text: `dzień ${a.kind === 'course' ? 'kursu' : 'nieobecności'} (${a.label}) – bez dyżuru` });
+  if (d < st.startDate || d > st.endDate) out.push({ level: 'warn', text: 'poza okresem stażu' });
+  else {
+    const b = (state.blocks || []).find((x) => x.start <= d && d <= x.end);
+    if (!b) out.push({ level: 'warn', text: 'poza blokami (rezerwa) – sprawdź, czy dyżur jest potrzebny' });
+    else if (!b.duties) out.push({ level: 'warn', text: `blok ${b.short} jest bez dyżurów` });
+  }
+  return out;
 }
 
 /** Ile minut można jeszcze dyżurować w „tygodniu” danego dnia (bez danego dyżuru – przy edycji). */
@@ -493,38 +553,85 @@ export function dutyTotals(state) {
  * Tylko pn–pt, nie w święta, dni wolne, przerwy (DUTY_BREAKS), dni kursów i nieobecności, tylko w blokach z dyżurami.
  * Uwzględnia dyżury już wpisane (limit tygodnia 10 h 05, max 8 w miesiącu). Preferuje wt/czw/śr i odstęp między dyżurami.
  */
-export function proposeDuties(state, ym) {
+export function proposeDuties(state, ym, from = null) {
   const m = dutyMonth(state, ym);
   const ctx = buildContext(state);
-  const st = state.settings;
   const taken = new Set((state.duties || []).map((x) => x.date));
-  const blockOf = (d) => state.blocks.find((b) => b.start <= d && d <= b.end) || null;
-  const ok = (d) => d >= st.startDate && d <= st.endDate && !isWeekend(d) && !statutoryOff(ctx, d) && !ctx.absence.get(d)
-    && !DUTY_BREAKS.some((r) => r.start <= d && d <= r.end) && !!blockOf(d)?.duties && !taken.has(d);
+  // `from` – najwcześniejszy dzień propozycji (np. dziś: nie proponujemy dni, które już minęły)
+  const ok = (d) => (!from || d >= from) && !taken.has(d) && !dutyDayIssues(state, d, ctx).length;
   const PREF = { 2: 0, 4: 1, 3: 2, 1: 3, 5: 4 }; // wt, czw, śr, pn, pt
   const wd = (d) => new Date(`${d}T00:00:00Z`).getUTCDay();
   let need = Math.max(0, m.norm - m.total);
+  let total = m.total;
   let count = m.count;
   const out = [];
   for (const b of m.buckets) {
     if (!b.dutyWeek) continue;
     let room = DUTY_WEEK_LIMIT - b.minutes;
     const inWeek = (state.duties || []).filter((x) => x.date >= b.start && x.date <= b.end).map((x) => x.date);
-    while (need > 0 && room >= 60 && count < DUTY_COUNT_MAX) {
+    while (need > 0 && count < DUTY_COUNT_MAX) {
+      // Tylko pełne dyżury USK2: 5 h 05 min albo 5 h (nigdy „kawałek” dyżuru)
+      const size = [305, 300].find((x) => x <= room && x <= need && total + x <= DUTY_MONTH_MAX);
+      if (!size) break;
       const days = eachDay(b.start, b.end).filter((d) => ok(d) && !out.some((o) => o.date === d));
       if (!days.length) break;
       const near = (d) => [...inWeek, ...out.map((o) => o.date)].some((x) => Math.abs(toNum(x) - toNum(d)) <= 1);
       days.sort((a, c) => (near(a) - near(c)) || (PREF[wd(a)] - PREF[wd(c)]) || (a < c ? -1 : 1));
-      const size = Math.min(room >= DUTY_WEEK_LIMIT ? 305 : Math.min(room, 305), need);
       const date = days[0];
       out.push({ date, minutes: size, start: '15:35' });
       inWeek.push(date);
       room -= size;
       need -= size;
+      total += size;
       count++;
     }
   }
   return out.sort((a, c) => (a.date < c.date ? -1 : 1));
+}
+
+/** Ile normy zostanie niezrobione po dodaniu propozycji (np. tydzień kursu lub urlopu bez wolnych dni) – w minutach. */
+export function proposalShortfall(state, ym, list = proposeDuties(state, ym)) {
+  const m = dutyMonth(state, ym);
+  return Math.max(0, m.norm - m.total - list.reduce((a, x) => a + x.minutes, 0));
+}
+
+/* ---------- Podsumowanie tygodnia ---------- */
+
+/**
+ * Tydzień (pn–nd) zawierający `today`: dla każdego dnia – gdzie jestem (blok, oddział), czy to dzień wolny/nieobecność,
+ * dyżury; do tego terminy z tego tygodnia (LEK, Kadry, kursy, początek bloku).
+ */
+export function weekSummary(state, today) {
+  const sum = summarize(state, today);
+  const ctx = sum.ctx;
+  const mon = addDays(today, -((new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7));
+  const sun = addDays(mon, 6);
+  const days = eachDay(mon, sun).map((d) => {
+    const pl = placeOn(state, d);
+    const h = hospitalOf(pl?.segment);
+    const off = statutoryOff(ctx, d);
+    const abs = ctx.absence.get(d);
+    const mk = sum.makeUpPlan.find((m) => m.date === d);
+    let kind = 'work';
+    let label = pl?.block ? `${pl.block.short}${h ? ` · ${h.short || h.name}` : ''}` : (d >= sum.reserve.start && d <= sum.estimatedEnd ? 'rezerwa' : '');
+    if (isWeekend(d)) { kind = 'free'; label = 'weekend'; }
+    else if (off) { kind = 'free'; label = off.label; }
+    else if (abs) { kind = abs.kind === 'course' ? 'course' : 'absence'; label = abs.kind === 'course' ? `kurs: ${abs.label}` : abs.label; }
+    else if (mk) { const b = state.blocks.find((x) => x.id === mk.blockId); label = `odrabianie: ${b?.short || ''}`; }
+    if (d < state.settings.startDate || d > sum.estimatedEnd) { kind = kind === 'work' ? 'none' : kind; if (kind === 'none') label = ''; }
+    const duties = (state.duties || []).filter((x) => x.date === d);
+    return { date: d, kind, label, duties, ward: pl?.segment?.ward || '' };
+  });
+  const items = [];
+  for (const dl of state.settings.lek?.deadlines || []) if (!dl.done && dl.date >= mon && dl.date <= sun) items.push({ date: dl.date, icon: '📝', text: dl.label });
+  const lek = state.settings.lek;
+  if (lek?.examDate >= mon && lek.examDate <= sun) items.push({ date: lek.examDate, icon: '📝', text: `LEK (${lek.session})` });
+  for (const d of hrDeadlines(state, ctx)) if (!state.settings.hrDone?.[d.id] && d.due >= mon && d.due <= sun) items.push({ date: d.due, icon: '📋', text: d.title });
+  for (const c of state.courses || []) if (c.start && c.start >= mon && c.start <= sun) items.push({ date: c.start, icon: '🎓', text: `Kurs: ${c.name}` });
+  for (const b of state.blocks || []) if (b.start > mon && b.start <= sun) items.push({ date: b.start, icon: '🩺', text: `Nowy blok: ${b.name}` });
+  items.sort((a, b) => (a.date < b.date ? -1 : 1));
+  const dutyMin = days.reduce((a, d) => a + d.duties.reduce((x, y) => x + Number(y.minutes || 0), 0), 0);
+  return { start: mon, end: sun, days, items, dutyMin, workdays: days.filter((d) => d.kind === 'work').length };
 }
 
 /* ---------- Pomysły na urlop: gdzie mało dni urlopu daje długi odpoczynek ---------- */

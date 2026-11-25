@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultState } from '../js/defaults.js';
-import { buildTimesheet, hm, clock, nightMinutes } from '../js/timesheet.js';
+import { buildTimesheet, hm, clock, nightMinutes, dutyPay, buildAttendance } from '../js/timesheet.js';
 
 test('Zapis godzin jak na wzorze USK2', () => {
   assert.equal(hm(455), '7,35');
@@ -80,4 +80,39 @@ test('Nominał z e-maili Kadr USK2: listopad i grudzień 2026 = 151 h 40 min; ko
   const r = (d) => buildTimesheet(st, '2026-11').rows.find((x) => x.day === d);
   assert.equal(r(16).hours, 'ZL');
   assert.equal(r(17).hours, 'UW');
+});
+
+test('Audyt B5: dyżur w dniu urlopu/kursu – ostrzeżenie na karcie zamiast cichego pominięcia', () => {
+  const st = defaultState();
+  st.events.push({ id: 'u', type: 'urlop', start: '2026-12-01', end: '2026-12-01' });
+  st.duties = [{ id: 'a', date: '2026-12-01', minutes: 305 }, { id: 'b', date: '2026-12-03', minutes: 300 }];
+  const k = buildTimesheet(st, '2026-12');
+  assert.equal(k.warnings.length, 1);
+  assert.match(k.warnings[0], /^01\.12: dyżur \(5,05\) w dniu nieobecności/);
+});
+
+test('Wynagrodzenie za dyżury: 125% stawki godzinowej (rozp. § 12 pkt 1 lit. a)', () => {
+  const st = defaultState();
+  st.settings.pay = { base: 9100 };
+  st.duties = [{ id: 'a', date: '2026-11-03', minutes: 305 }, { id: 'b', date: '2026-11-05', minutes: 300 }];
+  const p = dutyPay(st, '2026-11');
+  assert.equal(p.nominalMin, 9100); // 20 dni × 7 h 35 min = 151 h 40 min
+  assert.equal(p.hourly, 60); // 9100 zł / 151,67 h
+  assert.equal(p.pay, Math.round((605 / 60) * 60 * 1.25 * 100) / 100); // 756,25 zł
+  st.settings.pay = {};
+  assert.equal(dutyPay(st, '2026-11').pay, 0);
+});
+
+test('Lista obecności: kody z legendy USK2, weekendy i święta zacienione', () => {
+  const st = defaultState();
+  st.events.push({ id: 'u', type: 'urlop', start: '2026-12-01', end: '2026-12-02' }, { id: 'l', type: 'l4', start: '2026-12-03', end: '2026-12-03' });
+  st.courses[0].start = '2026-12-07'; st.courses[0].end = '2026-12-07';
+  const a = buildAttendance(st, '2026-12');
+  const r = (d) => a.rows[d - 1];
+  assert.equal(r(1).code, 'UW');
+  assert.equal(r(3).code, 'ZL');
+  assert.equal(r(7).code, 'SZ');
+  assert.equal(r(8).code, '');
+  assert.ok(r(5).shaded && r(24).shaded && r(23).shaded); // sobota, Wigilia, dzień wolny za 26.12
+  assert.ok(!r(8).shaded);
 });

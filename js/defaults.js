@@ -1,7 +1,7 @@
 // Domyślne dane: harmonogram grupy 6 (staż 01.10.2026–31.10.2027, USK2 Szczecin).
 // Wszystko można zmienić w aplikacji – to tylko punkt startowy.
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 /** Typy wpisów kalendarza (nieobecności i inne zdarzenia). */
 export const EVENT_TYPES = {
@@ -87,12 +87,15 @@ export function defaultState() {
     ],
     events: [],
     duties: [],
+    // Przypadki z oddziału – BEZ danych pacjenta: { id, date, blockId, title, text }
+    cases: [],
     notes: {},
     skills: {},
     customSkills: {},
     booklet: {},
-    study: { courses: [], done: {}, plans: [], activePlan: null, attempts: [], mocks: [] },
+    study: { courses: [], done: {}, plans: [], activePlan: null, attempts: [], mocks: [], extras: { phd: '', pubs: [] } },
     timesheets: {},
-    meta: { lastBackup: null, createdAt: null },
+    // icsSent: uid -> skrót treści wydarzenia z ostatniego eksportu (eksport „tylko nowe i zmienione”)
+    meta: { lastBackup: null, createdAt: null, icsSent: {} },
   };
 }

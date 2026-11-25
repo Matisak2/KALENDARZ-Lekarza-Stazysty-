@@ -203,3 +203,48 @@ test('Pomysły na urlop: mosty i długie weekendy (1 dzień urlopu = 4+ dni woln
   assert.ok(v.every((x) => x.free / x.days >= 3));
   for (let i = 1; i < v.length; i++) assert.ok(v[i].start > v[i - 1].end); // bez nakładania
 });
+
+test('Terminy Kadr na cały staż: XI i XII z e-maili, dalej 3. dzień roboczy następnego miesiąca', async () => {
+  const { hrDeadlines, nthWorkday, buildContext } = await import('../js/engine.js');
+  const st = defaultState();
+  const list = hrDeadlines(st);
+  const by = (id) => list.find((d) => d.id === id);
+  assert.equal(by('kp-2026-11').due, '2026-12-03');
+  assert.equal(by('kp-2027-01').due, '2027-02-03'); // 1.02 pn, 2.02 wt, 3.02 śr
+  assert.equal(by('kp-2027-03').due, '2027-04-05'); // 1.04 cz, 2.04 pt, 5.04 pn
+  assert.equal(by('kp-2027-04').due, '2027-05-06'); // 3.05 święto: 4, 5, 6.05
+  assert.ok(by('kp-2027-10'));
+  assert.ok(!by('kp-2026-12')); // grudzień – osobne terminy z e-maila (15.12 i 31.12)
+  assert.equal(nthWorkday(buildContext(st), '2027-01', 1), '2027-01-04'); // 1.01 święto, 2–3 weekend
+});
+
+test('LEK: po zapisie i „nie trzeba płacić” – bez przypomnienia o opłacie', () => {
+  const st = defaultState();
+  const titles = () => alerts(summarize(st, '2026-12-01')).map((a) => a.title);
+  assert.ok(titles().some((t) => t.startsWith('Opłata za LEK')));
+  st.settings.lek.registered = true;
+  assert.ok(titles().some((t) => t.startsWith('LEK: sprawdź w SMK')));
+  st.settings.lek.feeNeeded = 'nie';
+  assert.ok(!titles().some((t) => t.startsWith('Opłata za LEK') || t.startsWith('LEK: sprawdź')));
+});
+
+test('Podsumowanie tygodnia: pn–nd, miejsce, święta, nieobecności, dyżury i terminy', async () => {
+  const { weekSummary } = await import('../js/engine.js');
+  const st = defaultState();
+  st.duties = [{ id: 'd', date: '2026-11-24', minutes: 305 }];
+  st.events.push({ id: 'u', type: 'urlop', start: '2026-11-27', end: '2026-11-27' });
+  const w = weekSummary(st, '2026-11-25');
+  assert.equal(w.start, '2026-11-23');
+  assert.equal(w.end, '2026-11-29');
+  assert.match(w.days[0].label, /^Chirurgia/);
+  assert.match(w.days[3].label, /^Chir\. dziecięca · /); // 26.11 nowy blok (Zdroje)
+  assert.equal(w.days[4].kind, 'absence');
+  assert.equal(w.days[5].kind, 'free');
+  assert.equal(w.dutyMin, 305);
+  assert.ok(w.items.some((i) => i.text.startsWith('Nowy blok: Chirurgia dziecięca')));
+  assert.ok(w.items.every((i) => i.date >= w.start && i.date <= w.end)); // zgłoszenie LEK 30.11 – już w następnym tygodniu
+  assert.ok(weekSummary(st, '2026-11-30').items.some((i) => i.text.startsWith('Zgłoszenie na LEK')));
+  const w2 = weekSummary(st, '2026-12-23');
+  assert.ok(w2.days.find((d) => d.date === '2026-12-24').kind === 'free');
+  assert.ok(w2.days.find((d) => d.date === '2026-12-23').label.startsWith('Dzień wolny'));
+});

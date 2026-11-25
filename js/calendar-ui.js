@@ -1,10 +1,11 @@
 // Ekran „Kalendarz”: miesiąc w kolorach bloków + okno dnia + dodawanie wpisów (urlop, L4…).
-import { summarize, dayInfo, eventImpact } from './engine.js';
+import { summarize, dayInfo, eventImpact, dutyDayIssues } from './engine.js';
 import { EVENT_TYPES } from './defaults.js';
 import { hospitalOf } from './hospitals.js';
 import { addDays, fmtLong, fmtShort, fmtFull, fmtDayShort, weekday, MONTHS, toNum, plural } from './dates.js';
-import { esc } from './blocks-ui.js';
+import { esc, helpBox } from './blocks-ui.js';
 import { openDutyEditor } from './duties-ui.js';
+import { openLetters } from './letters-ui.js';
 import { fmtHM } from './engine.js';
 
 const color = (b) => `var(--c-${b.color || 'gray'})`;
@@ -45,6 +46,8 @@ function badge(info) {
 export function renderCalendar(state, today, ym) {
   const sum = summarize(state, today);
   const [y, m] = ym.split('-').map(Number);
+  // Dyżur w dniu, w którym nie może się odbyć – ⚠️ zamiast 🌙
+  const badDuty = new Set((state.duties || []).filter((x) => x.date.startsWith(ym) && dutyDayIssues(state, x.date, sum.ctx).length).map((x) => x.date));
   const cells = monthDays(ym).map(({ d, out }) => {
     const info = dayInfo(sum, d);
     const blk = info.block || (info.makeUp && state.blocks.find((b) => b.id === info.makeUp.blockId));
@@ -63,7 +66,7 @@ export function renderCalendar(state, today, ym) {
       aria-label="${fmtLong(d)}${info.holiday ? `, ${info.holiday.name}` : ''}">
       <span class="dn">${Number(d.slice(8))}</span>
       ${badge(info) ? `<span class="bd">${badge(info)}</span>` : ''}
-      ${(state.duties || []).some((x) => x.date === d) ? '<span class="duty-dot">🌙</span>' : ''}
+      ${(state.duties || []).some((x) => x.date === d) ? `<span class="duty-dot">${badDuty.has(d) ? '⚠️' : '🌙'}</span>` : ''}
       ${state.notes?.[d] ? '<span class="note-dot"></span>' : ''}
       ${startsBlock && !out ? '<span class="start-tick"></span>' : ''}
     </button>`;
@@ -108,12 +111,13 @@ export function renderCalendar(state, today, ym) {
         <button class="round" data-month="1" aria-label="Następny miesiąc">›</button>
       </div>
     </header>
-    <div class="desk-2"><div>
+    ${helpBox('kalendarz')}
+    <div class="desk-2 cal-desk"><div>
       <div class="card fade cal-card" id="cal-swipe">
         <div class="wd-row">${WD.map((w, i) => `<span class="${i > 4 ? 'we' : ''}">${w}</span>`).join('')}</div>
         <div class="cal-grid">${cells}</div>
         <div class="cal-key">
-          <span><i class="k-hol"></i>święto</span><span>🏖 urlop</span><span>🤒 L4</span><span>🎓 kurs</span><span>↺ odrabianie</span><span>🛋 wolne za sobotę</span><span>🌙 dyżur</span><span><i class="k-note"></i>notatka</span>
+          <span><i class="k-hol"></i>święto</span><span>🏖 urlop</span><span>🤒 L4</span><span>🎓 kurs</span><span>↺ odrabianie</span><span>🛋 wolne za sobotę</span><span>🌙 dyżur</span><span>⚠️ dyżur w złym dniu</span><span><i class="k-note"></i>notatka</span>
         </div>
       </div>
       <button class="btn primary add-ev" data-new-event="${today >= first && today <= last ? today : first}">＋ Dodaj urlop / L4 / nieobecność</button>
@@ -177,6 +181,7 @@ export function openDay(state, today, d, ctx) {
   else if (info.block && !info.weekend && !info.absence) status.push('✓ Dzień stażu (liczy się do bloku)');
   const evs = (state.events || []).filter((e) => e.start <= d && d <= e.end);
   const dus = (state.duties || []).filter((x) => x.date === d);
+  const dutyIssues = dus.length ? dutyDayIssues(state, d) : [];
 
   const { root, close } = mount();
   root.innerHTML = sheet(fmtLong(d), `
@@ -185,9 +190,10 @@ export function openDay(state, today, d, ctx) {
     ${evs.map((e) => `<button class="list-item ev-item card" data-edit-event="${esc(e.id)}"><div class="ev-ic">${EVENT_TYPES[e.type]?.icon}</div>
       <div class="grow"><div class="t">${esc(EVENT_TYPES[e.type]?.label)}</div><div class="s">${fmtDayShort(e.start)} – ${fmtDayShort(e.end)}</div></div><span class="chev">›</span></button>`).join('')}
     ${dus.map((x) => `<button class="list-item ev-item card" data-edit-duty="${esc(x.id)}"><div class="ev-ic">🌙</div>
-      <div class="grow"><div class="t">Dyżur · ${fmtHM(x.minutes)}</div>${x.note ? `<div class="s">${esc(x.note)}</div>` : ''}</div><span class="chev">›</span></button>`).join('')}
+      <div class="grow"><div class="t">Dyżur · ${fmtHM(x.minutes)}</div>${x.note ? `<div class="s">${esc(x.note)}</div>` : ''}
+      ${dutyIssues.length ? `<div class="s neg">⚠️ W tym dniu nie może być dyżuru: ${esc(dutyIssues.map((w) => w.text).join(' · '))}</div>` : ''}</div><span class="chev">›</span></button>`).join('')}
     <div class="form-card"><label class="note-label">📝 Notatka do dnia
-      <textarea data-note="${d}" rows="3" placeholder="np. czego się nauczyłem, co nadrobić, kto był opiekunem">${esc(state.notes?.[d] || '')}</textarea></label></div>
+      <textarea data-note="${d}" rows="3" placeholder="np. czego się nauczyłem, co nadrobić (bez danych pacjentów)">${esc(state.notes?.[d] || '')}</textarea></label></div>
     ${info.inStaz || d >= state.settings.startDate ? `
       <div class="quick">
         <button class="btn" data-quick="urlop">🏖 Urlop</button>
@@ -257,6 +263,8 @@ export function openEventEditor(state, today, ev, ctx) {
         ${!valid ? '<div class="seg-err">Data końca nie może być przed początkiem.</div>' : ''}
       </div>
       ${preview}
+      ${draft.type === 'urlop' ? '<button class="btn" data-letter="urlop">📝 Wniosek o ten urlop</button>' : ''}
+      ${draft.type === 'l4' ? '<button class="btn" data-letter="l4">✉️ Informacja o L4 do Kadr i opiekuna</button>' : ''}
       ${!isNew ? '<button class="btn danger-btn" data-del>Usuń wpis</button>' : ''}
     `, { left: 'Anuluj', right: 'Zapisz', rightDisabled: !valid });
   };
@@ -265,6 +273,8 @@ export function openEventEditor(state, today, ev, ctx) {
     if (e.target.closest('[data-close]')) return close();
     const t = e.target.closest('[data-type]');
     if (t) { draft.type = t.dataset.type; return draw(); }
+    const lt = e.target.closest('[data-letter]');
+    if (lt) return openLetters(state, ctx, { kind: lt.dataset.letter, from: draft.start, to: draft.end });
     if (e.target.closest('[data-ok]')) {
       if (!(draft.start && draft.end && draft.start <= draft.end)) return;
       const i = state.events.findIndex((x) => x.id === draft.id);

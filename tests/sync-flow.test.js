@@ -80,8 +80,31 @@ test('Konflikt: zmiany w obu urządzeniach – nowsza wygrywa, starsza zostaje j
   a.state.meta.updatedAt = 2000;
   await sync.__reconcile(c.docs.get('stazysta/U2'));
   assert.equal(a.state.notes['2027-01-01'], 'z komputera');
-  const backup = JSON.parse(mem.get('kalendarz-stazysty-kopia-konfliktu'));
-  assert.equal(backup.notes['2026-12-01'], 'z telefonu');
+  const kopie = JSON.parse(mem.get('kalendarz-stazysty-kopie'));
+  assert.equal(JSON.parse(kopie[0].data).notes['2026-12-01'], 'z telefonu');
+  assert.match(kopie[0].reason, /przed pobraniem z chmury/);
+});
+
+test('Audyt B1: telefon z danymi + komputer z drobną zmianą przed logowaniem – dane z telefonu przetrwają', async () => {
+  const c = cloud();
+  const u = { uid: 'U4' };
+  mem.clear();
+  const phone = device(defaultState());
+  phone.state.events.push({ id: 'w', type: 'urlop', start: '2027-08-16', end: '2027-08-20' });
+  phone.state.meta.updatedAt = 1000;
+  sync.__test(c, u, phone.ctx);
+  await sync.__reconcile(null);
+  // Komputer: nowa pamięć, zmieniony motyw (updatedAt 2000), nigdy nie synchronizowany
+  mem.clear();
+  const pc = device(defaultState());
+  pc.state.settings.theme = 'dark';
+  pc.state.meta.updatedAt = 2000;
+  sync.__test(c, u, pc.ctx);
+  await sync.__reconcile(c.docs.get('stazysta/U4'));
+  assert.equal(pc.state.events[0].id, 'w'); // pobrał dane z telefonu
+  assert.equal(JSON.parse(c.docs.get('stazysta/U4').data).events.length, 1); // chmura nietknięta
+  const kopie = JSON.parse(mem.get('kalendarz-stazysty-kopie'));
+  assert.equal(JSON.parse(kopie[0].data).settings.theme, 'dark'); // wersja z komputera zachowana
 });
 
 test('Uszkodzone dane w chmurze niczego nie nadpisują', async () => {

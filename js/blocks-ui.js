@@ -5,9 +5,40 @@ import { fmtShort, fmtDayShort, fmtFull, toNum, plural, todayIso } from './dates
 import { SKILLS, skillProgress } from './skills.js';
 import { bookletFor, bookletProgress, suggestedRange } from './booklet.js';
 import { addDays } from './dates.js';
+import { casesCard } from './cases-ui.js';
+import { casesOf } from './cases.js';
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const color = (b) => `var(--c-${b.color || 'gray'})`;
+
+/** Pomoc „co tu zrobić” – zwinięta na górze każdego ekranu. */
+export const HELP = {
+  dzis: ['Na górze: <b>Pilne</b> – terminy, które mijają w ciągu kilku dni. Stuknij „Zrobione ✓”, gdy załatwisz (można cofnąć).',
+    '<b>Teraz</b>: blok, oddział i „Prowadź” do Map. <b>Ten tydzień</b>: gdzie jesteś każdego dnia, dyżury i nieobecności.',
+    '<b>Zaplanuj dyżury</b>: gotowa propozycja na miesiąc – stuknij „Zobacz”, odznacz złe dni i „Dodaj”.',
+    '<b>Rezerwa</b>: ile dni zostaje na urlop, kursy i odrabianie na koniec stażu. Wynik 0 = idealnie na styk.'],
+  bloki: ['Stuknij blok, aby zmienić daty, przypisać szpital i oddział (także po tygodniach), odhaczyć umiejętności i podpisy w książeczce.',
+    '<b>Plan odrabiania</b> pokazuje, kiedy odrobisz dni stracone w blokach (urlop, L4, kurs).',
+    '<b>Przypadki</b>: krótkie notatki do nauki z oddziału – zawsze bez danych pacjenta.'],
+  kalendarz: ['Stuknij dzień: zobaczysz, co się wtedy dzieje, dodasz notatkę, urlop, L4 albo dyżur.',
+    'Kolory = bloki. 🏖 urlop, 🤒 L4, 🎓 kurs, ↺ odrabianie, 🌙 dyżur, ⚠️ dyżur w dniu, w którym nie może się odbyć.',
+    'Przy urlopie aplikacja przed zapisem pokaże skutki: ile dni przepada w bloku i czy staż się wydłuży. Przesuń palcem w bok, by zmienić miesiąc.'],
+  dyzury: ['Norma: 40 h 20 min w miesiącu (mniej za każde 5 dni urlopu/L4), w „tygodniu” miesiąca max 10 h 05 min, max 8 dyżurów.',
+    '<b>Zaproponuj dyżury</b> – tylko pełne dyżury 5 h 05 min i 5 h, tylko pn–pt i w dni, w które mogą się odbyć. Po dodaniu możesz je od razu wysłać do Kalendarza.',
+    'Dyżur w złym dniu (weekend, święto, przerwa, kurs, urlop, blok bez dyżurów) dostaje ⚠️ i opis powodu.',
+    '<b>Karta dyżurów</b> drukuje wzór USK2. Wpisz pensję, a zobaczysz szacunek wypłaty za dyżury.'],
+  lek: ['<b>Plan</b>: ankieta (termin, godziny, słabe dziedziny) → plan tygodni z konkretnymi lekcjami. Odhaczaj lekcje – plan sam się przelicza.',
+    '<b>Materiały</b>: wklej spis kursu z WNL albo wczytaj plik. Kurs bez dziedziny (⚠️) przypisz do dziedziny LEK.',
+    '<b>Wyniki</b>: zapis na LEK (SMK), podejścia i egzaminy próbne. <b>Specjalizacje</b>: progi z naborów CMKP, doktorat i publikacje.'],
+  wiecej: ['<b>Dokumenty za miesiąc</b>: karta czasu pracy, karta dyżurów i lista obecności – PDF osobno albo wszystko naraz.',
+    '<b>Pisma i maile</b>: gotowe teksty z Twoimi datami. <b>Kalendarz iPhone\'a</b>: eksport „tylko nowe i zmienione” – bez dublowania.',
+    '<b>Kopie</b>: zapisz kopię do pliku raz na jakiś czas; kopie automatyczne w telefonie powstają same (raz dziennie i przed ryzykownymi zmianami).'],
+};
+
+export function helpBox(id) {
+  const items = HELP[id] || [];
+  return items.length ? `<details class="help-box"><summary>❓ Jak korzystać z tego ekranu</summary><ul>${items.map((t) => `<li>${t}</li>`).join('')}</ul></details>` : '';
+}
 export const COLORS = ['navy', 'green', 'red', 'wine', 'yellow', 'pink', 'gray', 'blue'];
 const STATUS = { past: 'Zakończony', current: 'W trakcie', future: 'Przyszły' };
 
@@ -59,6 +90,7 @@ export function renderBlocks(state, today) {
         ${s.makeUp ? `<span class="neg">↺ ${s.makeUp} do odrobienia</span>` : `<span class="muted">${Math.round(pct * 100)}%</span>`}</div>
       <div class="segs">${segmentsHtml(state, b)}</div>
       ${state.notes?.['block:' + b.id] ? `<div class="bc-note">📝 ${esc(state.notes['block:' + b.id])}</div>` : ''}
+      ${casesOf(state, b.id).length ? `<div class="bc-note">🩺 Przypadki: ${casesOf(state, b.id).length}</div>` : ''}
       ${(() => { const sp = skillProgress(state, b.id); return sp.total ? `<div class="bc-skills"><span>✓ Umiejętności</span><b>${sp.done}/${sp.total}</b>
         <div class="bc-bar sm"><div style="width:${(sp.done / sp.total) * 100}%"></div></div></div>` : ''; })()}
       ${(() => { const bp = bookletProgress(state, b); return bp.total ? `<div class="bc-skills bk-sign ${bp.done === bp.total ? 'full' : ''}"><span>📘 Podpisy w książeczce</span><b>${bp.done}/${bp.total}</b>
@@ -80,8 +112,8 @@ export function renderBlocks(state, today) {
       <div class="eyebrow">Grupa ${esc(state.settings.group)} · ${sum.stats.length} bloków</div>
       <h1 class="large-title">Bloki</h1>
     </header>
-    <p class="hint">Stuknij blok, aby zmienić daty albo przypisać oddział. Blok możesz rozbić na kilka oddziałów – po tygodniach.</p>
-    <div class="desk-2"><div>${cards}</div><div>${plan}</div></div>`;
+    ${helpBox('bloki')}
+    <div class="desk-2"><div>${cards}</div><div>${plan}${casesCard(state, today)}</div></div>`;
 }
 
 /* ---------- Edycja bloku (arkusz) ---------- */

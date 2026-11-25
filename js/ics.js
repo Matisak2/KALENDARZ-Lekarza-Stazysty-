@@ -2,8 +2,8 @@
 // Bloki i oddziały jako wydarzenia całodniowe z adresem w polu „Miejsce”,
 // terminy LEK z przypomnieniami (alarmami).
 import { addDays, eachDay, isWeekend } from './dates.js';
-import { EVENT_TYPES, HR_DEADLINES } from './defaults.js';
-import { summarize, placeOn } from './engine.js';
+import { EVENT_TYPES } from './defaults.js';
+import { summarize, placeOn, hrDeadlines } from './engine.js';
 import { hospitalOf, placeText } from './hospitals.js';
 
 const esc = (s) => String(s ?? '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/([,;])/g, '\\$1');
@@ -35,12 +35,14 @@ function fold(line) {
 const hms = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}${String(min % 60).padStart(2, '0')}00`;
 
 function vevent({ uid, start, end, summary, location, description, alarms = [], stamp, from = null, to = null }) {
+  // Koniec po północy (np. dyżur 8:00 + 24 h) – następny dzień, godzina w zakresie 0–23 (audyt B10)
+  const endDay = to != null ? addDays(start, Math.floor(to / 1440)) : null;
   const lines = [
     'BEGIN:VEVENT',
     `UID:${uid}@kalendarz-stazysty`,
     `DTSTAMP:${stamp}`,
     ...(from != null
-      ? [`DTSTART:${ymd(start)}T${hms(from)}`, `DTEND:${ymd(start)}T${hms(to)}`]
+      ? [`DTSTART:${ymd(start)}T${hms(from % 1440)}`, `DTEND:${ymd(endDay)}T${hms(to % 1440)}`]
       : [`DTSTART;VALUE=DATE:${ymd(start)}`, `DTEND;VALUE=DATE:${ymd(addDays(end, 1))}`]),
     `SUMMARY:${esc(summary)}`,
   ];
@@ -66,10 +68,64 @@ function ranges(dates) {
   return out;
 }
 
+const STAMP = () => new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
+
+/** Dyżur jako wydarzenie z godziną (czas lokalny telefonu). */
+function dutyEvent(state, x, stamp) {
+  const [hh, mm] = String(x.start || '15:35').split(':').map(Number);
+  const from = (hh || 15) * 60 + (mm || 0);
+  const pl = placeOn(state, x.date);
+  return vevent({
+    uid: `dyzur-${x.id}`, start: x.date, end: x.date, from, to: from + Number(x.minutes || 0),
+    summary: `🌙 Dyżur ${String(x.start || '15:35')}`, location: pl?.segment ? placeText(pl.segment) : '',
+    description: x.note || '', stamp, alarms: [{ trigger: '-PT6H', text: 'Dziś dyżur' }],
+  });
+}
+
+const HEAD = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Kalendarz Stazysty//PL', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:Staż', 'X-WR-TIMEZONE:Europe/Warsaw'];
+const file = (lines) => [...HEAD, ...lines, 'END:VCALENDAR'].map(fold).join('\r\n') + '\r\n';
+
+/** Krótki skrót treści wydarzenia (bez DTSTAMP) – do eksportu „tylko nowe i zmienione”. */
+function digest(lines) {
+  const t = lines.filter((l) => !l.startsWith('DTSTAMP:')).join('\n');
+  let h = 5381;
+  for (let i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+
+/** Plik .ics tylko z podanymi dyżurami (np. po dodaniu propozycji). */
+export function buildDutiesIcs(state, duties) {
+  const stamp = STAMP();
+  return file(duties.flatMap((x) => dutyEvent(state, x, stamp)));
+}
+
+/**
+ * Plik .ics. `sent` = { uid: skrót } z poprzedniego eksportu: wtedy w pliku są tylko wydarzenia nowe i zmienione
+ * (iPhone nie dubluje tego, co już ma). Zwraca { text, sent: nowe skróty, count, total }.
+ */
+export function buildIcsExport(state, today, sent = null) {
+  const events = icsEvents(state, today);
+  const all = {};
+  const pick = [];
+  for (const ev of events) {
+    const uid = ev[1].slice(4);
+    const d = digest(ev);
+    all[uid] = d;
+    if (!sent || sent[uid] !== d) pick.push(ev);
+  }
+  return { text: file(pick.flat()), sent: all, count: pick.length, total: events.length };
+}
+
 export function buildIcs(state, today) {
+  return buildIcsExport(state, today).text;
+}
+
+/** Lista wydarzeń (każde jako tablica linii). */
+function icsEvents(state, today) {
   const sum = summarize(state, today);
-  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
-  const L = [];
+  const stamp = STAMP();
+  const E = [];
+  const L = { push: (...lines) => E.push(lines) };
   const dayBefore = (text) => ({ trigger: '-PT15H', text }); // dzień wcześniej ok. 9:00
 
   for (const b of state.blocks) {
@@ -140,15 +196,15 @@ export function buildIcs(state, today) {
       alarms: [{ trigger: '-P7D', text: 'Za tydzień LEK' }, dayBefore('Jutro LEK – powodzenia!')],
     }));
   }
-  for (const [k, dl] of (lek?.deadlines || []).entries()) {
+  for (const dl of lek?.deadlines || []) {
     L.push(...vevent({
-      uid: `lek-termin-${k}`, start: dl.date, end: dl.date, summary: dl.label, stamp,
+      uid: `lek-termin-${dl.date}-${digest([dl.label])}`, start: dl.date, end: dl.date, summary: dl.label, stamp,
       alarms: [{ trigger: '-P7D', text: `Za tydzień: ${dl.label}` }, dayBefore(`Jutro: ${dl.label}`)],
     }));
   }
 
   // Terminy Kadr USK2 (karty czasu pracy, dyżurów, listy obecności)
-  for (const d of HR_DEADLINES) {
+  for (const d of hrDeadlines(state, sum.ctx)) {
     if (state.settings.hrDone?.[d.id] || d.due < today) continue;
     L.push(...vevent({
       uid: `kadry-${d.id}`, start: d.due, end: d.due, summary: `🗂 ${d.title}`, description: d.detail, stamp,
@@ -157,20 +213,9 @@ export function buildIcs(state, today) {
   }
 
   // Dyżury (z godziną; czas lokalny telefonu)
-  for (const x of state.duties || []) {
-    const [hh, mm] = String(x.start || '15:35').split(':').map(Number);
-    const from = (hh || 15) * 60 + (mm || 0);
-    const pl = placeOn(state, x.date);
-    L.push(...vevent({
-      uid: `dyzur-${x.id}`, start: x.date, end: x.date, from, to: from + Number(x.minutes || 0),
-      summary: `🌙 Dyżur ${String(x.start || '15:35')}`, location: pl?.segment ? placeText(pl.segment) : '',
-      description: x.note || '', stamp, alarms: [{ trigger: '-PT6H', text: 'Dziś dyżur' }],
-    }));
-  }
+  for (const x of state.duties || []) L.push(...dutyEvent(state, x, stamp));
 
   // Koniec stażu
   L.push(...vevent({ uid: 'koniec-stazu', start: sum.estimatedEnd, end: sum.estimatedEnd, summary: '🎉 Koniec stażu', stamp }));
-
-  const head = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Kalendarz Stazysty//PL', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:Staż', 'X-WR-TIMEZONE:Europe/Warsaw'];
-  return [...head, ...L, 'END:VCALENDAR'].map(fold).join('\r\n') + '\r\n';
+  return E;
 }

@@ -360,3 +360,12 @@ test('Wykrywanie powtórzeń: ten sam plik + 1 nowy kurs → dodaje tylko nowy; 
   const again = mergeCourses(r3.courses, coursesFromFile(coursesFileJson(r3.courses)));
   assert.equal(again.added.length + again.updated.length, 0);
 });
+
+test('Audyt B8: poprawione dopasowania dziedzin LEK', () => {
+  assert.deepEqual(lessonDomains('rat', 'Intensywna terapia', 'Bilans płynów i żywienie pozajelitowe'), ['rat']);
+  assert.ok(!lessonDomains('int', 'Hepatologia', 'Alkoholowa choroba wątroby').includes('psych'));
+  assert.ok(lessonDomains('psych', 'Psychiatria', 'Alkoholowy zespół abstynencyjny').includes('psych'));
+  assert.ok(lessonDomains('ped', 'Pediatria', 'Bilanse zdrowia dziecka').includes('rodz'));
+  assert.equal(guessDomain('Kurs z kardiochirurgii'), 'chir');
+  assert.equal(guessDomain('Kurs z kardiologii'), 'int');
+});

@@ -38,3 +38,11 @@
 - [x] Umiejętności z programu stażu (Dz.U. 2023 poz. 377) do odhaczania + własne pozycje (książeczka stażowa – do uzupełnienia ze zdjęć)
 - [x] Synchronizacja telefon ↔ komputer: Firebase (osobny projekt kalendarz-stazysty), dokument stazysta/{uid}, nowsza wersja wygrywa, kopia przy konflikcie
 - [ ] Powiadomienia push (automat GitHub Actions)
+
+## Po audycie (11.2026)
+- [x] Bezpieczna synchronizacja (pierwsze logowanie pobiera chmurę), kopie automatyczne, ochrona przed nieczytelnymi danymi, „Cofnij” po wczytaniu kopii
+- [x] Dyżury: tylko pełne 5 h 05 / 5 h w dozwolone dni, ostrzeżenia ⚠️, karta „Zaplanuj dyżury” na Dziś + od razu do Kalendarza, szacunek wypłaty
+- [x] Dokumenty za miesiąc (karta czasu pracy + karta dyżurów + lista obecności), pisma i maile, terminy Kadr na cały staż
+- [x] Zapis na LEK (SMK, opłata), doktorat i publikacje, przypadki z oddziału, „Ten tydzień”, pomoc na ekranach, eksport .ics tylko zmian
+- [ ] Subskrypcja kalendarza (wymaga serwera – np. Firebase z planem Blaze)
+- [ ] Lista obecności 1:1 ze wzorem USK2 (potrzebne zdjęcie wzoru)

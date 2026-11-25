@@ -2,6 +2,7 @@
 // Dane leżą w Firestore pod stazysta/{uid} – dostęp ma tylko zalogowany właściciel (zasada w konsoli Firebase).
 // Telefon działa dalej bez internetu: lokalna pamięć jest główna, chmura to kopia i łącznik między urządzeniami.
 import { decideSync, toRemote, fromRemote, deviceName } from './sync-core.js';
+import { snapshot } from './store.js';
 
 const V = '10.14.1';
 // Konfiguracja aplikacji webowej (dane publiczne – bezpieczeństwo zapewniają zasady Firestore).
@@ -14,7 +15,6 @@ const CFG = {
   appId: '1:461989706723:web:12069f1b1c19820a4e7ed6',
 };
 const INFO_KEY = 'kalendarz-sync';
-const BACKUP_KEY = 'kalendarz-stazysty-kopia-konfliktu';
 
 let fb = null;
 let ctx = null;
@@ -82,13 +82,14 @@ async function reconcile(remote) {
   const d = decideSync(localAt, remoteAt, info().lastSync || 0);
   try {
     if (d === 'push' || d === 'conflict-push') {
-      if (d === 'conflict-push' && remote) localStorage.setItem(BACKUP_KEY, remote.data);
+      if (d === 'conflict-push' && remote) snapshot(remote.data, `wersja z chmury (${remote.device || 'inne urządzenie'}) przed nadpisaniem`);
       await fb.fs.setDoc(fb.fs.doc(fb.db, 'stazysta', user.uid), toRemote(st, deviceName(navigator.userAgent)));
       setInfo({ lastSync: localAt });
     } else if (d === 'pull' || d === 'conflict-pull') {
       const data = fromRemote(remote);
       if (!data) throw new Error('Dane w chmurze są uszkodzone – nic nie zmieniłem.');
-      if (d === 'conflict-pull') localStorage.setItem(BACKUP_KEY, JSON.stringify(st));
+      // Zawsze przed pobraniem z chmury: kopia tego, co było w tym urządzeniu
+      snapshot(st, `przed pobraniem z chmury (z: ${remote.device || 'inne urządzenie'})`);
       setInfo({ lastSync: remoteAt });
       ctx.replaceFromCloud(data);
       ctx.toast(`☁️ Zaktualizowano z urządzenia: ${remote.device || 'inne'}`);
@@ -152,10 +153,8 @@ export async function syncNow() {
 }
 
 export function syncStatus() {
-  return { ...status, email: user?.email || info().email || '', enabled: !!info().enabled, hasBackup: !!safeGet(BACKUP_KEY) };
+  return { ...status, email: user?.email || info().email || '', enabled: !!info().enabled };
 }
-
-function safeGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
 
 /** Tylko do testów: podstawienie udawanej chmury i użytkownika. */
 export function __test(backend, u, c) { fb = backend; user = u; ctx = c; }

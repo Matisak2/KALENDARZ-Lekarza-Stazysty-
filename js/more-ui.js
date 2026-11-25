@@ -1,12 +1,13 @@
 // Ekran „Więcej”: eksport do Kalendarza, kopia zapasowa, ustawienia, źródła.
-import { buildIcs } from './ics.js';
-import { backupText, parseBackup } from './store.js';
-import { fmtFull, fmtShort, fmtDayShort, addDays, isWeekend, toNum } from './dates.js';
+import { buildIcsExport } from './ics.js';
+import { backupText, parseBackup, snapshots, snapshot, snapshotData, rawProblemData } from './store.js';
+import { fmtFull, fmtShort, fmtDayShort, addDays, isWeekend, toNum, todayIso } from './dates.js';
 import { holidayMap } from './holidays.js';
 import { BOOKLET_COURSES, bookletProgress, coursesSigned } from './booklet.js';
 import { syncStatus, signIn, signUp, signOutSync, syncNow } from './sync.js';
 import { openTimesheet } from './timesheet-ui.js';
-import { esc } from './blocks-ui.js';
+import { openLetters } from './letters-ui.js';
+import { esc, helpBox } from './blocks-ui.js';
 
 export function renderMore(state) {
   const mode = state.settings.holidayMode;
@@ -17,26 +18,19 @@ export function renderMore(state) {
       <div class="eyebrow">Kalendarz Stażysty</div>
       <h1 class="large-title">Więcej</h1>
     </header>
+    ${helpBox('wiecej')}
     <div class="desk-2"><div>
-      <div class="card fade"><div class="card-label">🗂 Karta czasu pracy (wzór USK2)</div>
-        <p class="sub">Wypełnia się sama z kalendarza: dni pracy, urlopy, L4, kursy, święta i dyżury. Podgląd i PDF do wysłania lub wydruku.</p>
-        <button class="btn primary" data-act="timesheet">Otwórz kartę za ten miesiąc</button></div>
+      <div class="card fade"><div class="card-label">🗂 Dokumenty za miesiąc (wzory USK2)</div>
+        <p class="sub">Karta czasu pracy, karta dyżurów i lista obecności wypełniają się same z kalendarza. Podgląd i PDF – osobno albo wszystko naraz.</p>
+        <button class="btn primary" data-act="timesheet">Otwórz dokumenty za ten miesiąc</button></div>
+      <div class="card fade"><div class="card-label">✉️ Pisma i maile</div>
+        <p class="sub">Gotowe teksty z Twoimi datami: wniosek urlopowy, informacja o L4, zgoda koordynatora i informacja do Kadr o stażu poza USK2, mail z dokumentami za miesiąc. Kopiuj, wyślij mailem albo zapisz PDF.</p>
+        <button class="btn" data-act="letters">Otwórz pisma i maile</button></div>
       ${syncCard()}
       ${bookletCard(state)}
       ${coursesCard(state)}
       ${satOffCard(state)}
-      <div class="card fade">
-        <div class="card-label">📅 Kalendarz iPhone'a</div>
-        <div class="t-strong">Dodaj staż do Kalendarza</div>
-        <p class="sub">Bloki i oddziały (z adresem w polu „Miejsce”), odrabianie, kursy, urlop, dyżury z godziną oraz terminy LEK i Kadr z przypomnieniami.</p>
-        <button class="btn primary" data-act="ics">Eksportuj do Kalendarza (.ics)</button>
-        <ol class="steps">
-          <li>Stuknij przycisk powyżej.</li>
-          <li>iPhone pokaże listę wydarzeń – stuknij <b>„Dodaj wszystko”</b>.</li>
-          <li>Wybierz kalendarz (najlepiej nowy, np. „Staż”) i potwierdź.</li>
-        </ol>
-        <p class="hint small">Po zmianach w aplikacji najlepiej usuń stary kalendarz „Staż” i zaimportuj ponownie – inaczej wydarzenia mogą się zdublować.</p>
-      </div>
+      ${icsCard(state)}
       <div class="card fade">
         <div class="card-label">💾 Kopia zapasowa</div>
         <p class="sub">Dane są tylko na tym urządzeniu. Raz na jakiś czas zapisz kopię – np. w iCloud Drive albo wyślij przez AirDrop na komputer.</p>
@@ -44,6 +38,7 @@ export function renderMore(state) {
         <label class="btn">Wczytaj kopię…<input type="file" accept=".json,application/json" data-act="restore" hidden></label>
         <p class="hint small">${last ? `Ostatnia kopia: ${fmtFull(last.slice(0, 10))}` : 'Nie zapisano jeszcze żadnej kopii.'}</p>
       </div>
+      ${snapshotsCard()}
     </div><div>
       <div class="card fade">
         <div class="card-label">⚙️ Ustawienia</div>
@@ -91,7 +86,7 @@ function syncCard() {
       <div class="sub ${s.phase === 'error' ? 'neg' : ''}">${state}</div>
       ${s.error ? `<div class="seg-err">${esc(s.error)}</div>` : ''}
       <div class="quick two"><button class="btn" data-act="sync-now">Synchronizuj teraz</button><button class="btn" data-act="sync-out">Wyloguj</button></div>
-      ${s.hasBackup ? '<p class="hint small">Przy ostatnim konflikcie starsza wersja została zachowana w tym urządzeniu.</p>' : ''}`
+      <p class="hint small">Przed każdym pobraniem danych z chmury aplikacja zapisuje kopię tego, co było w tym urządzeniu (Kopie automatyczne).</p>`
     : `
       <p class="sub">Pierwszy raz: wpisz e-mail i hasło (min. 6 znaków) i stuknij „Załóż konto”. Na drugim urządzeniu – „Zaloguj”. Zmiany z telefonu pojawią się na komputerze i odwrotnie.</p>
       <div class="sync-form">
@@ -106,6 +101,42 @@ function syncCard() {
       <pre class="rule">${esc(RULE)}</pre>
       <button class="btn" data-act="copy-rule">Kopiuj zasady</button>
     </details>
+  </div>`;
+}
+
+/** Eksport do Kalendarza: pierwszy raz wszystko, potem tylko nowe i zmienione wydarzenia (bez dublowania). */
+function icsCard(state) {
+  const sent = state.meta?.icsSent || {};
+  const first = !Object.keys(sent).length;
+  let n = 0;
+  try { n = first ? 0 : buildIcsExport(state, todayIso(), sent).count; } catch { /* nie blokuje ekranu */ }
+  return `<div class="card fade">
+    <div class="card-label">📅 Kalendarz iPhone'a</div>
+    <div class="t-strong">Dodaj staż do Kalendarza</div>
+    <p class="sub">Bloki i oddziały (z adresem), odrabianie, kursy, urlop, dyżury z godziną oraz terminy LEK i Kadr z przypomnieniami.</p>
+    ${first ? '<button class="btn primary" data-act="ics-all">Eksportuj do Kalendarza (.ics)</button>'
+      : `<button class="btn primary" data-act="ics-new" ${n ? '' : 'disabled'}>${n ? `Dodaj tylko nowe i zmienione (${n})` : 'Kalendarz jest aktualny ✓'}</button>
+        <button class="btn" data-act="ics-all">Eksportuj wszystko od nowa</button>`}
+    <ol class="steps">
+      <li>Stuknij przycisk powyżej.</li>
+      <li>iPhone pokaże listę wydarzeń – stuknij <b>„Dodaj wszystko”</b>.</li>
+      <li>Wybierz kalendarz (najlepiej osobny, np. „Staż”) i potwierdź.</li>
+    </ol>
+    <p class="hint small">Aplikacja pamięta, co już wysłałeś – kolejny eksport zawiera tylko nowe i zmienione wydarzenia. Zmienione wydarzenie iPhone może dodać obok starego – wtedy usuń starsze. Usuniętych w aplikacji wpisów plik nie skasuje – przy wielu zmianach usuń kalendarz „Staż” i wybierz „Eksportuj wszystko od nowa”.</p>
+  </div>`;
+}
+
+/** Kopie automatyczne w tym urządzeniu (raz dziennie i przed ryzykownymi zmianami). */
+function snapshotsCard() {
+  const list = snapshots();
+  const when = (iso) => { const d = new Date(iso); return `${fmtFull(d.toISOString().slice(0, 10))} ${d.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}`; };
+  return `<div class="card fade">
+    <div class="card-label">🛟 Kopie automatyczne (w tym urządzeniu)</div>
+    <p class="sub">Aplikacja sama zapisuje kopię raz dziennie oraz przed wczytaniem kopii z pliku i przed pobraniem danych z chmury. Trzyma 6 ostatnich. Nie zastępuje kopii w pliku (gdy zgubisz telefon, te kopie zginą razem z nim).</p>
+    ${list.length ? `<details class="course-list"><summary>Pokaż kopie (${list.length})</summary>
+      ${list.map((x) => `<div class="val-row snap-row"><span><b>${when(x.at)}</b><br><span class="muted small">${esc(x.reason)}</span></span>
+        <button class="chip" data-snap-restore="${esc(x.id)}">Przywróć</button></div>`).join('')}</details>`
+      : '<p class="hint small">Jeszcze nie ma kopii – pierwsza powstanie przy następnym otwarciu aplikacji.</p>'}
   </div>`;
 }
 
@@ -220,7 +251,7 @@ function courseEnd(start, days) {
   return d;
 }
 
-function download(name, text, type) {
+export function download(name, text, type) {
   const blob = new Blob([text], { type });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -245,12 +276,25 @@ export async function shareOrDownload(name, text, type) {
   download(name, text, type);
 }
 
+/** Zastąpienie wszystkich danych: najpierw kopia automatyczna obecnych, potem „Cofnij” przez 10 s. */
+function replaceWithUndo(ctx, data, reason, msg) {
+  const prev = JSON.parse(JSON.stringify(ctx.state));
+  snapshot(prev, reason);
+  ctx.replace(data);
+  ctx.toast(msg, () => { ctx.replace(prev); ctx.toast('Cofnięto – przywrócono poprzednie dane'); }, 10000);
+}
+
 /** Obsługa kliknięć ekranu „Więcej”. Zwraca true, gdy obsłużono. */
 export function handleMoreClick(e, ctx) {
   const act = e.target.closest('[data-act]')?.dataset.act;
-  if (act === 'ics') {
-    download('kalendarz-stazu.ics', buildIcs(ctx.state, ctx.today()), 'text/calendar;charset=utf-8');
-    ctx.toast('Plik kalendarza gotowy – stuknij „Dodaj wszystko”.');
+  if (act === 'ics-all' || act === 'ics-new') {
+    const st = ctx.state;
+    const r = buildIcsExport(st, ctx.today(), act === 'ics-new' ? (st.meta.icsSent || {}) : null);
+    if (!r.count) { ctx.toast('Nic nowego – kalendarz jest aktualny ✓'); return true; }
+    download(act === 'ics-new' ? 'staz-zmiany.ics' : 'kalendarz-stazu.ics', r.text, 'text/calendar;charset=utf-8');
+    st.meta = { ...st.meta, icsSent: r.sent };
+    ctx.save(); ctx.render();
+    ctx.toast(`Plik gotowy (${r.count} ${r.count === 1 ? 'wydarzenie' : 'wydarzeń'}) – stuknij „Dodaj wszystko”.`);
     return true;
   }
   if (act === 'sync-in') {
@@ -275,6 +319,20 @@ export function handleMoreClick(e, ctx) {
   }
   if (act === 'sync-now') { syncNow(); return true; }
   if (act === 'timesheet') { openTimesheet(ctx.state, ctx.today(), ctx); return true; }
+  if (act === 'letters') { openLetters(ctx.state, ctx); return true; }
+  if (act === 'raw-save') {
+    const raw = rawProblemData();
+    if (raw) download(`kalendarz-stazysty-nieczytelne-${new Date().toISOString().slice(0, 10)}.json`, raw, 'application/json');
+    return true;
+  }
+  const sr = e.target.closest('[data-snap-restore]');
+  if (sr) {
+    let data;
+    try { data = snapshotData(sr.dataset.snapRestore); } catch (err) { alert(err.message); return true; }
+    if (!confirm('Przywrócić tę kopię? Obecne dane zostaną zastąpione (ale najpierw zapiszę je jako kopię – można cofnąć).')) return true;
+    replaceWithUndo(ctx, data, 'przed przywróceniem kopii automatycznej', 'Przywrócono kopię ✓');
+    return true;
+  }
   if (act === 'copy-rule') {
     navigator.clipboard?.writeText(RULE).then(() => ctx.toast('Skopiowano ✓'), () => ctx.toast('Zaznacz tekst i skopiuj ręcznie'));
     return true;
@@ -371,6 +429,12 @@ export function handleMoreClick(e, ctx) {
 export function handleMoreChange(e, ctx) {
   const el = e.target;
   const st = ctx.state;
+  if (el.dataset.payBase !== undefined) {
+    const v = Number(String(el.value).replace(',', '.'));
+    st.settings.pay = { ...(st.settings.pay || {}), base: v > 0 ? v : null };
+    ctx.save(); ctx.render(); ctx.toast('Zapisano ✓');
+    return true;
+  }
   if (el.dataset.bkc) {
     st.booklet = st.booklet || {};
     st.booklet.courses = st.booklet.courses || {};
@@ -399,35 +463,14 @@ export function handleMoreChange(e, ctx) {
     return true;
   }
   if (el.dataset.ext) return true;
-  if (el.dataset.course) {
-    const c = ctx.state.courses.find((x) => x.id === el.dataset.course);
-    c[el.dataset.cf] = el.value || null;
-    if (el.dataset.cf === 'start') {
-      if (!el.value) c.end = null;
-      else if (!c.end || c.end < c.start) c.end = courseEnd(c.start, c.days);
-    }
-    if (c.end && !c.start) c.start = c.end;
-    ctx.save();
-    ctx.render();
-    ctx.toast('Zapisano ✓');
-    return true;
-  }
-  if (el.dataset.satoff) {
-    ctx.state.settings.saturdayDaysOff[el.dataset.satoff] = el.value || null;
-    ctx.save();
-    ctx.render();
-    ctx.toast('Zapisano ✓');
-    return true;
-  }
   if (e.target.dataset.act !== 'restore') return false;
   const f = e.target.files?.[0];
   if (!f) return true;
   f.text().then((txt) => {
     try {
       const data = parseBackup(txt);
-      if (!confirm('Wczytać kopię? Obecne dane na tym urządzeniu zostaną zastąpione danymi z pliku.')) return;
-      ctx.replace(data);
-      ctx.toast('Kopia wczytana ✓');
+      if (!confirm('Wczytać kopię? Obecne dane na tym urządzeniu zostaną zastąpione danymi z pliku (najpierw zapiszę je jako kopię automatyczną – można cofnąć).')) return;
+      replaceWithUndo(ctx, data, 'przed wczytaniem kopii z pliku', 'Kopia wczytana ✓');
     } catch (err) {
       alert(err.message);
     }
