@@ -29,7 +29,7 @@ Pokazuje bloki stażu, dni robocze, święta, urlop, kursy OIL, odrabianie, dyż
 - `js/booklet.js` – książeczka stażowa (rubryki per blok, szkolenia); stan w `state.booklet` (imiona tylko lokalnie, nigdy w kodzie).
 - `js/sync-core.js` (czysta logika `decideSync`) + `js/sync.js` (Firebase 10.14.1 z gstatic, osobny projekt `kalendarz-stazysty`, dokument `stazysta/{uid}` = `{data: JSON, updatedAt, device}`).
   `store.save` ustawia `meta.updatedAt`; dane z chmury zapisuj z `keepTime`. Zasady Firestore (kopia): `firebase/firestore.rules`.
-- `js/lek.js` (logika planera: wagi dziedzin LEK, import spisu WNL, godziny z grafiku, `buildPlan`, szacunek wyniku) + `js/lek-ui.js` (zakładka LEK); stan w `state.study`.
+- `js/lek.js` (logika planera: wagi dziedzin LEK, import spisu WNL (telefon/komputer, plik .json), lekcja → kilka dziedzin LEK (`lessonDomains`), godziny z grafiku i dni przerwy, `buildPlan`, `domainCoverage`, szacunek wyniku) + `js/lek-ui.js` (zakładka LEK); stan w `state.study`.
   Spisy kursów WNL tylko w danych użytkownika (nigdy w kodzie – materiały WNL). Hasła do WNL nie przyjmujemy.
 - `js/specs.js` + `data/nabory.json` (generuje `python3 scripts/nabory.py` z PDF-ów CMKP; wymaga pdftotext). Próg = min. wynik zakwalifikowanych, gdy miejsca obsadzone.
 - `js/timesheet.js` (karta czasu pracy wg wzoru USK2: zapis „7,35” = 7 h 35 min, sumy „166.50”) + `js/timesheet-ui.js` (podgląd, PDF przez `window.print` i CSS @media print). Imię i nazwisko w `settings.personal` – tylko lokalnie.

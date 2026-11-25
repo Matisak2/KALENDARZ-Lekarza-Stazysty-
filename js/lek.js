@@ -289,6 +289,32 @@ export function lessonHours(lo, hi, pace = 'fast') {
 }
 
 /** Wszystkie lekcje z zaimportowanych kursów z informacją o dziedzinie i czasie. */
+/*
+ * Lekcje pasujące także do innych dziedzin LEK (po nazwie lekcji i działu). Dzięki temu np. „Nadciśnienie tętnicze”
+ * z interny liczy się też do medycyny rodzinnej, a „Psychiatria sądowa” do prawa i orzecznictwa – dziedziny bez
+ * osobnego kursu WNL są pokrywane lekcjami z innych kursów. Słowa kluczowe ogólne medyczne (bez materiałów WNL).
+ */
+const EXTRA = {
+  int: /nadciśnieni|cukrzyc|niewydolność serca|zespoły wieńcowe|zaburzenia rytmu|zatorowość|zakrzepic|astm|obturacyjn|zapaleni[ae] płuc|niedokrwistoś|tarczyc|nerek|wątrob|toczeń|twardzin|zapaleni[ae] naczyń|gruźlic|sepsa|zakażeni[ae] układu moczowego|hiv/,
+  ped: /dzieci|dziecięc|dziecka|noworod|niemowl|wcześniact|młodzieży|perinatolog|krzywic/,
+  chir: /urazy|obrażeni|złamani|oparzeni|przepuklin|ostry brzuch|wyrostka|niedrożnoś|krwawienie z przewodu|kamica żółciowa|chirurg/,
+  gin: /ciąż|porod|poród|połog|płod|(^|\s)piersi(?!ow)|gruczoł piersiowy|jajnik|macic|sromu|pochwy|antykoncep|menopauz|niepłodnoś|endometrioz/,
+  rodz: /nadciśnieni|cukrzyc|dyslipid|astm|obturacyjn|(?<!prze)szczepien|bilans|rozwój (fizyczny|psychoruchowy)|okresy wieku|zakażeni[ae] układu moczowego|przeziębien|grypa|bóle głowy|zawroty głowy|otyłoś|osteoporoz|zwyrodnieniow|antykoncep|menopauz|żywieni|niedożywien|profilaktyk|niedokrwistoś|wrzodow|refluks|infekcje górnych|choroby ucha|nosa i zatok|zapaleni[ae] gardła|pokrzywk|atopowe|opryszczk|ospa|zaburzenia afektywne|depres|zaburzenia lękowe|otępien|geriatri|nietrzymanie moczu|kamica|tarczyc|przewlekła choroba nerek|przewlekła niewydolność serca|przewlekłe zespoły wieńcowe|zakrzepic|żył powierzchownych|uzależnien|alkohol|leczenie bólu|leczenia bólu|biegunk|zaparci|alergiczny nieżyt|łuszczyc|grudkowo|przydatków skóry|wady refrakcji|spojówek|jaskra|soczewki|choroby kończyny|kręgosłup|choroby kości|zapalenia jednego stawu|zaburzenia snu|zaburzenia odżywiania|paliatywn|pozaszpitalne|dna moczanowa/,
+  rat: /stany nagłe|stanów nagłych|stany zagrożenia|wstrząs|anafilaks|zatruci|toksyk|obrażeni|urazy|oparzeni|resuscytac|\brko\b|\bbls\b|\bals\b|zatrzymanie krążenia|udar|sepsa|krwawieni|krwotok|ostry brzuch|ostre zapalenie wyrostka|odma|zatorowość płucna|kwasic|hipoglikemi|ostre zespoły wieńcowe|ostra niewydolność|ostre uszkodzenie nerek|niedrożnoś|ostre niedokrwienie|zaburzenia rytmu|tamponad|złamani|zaburzenia elektrolitowe|gazometri|wentylacj|udrażnianie|stany napadowe|padaczk/,
+  psych: /psychiatr|majaczen|otępien|uzależnien|alkohol|depres|zaburzenia psychiczne|samobój|zaburzenia odżywiania|zaburzenia snu/,
+  etyka: /(^|[\s(])etyk|bioety|etyczn|(?<!s)prawn|ustawa|sądow|śmierci mózgowej|przymus|przemoc|regulacje/,
+  zp: /profilaktyk|(?<!prze)szczepien|bilans|przesiew|epidemiolog|zakażenia szpitalne|choroby zawodowe|ochrona radiologiczna|zdrowi[ae] publ|uzależnien|otyłoś/,
+  orz: /orzek|orzeczn|sądow|choroby zawodowe|niepełnosprawnoś|śmierci mózgowej/,
+};
+
+/** Dziedziny LEK lekcji: najpierw dziedzina kursu, potem dodatkowe z nazwy lekcji/działu. */
+export function lessonDomains(courseDomain, section, name) {
+  const text = `${section || ''} ${name || ''}`.toLowerCase();
+  const out = DOMAIN_IDS.includes(courseDomain) ? [courseDomain] : [];
+  for (const id of DOMAIN_IDS) if (!out.includes(id) && EXTRA[id]?.test(text)) out.push(id);
+  return out;
+}
+
 export function allLessons(study, pace = 'fast') {
   const out = [];
   for (const c of study.courses || []) {
@@ -297,7 +323,7 @@ export function allLessons(study, pace = 'fast') {
         const lo = l.hMin ?? 1.5;
         const hi = l.hMax ?? lo + 1;
         out.push({ key: lessonKey(c.name, s.name, l.name), course: c.name, courseId: c.id, domain: c.domain, section: s.name,
-          name: l.name, hours: lessonHours(lo, hi, pace) });
+          name: l.name, hours: lessonHours(lo, hi, pace), domains: lessonDomains(c.domain, s.name, l.name) });
       }
     }
   }
@@ -317,18 +343,28 @@ export function estimateScore(k, b, withBase) {
 }
 
 /** Pokrycie dziedzin: dla każdej dziedziny część lekcji (godzin) zrobiona lub zaplanowana. */
-export function coverage(lessons, chosenKeys) {
-  let sum = 0;
-  let tot = 0;
-  for (const d of DOMAINS) {
-    const ls = lessons.filter((l) => l.domain === d.id);
-    tot += d.q;
-    if (!ls.length) continue;
+/**
+ * Pokrycie dziedzin LEK. Lekcja liczy się do każdej swojej dziedziny. Ile materiału „trzeba” na dziedzinę:
+ * proporcjonalnie do liczby pytań (godziny kursów na 1 pytanie w dziedzinach z własnym kursem) – dzięki temu
+ * dziedzina bez kursu z jedną pasującą lekcją nie wygląda na przerobioną w 100%.
+ */
+export function domainCoverage(lessons, chosenKeys) {
+  const own = DOMAINS.filter((d) => lessons.some((l) => l.domain === d.id));
+  const ownHours = lessons.filter((l) => DOMAIN_IDS.includes(l.domain)).reduce((a, l) => a + l.hours, 0);
+  const ownQ = own.reduce((a, d) => a + d.q, 0);
+  const perQ = ownQ ? ownHours / ownQ : 0;
+  return DOMAINS.map((d) => {
+    const ls = lessons.filter((l) => (l.domains || [l.domain]).includes(d.id));
     const all = ls.reduce((a, l) => a + l.hours, 0);
     const got = ls.filter((l) => chosenKeys.has(l.key)).reduce((a, l) => a + l.hours, 0);
-    sum += d.q * (all ? got / all : 0);
-  }
-  return tot ? sum / tot : 0;
+    const hasOwn = own.includes(d);
+    const needH = hasOwn ? all : Math.max(all, d.q * perQ);
+    return { id: d.id, name: d.name, q: d.q, own: hasOwn, lessons: ls.length, hours: all, got, cov: needH ? Math.min(1, got / needH) : 0 };
+  });
+}
+export function coverage(lessons, chosenKeys) {
+  const tot = DOMAINS.reduce((a, d) => a + d.q, 0);
+  return tot ? domainCoverage(lessons, chosenKeys).reduce((a, d) => a + d.q * d.cov, 0) / tot : 0;
 }
 
 /**
@@ -358,11 +394,13 @@ export function buildPlan(state, plan, today) {
   const skipped = new Set(plan.skip || []);
   const must = new Set(plan.must || []);
 
-  // Budżet na dziedzinę ∝ wadze (tylko dziedziny, w których są lekcje do zrobienia)
-  const domainsWithWork = DOMAINS.filter((d) => todo.some((l) => l.domain === d.id && !skipped.has(l.key)));
-  const wSum = domainsWithWork.reduce((a, d) => a + domainWeight(survey, d.id), 0) || 1;
+  // Budżet na dziedzinę ∝ wadze. Kandydaci dziedziny = lekcje, które do niej pasują (także z innych kursów).
+  const idx = new Map(lessons.map((l, i) => [l.key, i]));
+  const value = (l) => l.domains.reduce((a, id) => a + domainWeight(survey, id), 0); // ile pytań „obsługuje” lekcja
+  const cand = (id) => todo.filter((l) => l.domains.includes(id) && !skipped.has(l.key));
+  const domainsWithWork = DOMAINS.filter((d) => cand(d.id).length);
   const need = {};
-  for (const d of domainsWithWork) need[d.id] = todo.filter((l) => l.domain === d.id && !skipped.has(l.key)).reduce((a, l) => a + l.hours, 0);
+  for (const d of domainsWithWork) need[d.id] = cand(d.id).reduce((a, l) => a + l.hours, 0);
   // Rozdział budżetu z przelewaniem nadwyżek do dziedzin, które potrzebują więcej
   const budget = {};
   let left = learnHours;
@@ -384,25 +422,33 @@ export function buildPlan(state, plan, today) {
     if (spent < 0.01) break;
   }
 
-  const chosen = [];
-  const dropped = [];
-  for (const d of DOMAINS) {
-    let b = budget[d.id] || 0;
-    const ls = todo.filter((l) => l.domain === d.id);
-    // Najpierw „muszę”, potem w kolejności kursu
-    const ordered = [...ls.filter((l) => must.has(l.key)), ...ls.filter((l) => !must.has(l.key))];
-    for (const l of ordered) {
-      if (skipped.has(l.key)) { dropped.push({ ...l, reason: 'pominięte przez Ciebie' }); continue; }
-      if (must.has(l.key) || l.hours <= b + 0.25) { chosen.push(l); b -= l.hours; }
-      else dropped.push({ ...l, reason: `brak czasu – ${domainOf(d.id).name}: ${domainOf(d.id).q} pytań na LEK` });
+  // Wybór: najpierw małe dziedziny (mają mało pasujących lekcji), w dziedzinie najpierw „muszę”, potem lekcje
+  // przydatne dla największej liczby pytań (np. nadciśnienie: interna + medycyna rodzinna).
+  const chosenBy = new Map(); // klucz lekcji -> dziedzina, z której budżetu ją wzięto
+  const byValue = (a, b) => value(b) - value(a) || idx.get(a.key) - idx.get(b.key);
+  for (const l of todo) if (must.has(l.key) && !skipped.has(l.key)) chosenBy.set(l.key, l.domains[0] || l.domain);
+  const order0 = [...domainsWithWork].sort((a, b) => domainWeight(survey, a.id) - domainWeight(survey, b.id));
+  for (const d of order0) {
+    let b = (budget[d.id] || 0) - todo.filter((l) => chosenBy.get(l.key) === d.id).reduce((a, l) => a + l.hours, 0);
+    for (const l of cand(d.id).filter((x) => !chosenBy.has(x.key)).sort(byValue)) {
+      if (l.hours <= b + 0.25) { chosenBy.set(l.key, d.id); b -= l.hours; }
     }
   }
-  for (const l of todo.filter((x) => x.domain === 'inne' || !DOMAIN_IDS.includes(x.domain))) {
-    dropped.push({ ...l, reason: 'poza dziedzinami LEK – przypisz kurs do dziedziny, jeśli to potrzebne' });
+  // Czas, który został (lekcje „zajęte” przez inne dziedziny) – dobieramy najcenniejsze pozostałe lekcje
+  let spare = learnHours - todo.filter((l) => chosenBy.has(l.key)).reduce((a, l) => a + l.hours, 0);
+  for (const l of todo.filter((x) => !chosenBy.has(x.key) && !skipped.has(x.key) && x.domains.length).sort(byValue)) {
+    if (l.hours <= spare + 0.25) { chosenBy.set(l.key, l.domains[0]); spare -= l.hours; }
+  }
+  const chosen = todo.filter((l) => chosenBy.has(l.key));
+  const dropped = [];
+  for (const l of todo.filter((x) => !chosenBy.has(x.key))) {
+    if (skipped.has(l.key)) dropped.push({ ...l, reason: 'pominięte przez Ciebie' });
+    else if (!l.domains.length) dropped.push({ ...l, reason: 'poza dziedzinami LEK – przypisz kurs do dziedziny, jeśli to potrzebne' });
+    else { const d = domainOf(l.domains[0]); dropped.push({ ...l, reason: `brak czasu – ${d.name}: ${d.q} pytań na LEK` }); }
   }
 
   // Kolejność nauki: przeplatamy dziedziny wg wagi (żeby każdy tydzień był zróżnicowany)
-  const queues = DOMAINS.map((d) => ({ d, q: chosen.filter((l) => l.domain === d.id) })).filter((x) => x.q.length);
+  const queues = DOMAINS.map((d) => ({ d, q: chosen.filter((l) => chosenBy.get(l.key) === d.id).sort((a, b) => idx.get(a.key) - idx.get(b.key)) })).filter((x) => x.q.length);
   const order = [];
   const credit = Object.fromEntries(queues.map((x) => [x.d.id, 0]));
   while (queues.some((x) => x.q.length)) {
@@ -449,7 +495,7 @@ export function buildPlan(state, plan, today) {
   const estNow = estimateScore(kNow, bNow, survey.base);
   const estPlan = estimateScore(kPlan, bPlan, survey.base);
   const target = survey.goal === 'pass' ? 56 : Math.max(56, Number(survey.targetPct) || 56);
-  const needHours = todo.filter((l) => !skipped.has(l.key) && DOMAIN_IDS.includes(l.domain)).reduce((a, l) => a + l.hours, 0);
+  const needHours = todo.filter((l) => !skipped.has(l.key) && l.domains.length).reduce((a, l) => a + l.hours, 0);
   let verdict;
   if (estPlan >= target + 5) verdict = 'good';
   else if (estPlan >= target) verdict = 'tight';
@@ -457,6 +503,7 @@ export function buildPlan(state, plan, today) {
 
   return {
     survey, days, hoursTotal, learnHours, baseHours, reviewHours, share, weeks, chosen, dropped,
+    domains: domainCoverage(lessons, plannedKeys), domainsNow: domainCoverage(lessons, doneKeys),
     lessonsTotal: lessons.length, lessonsDone: doneKeys.size, needHours,
     baseLeft, baseCanDo, kNow, kPlan, estNow, estPlan, target, verdict,
     daysLeft: Math.max(0, toNum(survey.examDate) - toNum(today)),

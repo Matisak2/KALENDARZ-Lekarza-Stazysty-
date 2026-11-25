@@ -78,7 +78,7 @@ function planSummary(state, st, p, today) {
   const doneSet = st.done || {};
   const lessonRow = (l) => `<div class="lesson ${doneSet[l.key] ? 'on' : ''}">
       <label class="skill ${doneSet[l.key] ? 'on' : ''}"><input type="checkbox" data-lesson="${esc(l.key)}" ${doneSet[l.key] ? 'checked' : ''}>
-        <span class="box"></span><span class="nm">${esc(l.name)}<small>${esc(domainOf(l.domain).name)} · ${esc(l.section)} · ${h(l.hours)}</small></span></label>
+        <span class="box"></span><span class="nm">${esc(l.name)}<small>${esc((l.domains?.length ? l.domains : [l.domain]).map(shortDom).join(' + '))} · ${esc(l.section)} · ${h(l.hours)}</small></span></label>
       <button class="chip" data-skip="${esc(l.key)}" title="Pomiń">Pomiń</button></div>`;
   const weeksHtml = b.weeks.filter((x) => x !== w).slice(0, 30).map((x) => `<div class="wk ${x.review ? 'rv' : ''}">
       <div class="wk-h"><b>${fmtShort(x.start)}–${fmtShort(x.end)}</b><span>${h(x.hours)}${x.review ? ' · powtórka' : ''}</span></div>
@@ -116,6 +116,7 @@ function planSummary(state, st, p, today) {
         ${s.baseTotal ? `<div class="minibar" style="--block:var(--c-course)"><div style="width:${Math.min(100, ((s.baseDone || 0) / s.baseTotal) * 100)}%"></div></div>` : '<p class="hint small">Wpisz w ankiecie, ile pytań ma baza (zobaczysz w swoim narzędziu do bazy).</p>'}
         <p class="hint small">Do egzaminu zmieścisz jeszcze ok. ${b.baseCanDo} pytań. Na luty 2027 baza daje 70% pytań (art. 14c ustawy).</p></div>` : ''}
     </div><div>
+      ${domainsCard(b)}
       <div class="card fade"><details class="course-list"><summary>Kolejne tygodnie (${b.weeks.length})</summary>${weeksHtml}</details></div>
       <div class="card fade"><details class="course-list"><summary>Pominięte lekcje (${b.dropped.length})</summary>
         ${b.dropped.map((l) => `<div class="lesson"><span class="nm">${esc(l.name)}<small>${esc(l.reason)} · ${h(l.hours)}</small></span>
@@ -136,6 +137,25 @@ function plansList(st) {
       <span>${p.id !== st.activePlan ? `<button class="chip" data-plan-use="${p.id}">Wybierz</button>` : ''}
       <button class="chip" data-plan-arch="${p.id}">${p.archived ? 'Przywróć' : 'Archiwizuj'}</button>
       <button class="chip danger-chip" data-plan-del="${p.id}">Usuń</button></span></div>`).join('')}</div>`;
+}
+
+const SHORT_DOM = { int: 'interna', ped: 'pediatria', chir: 'chirurgia', gin: 'ginekologia', rodz: 'medycyna rodzinna', rat: 'ratunkowa', psych: 'psychiatria', etyka: 'prawo i etyka', zp: 'zdrowie publiczne', orz: 'orzecznictwo' };
+const shortDom = (id) => SHORT_DOM[id] || 'poza LEK';
+
+/** Karta: jak plan pokrywa każdą dziedzinę LEK (także dziedziny bez własnego kursu WNL). */
+function domainsCard(b) {
+  const rows = (b.domains || []).map((d) => {
+    const pct = Math.round(d.cov * 100);
+    const info = d.own ? `${d.lessons} ${plural(d.lessons, 'lekcja', 'lekcje', 'lekcji')}`
+      : d.lessons ? `bez kursu – ${d.lessons} ${plural(d.lessons, 'pasująca lekcja', 'pasujące lekcje', 'pasujących lekcji')} z innych kursów` : 'bez kursu i bez pasujących lekcji';
+    return `<div class="dom-row">
+      <div class="dom-h"><b>${esc(d.name)}</b><span class="muted">${d.q} pyt.</span><span class="dom-p">${pct}%</span></div>
+      <div class="minibar" style="--block:var(--c-course)"><div style="width:${pct}%"></div></div>
+      <div class="hint small">${info}${!d.own && pct < 50 ? ' · resztę nadrób pytaniami z bazy CEM' : ''}</div></div>`;
+  }).join('');
+  return `<div class="card fade"><details class="course-list"><summary>Dziedziny LEK – pokrycie planu</summary>
+    <p class="hint small">Lekcja liczy się do każdej dziedziny, do której pasuje (np. nadciśnienie: interna i medycyna rodzinna). Procent = ile materiału z Twoich kursów dla tej dziedziny obejmie plan (z tym, co już zrobione).</p>
+    ${rows}</details></div>`;
 }
 
 const num1 = (x) => String(Math.round(x * 10) / 10).replace('.', ',');

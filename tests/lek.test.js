@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultState } from '../js/defaults.js';
-import { DOMAINS, parseCourseText, parseCoursesText, coursesFromFile, mergeCourse, guessDomain, studyDays, buildPlan, estimateScore, coverage, allLessons, lessonKey, DEFAULT_SURVEY } from '../js/lek.js';
+import { DOMAINS, parseCourseText, parseCoursesText, coursesFromFile, mergeCourse, guessDomain, studyDays, buildPlan, estimateScore, coverage, domainCoverage, lessonDomains, allLessons, lessonKey, DEFAULT_SURVEY } from '../js/lek.js';
 
 const SAMPLE = `Kurs z Interny
 ZMIEŃ KURS
@@ -130,10 +130,42 @@ test('Pominięcie i „muszę zrobić” wpływają na wybór', () => {
   assert.ok(b.dropped.some((l) => l.key === all[1].key && l.reason.includes('przez Ciebie')));
 });
 
-test('Pokrycie: interna w całości = 39/200', () => {
+test('Pokrycie: cała interna = 39/200 + część medycyny rodzinnej (astma, cukrzyca), ale nie cała', () => {
   const courses = mergeCourse([], parseCourseText(SAMPLE));
   const ls = allLessons({ courses });
-  assert.equal(Math.round(coverage(ls, new Set(ls.map((l) => l.key))) * 200), 39);
+  const all = new Set(ls.map((l) => l.key));
+  const dc = domainCoverage(ls, all);
+  assert.equal(dc.find((d) => d.id === 'int').cov, 1);
+  const rodz = dc.find((d) => d.id === 'rodz');
+  assert.equal(rodz.own, false);
+  assert.ok(rodz.lessons >= 2 && rodz.cov > 0 && rodz.cov < 1);
+  const pts = coverage(ls, all) * 200;
+  assert.ok(pts > 39 && pts < 39 + 20 + 20); // interna + część POZ i ratunkowej
+  assert.equal(coverage(ls, new Set()), 0);
+});
+
+test('Dziedziny lekcji: kurs + dopasowanie po nazwie (bez kursu z POZ, prawa, orzecznictwa)', () => {
+  assert.deepEqual(lessonDomains('int', 'Kardiologia', 'Leczenie nadciśnienia tętniczego'), ['int', 'rodz']);
+  assert.deepEqual(lessonDomains('psych', 'Podstawy psychiatrii', 'Psychiatria sądowa'), ['psych', 'etyka', 'orz']);
+  assert.deepEqual(lessonDomains('ped', 'Pediatria w POZ', 'Szczepienia ochronne w praktyce'), ['ped', 'rodz', 'zp']);
+  assert.deepEqual(lessonDomains('int', 'Kardiologia', 'Wady zastawkowe 2'), ['int']);
+  assert.deepEqual(lessonDomains('inne', 'Dermatozy', 'Toczeń'), ['int']);
+  assert.ok(lessonDomains('rat', 'Toksykologia', 'Zatrucia alkoholami').includes('psych'));
+});
+
+test('Plan przy małej ilości czasu: wybiera lekcje przydatne dla kilku dziedzin; czas nie przepada', () => {
+  const st = defaultState();
+  const parsed = { name: 'Kurs z interny', domain: 'int', warnings: [], sections: [{ name: 'Kardiologia', lessons: [
+    { name: 'Wady zastawkowe 1', hMin: 2, hMax: 3 }, { name: 'Wady zastawkowe 2', hMin: 2, hMax: 3 },
+    { name: 'Leczenie nadciśnienia tętniczego', hMin: 2, hMax: 3 }, { name: 'Przewlekłe zespoły wieńcowe', hMin: 2, hMax: 3 }] }] };
+  st.study = { courses: mergeCourse([], parsed), done: {} };
+  const plan = { id: 'p', survey: { examDate: '2026-12-20', hWork: 0.5, hDuty: 0, hWeekend: 0, hVacation: 0, base: false } };
+  const b = buildPlan(st, plan, '2026-11-25');
+  const names = b.chosen.map((l) => l.name);
+  assert.ok(names.includes('Leczenie nadciśnienia tętniczego') && names.includes('Przewlekłe zespoły wieńcowe'));
+  assert.ok(!names.includes('Wady zastawkowe 2'));
+  assert.equal(b.chosen.length + b.dropped.length, 4);
+  assert.ok(b.domains.find((d) => d.id === 'rodz').lessons === 2);
 });
 
 // Układ strony WNL z komputera (przykład zmyślony, ten sam kształt): dział + „(n)” + łączny czas,
