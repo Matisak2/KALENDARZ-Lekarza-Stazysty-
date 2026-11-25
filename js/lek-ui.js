@@ -108,7 +108,7 @@ function planSummary(state, st, p, today) {
     <div class="desk-2"><div>
       ${w ? `<div class="card fade"><div class="card-label">Ten tydzień · ${fmtShort(w.start)}–${fmtShort(w.end)} · ${h(w.hours)}</div>
         ${w.lessons.length ? w.lessons.map(lessonRow).join('') : '<p class="sub">W tym tygodniu: powtórka i pytania.</p>'}
-        ${s.base ? `<div class="base-row">🧩 Baza pytań: ok. <b>${Math.round((w.base * 60) / 1.5)}</b> pytań (${h(w.base)})</div>` : `<div class="base-row">🧩 Pytania WNL do przerobionych tematów: ${h(w.base)}</div>`}
+        ${s.base ? `<div class="base-row">🧩 Baza pytań: ok. <b>${Math.round((w.base * 60) / 1.5)}</b> pytań (${h(w.base)})${b.baseOnlyQ ? `<br><small>w tym ok. ${Math.round(((w.base * 60) / 1.5) * b.baseOnlyQ / 200)} z prawa i bioetyki, zdrowia publicznego i orzecznictwa – tych dziedzin uczysz się tylko z bazy</small>` : ''}</div>` : `<div class="base-row">🧩 Pytania WNL do przerobionych tematów: ${h(w.base)}</div>`}
       </div>` : ''}
       ${s.base ? `<div class="card fade"><div class="card-label">🧩 Baza CEM</div>
         <div class="val-row"><span><b>${s.baseDone || 0}</b> / ${s.baseTotal || '?'} pytań</span>
@@ -146,6 +146,11 @@ const shortDom = (id) => SHORT_DOM[id] || 'poza LEK';
 function domainsCard(b) {
   const rows = (b.domains || []).map((d) => {
     const pct = Math.round(d.cov * 100);
+    if (d.baseOnly) {
+      const nq = Math.round(((b.baseCanDo || 0) * d.q) / 200);
+      return `<div class="dom-row"><div class="dom-h"><b>${esc(d.name)}</b><span class="muted">${d.q} pyt.</span><span class="dom-p">🧩</span></div>
+        <div class="hint small">Tylko baza pytań CEM – bez lekcji (kursy WNL tego nie obejmują).${b.survey.base && nq ? ` Do egzaminu ok. <b>${nq}</b> pytań z tej dziedziny.` : ''}</div></div>`;
+    }
     const info = d.own ? `${d.lessons} ${plural(d.lessons, 'lekcja', 'lekcje', 'lekcji')}`
       : d.lessons ? `bez kursu – ${d.lessons} ${plural(d.lessons, 'pasująca lekcja', 'pasujące lekcje', 'pasujących lekcji')} z innych kursów` : 'bez kursu i bez pasujących lekcji';
     return `<div class="dom-row">

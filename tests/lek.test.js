@@ -146,8 +146,10 @@ test('Pokrycie: cała interna = 39/200 + część medycyny rodzinnej (astma, cuk
 
 test('Dziedziny lekcji: kurs + dopasowanie po nazwie (bez kursu z POZ, prawa, orzecznictwa)', () => {
   assert.deepEqual(lessonDomains('int', 'Kardiologia', 'Leczenie nadciśnienia tętniczego'), ['int', 'rodz']);
-  assert.deepEqual(lessonDomains('psych', 'Podstawy psychiatrii', 'Psychiatria sądowa'), ['psych', 'etyka', 'orz']);
-  assert.deepEqual(lessonDomains('ped', 'Pediatria w POZ', 'Szczepienia ochronne w praktyce'), ['ped', 'rodz', 'zp']);
+  // prawo i etyka, zdrowie publiczne, orzecznictwo: tylko baza CEM – lekcje innych kursów się do nich nie liczą
+  assert.deepEqual(lessonDomains('psych', 'Podstawy psychiatrii', 'Psychiatria sądowa'), ['psych']);
+  assert.deepEqual(lessonDomains('ped', 'Pediatria w POZ', 'Szczepienia ochronne w praktyce'), ['ped', 'rodz']);
+  assert.deepEqual(lessonDomains('etyka', 'Prawo', 'Ustawa o zawodzie lekarza'), ['etyka']); // własny kurs działa
   assert.deepEqual(lessonDomains('int', 'Kardiologia', 'Wady zastawkowe 2'), ['int']);
   assert.deepEqual(lessonDomains('inne', 'Dermatozy', 'Toczeń'), ['int']);
   assert.ok(lessonDomains('rat', 'Toksykologia', 'Zatrucia alkoholami').includes('psych'));
@@ -166,6 +168,8 @@ test('Plan przy małej ilości czasu: wybiera lekcje przydatne dla kilku dziedzi
   assert.ok(!names.includes('Wady zastawkowe 2'));
   assert.equal(b.chosen.length + b.dropped.length, 4);
   assert.ok(b.domains.find((d) => d.id === 'rodz').lessons === 2);
+  assert.deepEqual(b.domains.filter((d) => d.baseOnly).map((d) => d.id), ['etyka', 'zp', 'orz']);
+  assert.equal(b.baseOnlyQ, 25);
 });
 
 // Układ strony WNL z komputera (przykład zmyślony, ten sam kształt): dział + „(n)” + łączny czas,

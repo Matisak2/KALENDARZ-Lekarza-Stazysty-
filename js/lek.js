@@ -307,11 +307,17 @@ const EXTRA = {
   orz: /orzek|orzeczn|sądow|choroby zawodowe|niepełnosprawnoś|śmierci mózgowej/,
 };
 
+/**
+ * Dziedziny, których bez własnego kursu uczymy się wyłącznie z bazy pytań CEM (lekcje z innych kursów
+ * pokrywają je tylko szczątkowo – decyzja właściciela 11.2026). Kurs przypisany do takiej dziedziny działa normalnie.
+ */
+export const BASE_ONLY = ['etyka', 'zp', 'orz'];
+
 /** Dziedziny LEK lekcji: najpierw dziedzina kursu, potem dodatkowe z nazwy lekcji/działu. */
 export function lessonDomains(courseDomain, section, name) {
   const text = `${section || ''} ${name || ''}`.toLowerCase();
   const out = DOMAIN_IDS.includes(courseDomain) ? [courseDomain] : [];
-  for (const id of DOMAIN_IDS) if (!out.includes(id) && EXTRA[id]?.test(text)) out.push(id);
+  for (const id of DOMAIN_IDS) if (!out.includes(id) && !BASE_ONLY.includes(id) && EXTRA[id]?.test(text)) out.push(id);
   return out;
 }
 
@@ -359,7 +365,8 @@ export function domainCoverage(lessons, chosenKeys) {
     const got = ls.filter((l) => chosenKeys.has(l.key)).reduce((a, l) => a + l.hours, 0);
     const hasOwn = own.includes(d);
     const needH = hasOwn ? all : Math.max(all, d.q * perQ);
-    return { id: d.id, name: d.name, q: d.q, own: hasOwn, lessons: ls.length, hours: all, got, cov: needH ? Math.min(1, got / needH) : 0 };
+    const baseOnly = !hasOwn && BASE_ONLY.includes(d.id);
+    return { id: d.id, name: d.name, q: d.q, own: hasOwn, baseOnly, lessons: ls.length, hours: all, got, cov: needH ? Math.min(1, got / needH) : 0 };
   });
 }
 export function coverage(lessons, chosenKeys) {
@@ -504,6 +511,7 @@ export function buildPlan(state, plan, today) {
   return {
     survey, days, hoursTotal, learnHours, baseHours, reviewHours, share, weeks, chosen, dropped,
     domains: domainCoverage(lessons, plannedKeys), domainsNow: domainCoverage(lessons, doneKeys),
+    baseOnlyQ: domainCoverage(lessons, doneKeys).filter((d) => d.baseOnly).reduce((a, d) => a + d.q, 0),
     lessonsTotal: lessons.length, lessonsDone: doneKeys.size, needHours,
     baseLeft, baseCanDo, kNow, kPlan, estNow, estPlan, target, verdict,
     daysLeft: Math.max(0, toNum(survey.examDate) - toNum(today)),
