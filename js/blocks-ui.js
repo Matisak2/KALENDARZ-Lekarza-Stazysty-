@@ -87,8 +87,10 @@ export function renderBlocks(state, today) {
 /* ---------- Edycja bloku (arkusz) ---------- */
 
 function hospitalOptions(sel) {
-  const opts = HOSPITALS.map((h) => `<option value="${h.id}" ${h.id === sel ? 'selected' : ''}>${esc(h.name)}</option>`);
-  return `<option value="" ${!sel ? 'selected' : ''}>— wybierz szpital —</option>${opts.join('')}
+  const opt = (h) => `<option value="${h.id}" ${h.id === sel ? 'selected' : ''}>${esc(h.name)}${h.kind === 'poz' ? ` (${esc(h.address.split(',')[0])})` : ''}</option>`;
+  const opts = [`<optgroup label="Szpitale">${HOSPITALS.filter((h) => h.kind !== 'poz').map(opt).join('')}</optgroup>`,
+    `<optgroup label="Przychodnie POZ (medycyna rodzinna)">${HOSPITALS.filter((h) => h.kind === 'poz').map(opt).join('')}</optgroup>`];
+  return `<option value="" ${!sel ? 'selected' : ''}>— wybierz szpital lub przychodnię —</option>${opts.join('')}
     <option value="custom" ${sel === 'custom' ? 'selected' : ''}>Inne miejsce (wpiszę sam)…</option>`;
 }
 

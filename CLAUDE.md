@@ -21,7 +21,7 @@ Pokazuje bloki stażu, dni robocze, święta, urlop, kursy OIL, odrabianie, dyż
 - `js/defaults.js` – domyślny harmonogram, kursy, terminy LEK, typy nieobecności.
 - `js/engine.js` – czysta logika: `summarize(state, today)`, `blockStats`, rezerwa, plan odrabiania, urlop, `alerts`.
 - `js/store.js` – zapis w `localStorage` (klucz `kalendarz-stazysty`), `migrate` (wersje danych), kopia .json.
-- `js/hospitals.js` – szpitale Szczecin/Police z oddziałami i adresami (ze stron szpitali, 11.2026).
+- `js/hospitals.js` – szpitale Szczecin/Police z oddziałami i adresami (ze stron szpitali, 11.2026) + przychodnie POZ do medycyny rodzinnej (`kind: 'poz'`, każda filia osobno; SCZ i „Podgórna” z katalogów – do potwierdzenia).
 - `js/ics.js` – eksport do Kalendarza (.ics) z adresem oddziału w LOCATION i alarmami LEK.
 - `js/blocks-ui.js` – ekran Bloki + arkusz edycji (podział bloku na oddziały po tygodniach).
 - `js/more-ui.js` – ekran Więcej (kursy OIL z terminami, dni wolne za soboty, eksport .ics, kopia, ustawienia, źródła).

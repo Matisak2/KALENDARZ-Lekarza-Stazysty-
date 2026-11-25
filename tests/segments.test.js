@@ -106,3 +106,12 @@ test('Kopia zapasowa: zapis i odczyt dają te same dane', () => {
   assert.throws(() => parseBackup('{"a":1}'), /nie wygląda/);
   assert.throws(() => parseBackup('nie json'), /błędny format/);
 });
+
+test('Przychodnie POZ do medycyny rodzinnej: każda filia osobno, z adresem; ID unikalne', () => {
+  const poz = HOSPITALS.filter((h) => h.kind === 'poz');
+  assert.ok(poz.length >= 17);
+  assert.equal(new Set(HOSPITALS.map((h) => h.id)).size, HOSPITALS.length);
+  for (const h of poz) assert.ok(h.address && h.source && h.wards.length, h.id);
+  assert.equal(placeText({ hospital: 'pmr-gumience', ward: 'Poradnia lekarza POZ (medycyna rodzinna)' }),
+    'Poradnia lekarza POZ (medycyna rodzinna), PMR „Szafera” – Przychodnia Gumieńce, ul. Lubelska 29, 71-043 Szczecin');
+});
