@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultState } from '../js/defaults.js';
-import { dutyMonth, dutyBuckets, dutyRoomOn, fmtHM, dutyTotals } from '../js/engine.js';
+import { dutyMonth, dutyBuckets, dutyRoomOn, fmtHM, dutyTotals, proposeDuties } from '../js/engine.js';
 
 const S = () => defaultState();
 const duty = (id, date, minutes) => ({ id, date, minutes });
@@ -100,4 +100,35 @@ test('Zasady USK2: dyżur w sobotę, święto i w przerwie świątecznej 23–27
   assert.ok(!w.some((t) => t.startsWith('07.12')));
   st.duties = [{ id: 'd', date: '2026-11-11', minutes: 305 }]; // święto w środę
   assert.ok(dutyMonth(st, '2026-11').warnings.some((x) => x.text.startsWith('11.11') && x.text.includes('święta')));
+});
+
+test('Propozycja dyżurów na grudzień 2026: norma 40 h 20, 2 dyżury w tygodniu (5 h 05 + 5 h), bez weekendów i przerwy 23–27.12', () => {
+  const st = defaultState();
+  const p = proposeDuties(st, '2026-12');
+  assert.equal(p.reduce((a, x) => a + x.minutes, 0), 2420);
+  assert.ok(p.length <= 8);
+  for (const x of p) {
+    const wd = new Date(`${x.date}T00:00:00Z`).getUTCDay();
+    assert.ok(wd >= 1 && wd <= 5, x.date);
+    assert.ok(!(x.date >= '2026-12-23' && x.date <= '2026-12-27'), x.date);
+    assert.ok([300, 305].includes(x.minutes));
+    assert.equal(x.start, '15:35');
+  }
+  st.duties = p.map((x, i) => ({ id: `p${i}`, ...x }));
+  const m = dutyMonth(st, '2026-12');
+  assert.equal(m.left, 0);
+  assert.deepEqual(m.warnings, []);
+  assert.deepEqual(proposeDuties(st, '2026-12'), []); // norma zrobiona – nic więcej
+});
+
+test('Propozycja dyżurów: dolicza tylko brakujące, omija urlop; maj 2027 (medycyna rodzinna) – nic', () => {
+  const st = defaultState();
+  st.duties = [{ id: 'a', date: '2027-01-05', minutes: 305 }];
+  st.events = [{ id: 'u', type: 'urlop', start: '2027-01-11', end: '2027-01-15' }];
+  const p = proposeDuties(st, '2027-01');
+  const m = dutyMonth(st, '2027-01');
+  assert.equal(p.reduce((a, x) => a + x.minutes, 0), m.norm - 305);
+  assert.ok(!p.some((x) => x.date >= '2027-01-11' && x.date <= '2027-01-15'));
+  assert.ok(!p.some((x) => x.date === '2027-01-04' || x.date === '2027-01-06')); // odstęp od dyżuru 05.01
+  assert.deepEqual(proposeDuties(defaultState(), '2027-05'), []);
 });

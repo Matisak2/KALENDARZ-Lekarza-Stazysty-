@@ -28,7 +28,7 @@ export function renderMore(state) {
       <div class="card fade">
         <div class="card-label">📅 Kalendarz iPhone'a</div>
         <div class="t-strong">Dodaj staż do Kalendarza</div>
-        <p class="sub">Bloki i oddziały (z adresem w polu „Miejsce”), odrabianie, kursy, urlop oraz terminy LEK z przypomnieniami.</p>
+        <p class="sub">Bloki i oddziały (z adresem w polu „Miejsce”), odrabianie, kursy, urlop, dyżury z godziną oraz terminy LEK i Kadr z przypomnieniami.</p>
         <button class="btn primary" data-act="ics">Eksportuj do Kalendarza (.ics)</button>
         <ol class="steps">
           <li>Stuknij przycisk powyżej.</li>

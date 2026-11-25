@@ -2,8 +2,8 @@
 // Bloki i oddziały jako wydarzenia całodniowe z adresem w polu „Miejsce”,
 // terminy LEK z przypomnieniami (alarmami).
 import { addDays, eachDay, isWeekend } from './dates.js';
-import { EVENT_TYPES } from './defaults.js';
-import { summarize } from './engine.js';
+import { EVENT_TYPES, HR_DEADLINES } from './defaults.js';
+import { summarize, placeOn } from './engine.js';
 import { hospitalOf, placeText } from './hospitals.js';
 
 const esc = (s) => String(s ?? '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/([,;])/g, '\\$1');
@@ -31,18 +31,22 @@ function fold(line) {
   return out.map((l, i) => (i ? ' ' + l : l)).join('\r\n');
 }
 
-function vevent({ uid, start, end, summary, location, description, alarms = [], stamp }) {
+/** Godzina lokalna (czas telefonu) – 935 -> "153500". */
+const hms = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}${String(min % 60).padStart(2, '0')}00`;
+
+function vevent({ uid, start, end, summary, location, description, alarms = [], stamp, from = null, to = null }) {
   const lines = [
     'BEGIN:VEVENT',
     `UID:${uid}@kalendarz-stazysty`,
     `DTSTAMP:${stamp}`,
-    `DTSTART;VALUE=DATE:${ymd(start)}`,
-    `DTEND;VALUE=DATE:${ymd(addDays(end, 1))}`,
+    ...(from != null
+      ? [`DTSTART:${ymd(start)}T${hms(from)}`, `DTEND:${ymd(start)}T${hms(to)}`]
+      : [`DTSTART;VALUE=DATE:${ymd(start)}`, `DTEND;VALUE=DATE:${ymd(addDays(end, 1))}`]),
     `SUMMARY:${esc(summary)}`,
   ];
   if (location) lines.push(`LOCATION:${esc(location)}`);
   if (description) lines.push(`DESCRIPTION:${esc(description)}`);
-  lines.push('TRANSP:TRANSPARENT');
+  lines.push(from != null ? 'TRANSP:OPAQUE' : 'TRANSP:TRANSPARENT');
   for (const a of alarms) {
     lines.push('BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${esc(a.text || summary)}`, `TRIGGER:${a.trigger}`, 'END:VALARM');
   }
@@ -140,6 +144,27 @@ export function buildIcs(state, today) {
     L.push(...vevent({
       uid: `lek-termin-${k}`, start: dl.date, end: dl.date, summary: dl.label, stamp,
       alarms: [{ trigger: '-P7D', text: `Za tydzień: ${dl.label}` }, dayBefore(`Jutro: ${dl.label}`)],
+    }));
+  }
+
+  // Terminy Kadr USK2 (karty czasu pracy, dyżurów, listy obecności)
+  for (const d of HR_DEADLINES) {
+    if (state.settings.hrDone?.[d.id] || d.due < today) continue;
+    L.push(...vevent({
+      uid: `kadry-${d.id}`, start: d.due, end: d.due, summary: `🗂 ${d.title}`, description: d.detail, stamp,
+      alarms: [{ trigger: '-P3D', text: `Za 3 dni: ${d.title}` }, dayBefore(`Jutro: ${d.title}`)],
+    }));
+  }
+
+  // Dyżury (z godziną; czas lokalny telefonu)
+  for (const x of state.duties || []) {
+    const [hh, mm] = String(x.start || '15:35').split(':').map(Number);
+    const from = (hh || 15) * 60 + (mm || 0);
+    const pl = placeOn(state, x.date);
+    L.push(...vevent({
+      uid: `dyzur-${x.id}`, start: x.date, end: x.date, from, to: from + Number(x.minutes || 0),
+      summary: `🌙 Dyżur ${String(x.start || '15:35')}`, location: pl?.segment ? placeText(pl.segment) : '',
+      description: x.note || '', stamp, alarms: [{ trigger: '-PT6H', text: 'Dziś dyżur' }],
     }));
   }
 

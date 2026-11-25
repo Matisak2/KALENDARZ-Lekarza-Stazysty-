@@ -707,6 +707,22 @@ code { background: var(--card-2); padding: 1px 5px; border-radius: 5px; }
 .ts-pay tr:first-child td, .ts-pay tr:last-child td { border-top: 2.5px solid #000; }
 .ts-pay tr:last-child td { border-bottom: 2.5px solid #000; height: 10px; }
 .ts-foot { font-size: 6.5px; margin-top: 4px; line-height: 1.6; }
+/* Karta dyżurów – wzór USK2 */
+.ks { color: #000; background: #fff; font-family: Arial, Helvetica, sans-serif; width: 640px; padding: 40px 30px; box-sizing: border-box; }
+.ks-title { text-align: center; font-weight: 700; font-size: 15px; margin-bottom: 10px; }
+.ks-line { margin-left: 210px; font-size: 12px; margin-top: 4px; }
+.ks-line span { display: inline-block; min-width: 200px; border-bottom: 1px dotted #000; padding: 0 4px; }
+.ks-t { border-collapse: collapse; width: 100%; margin-top: 16px; table-layout: fixed; }
+.ks-t th, .ks-t td { border: 1.2px solid #000; font-size: 12px; padding: 4px 8px; }
+.ks-t th { font-weight: 400; height: 22px; }
+.ks-t th:nth-child(1) { width: 40px; } .ks-t th:nth-child(2) { width: 150px; } .ks-t th:nth-child(3) { width: 170px; }
+.ks-t tbody td { height: 54px; font-size: 15px; }
+.ks-t td.lp { font-size: 10px; }
+.ks-t .c { text-align: center; }
+.ks-t tfoot td { height: 26px; font-size: 14px; }
+.ks-t tfoot td.sm { font-size: 9px; vertical-align: bottom; }
+.ks-t tfoot td.nb { border: 0; }
+.ks-sign { display: flex; justify-content: space-between; padding: 14px 50px 90px; font-size: 12px; }
 #print-root { display: none; }
 @media print {
   @page { size: A4 portrait; margin: 8mm; }
@@ -714,6 +730,7 @@ code { background: var(--card-2); padding: 1px 5px; border-radius: 5px; }
   body.printing #print-root { display: block !important; }
   body.printing { background: #fff !important; }
   body.printing .ts, body.printing .ts table { min-width: 0; width: 100%; box-sizing: border-box; }
+  body.printing .ks { width: 100%; }
   body.printing .ts-t tr.wk td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body.printing .ts-t tr.sh td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
@@ -728,3 +745,4 @@ code { background: var(--card-2); padding: 1px 5px; border-radius: 5px; }
 .dom-h { display: flex; gap: 8px; align-items: baseline; margin-bottom: 4px; }
 .dom-h b { flex: 1; font-size: 14px; }
 .dom-p { font-weight: 800; }
+.hero-ward .go-chip { align-self: center; text-decoration: none; flex: none; }

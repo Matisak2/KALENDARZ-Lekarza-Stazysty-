@@ -1,12 +1,13 @@
 // Kalendarz Stażysty – interfejs
 import { load, save, askPersistence, onSave, migrate } from './store.js';
 import { initSync, onLocalSave } from './sync.js';
-import { summarize, alerts, segmentAt } from './engine.js';
+import { summarize, alerts, segmentAt, vacationIdeas } from './engine.js';
+import { buildPlan, currentWeek } from './lek.js';
 import { renderBlocks, openBlockEditor } from './blocks-ui.js';
 import { renderMore, handleMoreClick, handleMoreChange } from './more-ui.js';
 import { hospitalOf } from './hospitals.js';
 import { renderCalendar, openDay, openEventEditor, shiftMonth, todayMonth } from './calendar-ui.js';
-import { renderDuties, openDutyEditor, dutyTodayCard } from './duties-ui.js';
+import { renderDuties, openDutyEditor, dutyTodayCard, openDutyProposal, printDutySheet } from './duties-ui.js';
 import { renderLek, handleLekClick, handleLekChange, handleLekInput } from './lek-ui.js';
 import { openTimesheet } from './timesheet-ui.js';
 import { fmtLong, fmtShort, fmtFull, fmtDayShort, toNum, todayIso, isWeekend, dni, plural } from './dates.js';
@@ -121,7 +122,8 @@ function heroCard(sum) {
     </div>
     ${seg ? `<div class="hero-ward">
         <div class="hw-ic">📍</div>
-        <div><b>${esc(seg.ward)}</b><span>${esc(hosp?.name || '')}${hosp?.address ? ` · ${esc(hosp.address)}` : ''}</span></div>
+        <div class="grow"><b>${esc(seg.ward)}</b><span>${esc(hosp?.name || '')}${hosp?.address ? ` · ${esc(hosp.address)}` : ''}</span></div>
+        ${hosp?.address ? `<a class="chip go-chip" href="https://maps.apple.com/?q=${encodeURIComponent(`${hosp.name}, ${hosp.address}`)}" target="_blank" rel="noopener">Prowadź</a>` : ''}
       </div>` : `<button class="hero-ward empty" data-goto-block="${esc(b.id)}"><div class="hw-ic">＋</div>
         <div><b>Przypisz oddział</b><span>Wybierz szpital i oddział dla tego bloku</span></div></button>`}
     ${pills.length ? `<div class="pills">${pills.join('')}</div>` : ''}
@@ -222,6 +224,50 @@ function reserveCard(sum) {
   </div>`;
 }
 
+/** „Na dziś”: dyżur (dziś/jutro) i lekcje LEK z aktywnego planu. */
+function todayPlanCard(sum) {
+  const t = sum.today;
+  const rows = [];
+  const hm = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')}`;
+  const dutyRow = (x, when) => {
+    const [h, m] = String(x.start || '15:35').split(':').map(Number);
+    const from = h * 60 + m;
+    return `<div class="todo"><div class="todo-ic">🌙</div><div class="grow"><div class="t">Dyżur ${when} ${hm(from)}–${hm(from + Number(x.minutes || 0))}</div>${x.note ? `<div class="s">${esc(x.note)}</div>` : ''}</div></div>`;
+  };
+  const tomorrow = new Date(Date.UTC(...t.split('-').map((v, i) => Number(v) - (i === 1 ? 1 : 0))) + 86400000).toISOString().slice(0, 10);
+  for (const x of (state.duties || []).filter((d) => d.date === t)) rows.push(dutyRow(x, 'dziś'));
+  for (const x of (state.duties || []).filter((d) => d.date === tomorrow)) rows.push(dutyRow(x, 'jutro'));
+  const st = state.study;
+  const plan = (st?.plans || []).find((p) => p.id === st.activePlan && !p.archived);
+  if (plan && (st.courses || []).length) {
+    try {
+      const b = buildPlan(state, plan, t);
+      const w = currentWeek(b, t);
+      const todo = (w?.lessons || []).filter((l) => !st.done?.[l.key]).slice(0, 2);
+      for (const l of todo) {
+        rows.push(`<label class="skill"><input type="checkbox" data-lesson="${esc(l.key)}"><span class="box"></span>
+          <span class="nm">📚 ${esc(l.name)}<small>${esc(l.section)} · ${String(l.hours).replace('.', ',')} h</small></span></label>`);
+      }
+      if (w && !todo.length && w.lessons.length) rows.push('<div class="sub">📚 Lekcje z tego tygodnia zrobione ✓ – czas na pytania z bazy.</div>');
+    } catch { /* plan nie powinien blokować ekranu Dziś */ }
+  }
+  if (!rows.length) return '';
+  return `<div class="card fade"><div class="card-label">Plan na dziś</div>${rows.join('')}</div>`;
+}
+
+/** Gdzie 1–3 dni urlopu dają najdłuższy odpoczynek (mosty, długie weekendy). */
+function vacationIdeasCard(sum) {
+  if (sum.vacation.left <= 0) return '';
+  const ideas = vacationIdeas(state, sum.today, 4);
+  if (!ideas.length) return '';
+  return `<div class="card fade" style="--block:var(--c-vacation)"><details class="course-list"><summary>🏖 Gdzie urlop daje najwięcej wolnego</summary>
+    ${ideas.map((v) => `<div class="todo"><div class="grow"><div class="t">${v.take.map(fmtDayShort).join(', ')} → ${v.free} dni wolnego</div>
+      <div class="s">${fmtShort(v.start)}–${fmtShort(v.end)} · ${v.days} ${plural(v.days, 'dzień', 'dni', 'dni')} urlopu${v.inBlock.length ? ` · w bloku ${esc(v.inBlock.join(', '))} (do odrobienia na tym oddziale)` : ' · w rezerwie'}</div></div>
+      <button class="chip" data-vac="${v.take[0]}|${v.take.at(-1)}">Zaplanuj</button></div>`).join('')}
+    <p class="hint small">Urlop „kosztuje” tyle samo dni w bloku i w rezerwie – ale obok święta i weekendu daje dłuższy odpoczynek.</p>
+  </details></div>`;
+}
+
 function vacationCard(sum) {
   const v = sum.vacation;
   const years = Object.entries(v.pool).map(([y, n]) => `${y}: ${n}`).join(' · ');
@@ -303,10 +349,12 @@ function renderToday() {
         ${progressCard(sum)}
       </div>
       <div>
+        ${todayPlanCard(sum)}
         ${todoCard(al.filter((a) => a.level !== 'urgent'))}
         ${dutyTodayCard(state, t)}
         ${reserveCard(sum)}
         <div class="grid-2">${vacationCard(sum)}${lekCard(sum)}</div>
+        ${vacationIdeasCard(sum)}
         ${upcomingCard(sum)}
       </div>
     </div>`;
@@ -450,6 +498,10 @@ app.addEventListener('click', (e) => {
     dmonth = dm.dataset.dmonth === 'today' ? todayMonth(getToday()) : shiftMonth(dmonth, Number(dm.dataset.dmonth));
     return render();
   }
+  const dp = e.target.closest('[data-duty-propose]');
+  if (dp) return openDutyProposal(state, dp.dataset.dutyPropose, ctx);
+  const ds = e.target.closest('[data-duty-sheet]');
+  if (ds) return printDutySheet(state, ds.dataset.dutySheet);
   const nd = e.target.closest('[data-new-duty]');
   if (nd) return openDutyEditor(state, { date: nd.dataset.newDuty }, ctx);
   const ed = e.target.closest('[data-edit-duty]');
@@ -461,6 +513,8 @@ app.addEventListener('click', (e) => {
   }
   const day = e.target.closest('[data-day]');
   if (day) return openDay(state, getToday(), day.dataset.day, ctx);
+  const va = e.target.closest('[data-vac]');
+  if (va) { const [a, b] = va.dataset.vac.split('|'); return openEventEditor(state, getToday(), { type: 'urlop', start: a, end: b }, ctx); }
   const ne = e.target.closest('[data-new-event]');
   if (ne) return openEventEditor(state, getToday(), { type: 'urlop', start: ne.dataset.newEvent }, ctx);
   const ee = e.target.closest('[data-edit-event]');
@@ -468,7 +522,7 @@ app.addEventListener('click', (e) => {
   handleMoreClick(e, ctx);
 });
 app.addEventListener('change', (e) => {
-  if (tab === 'lek' && handleLekChange(e, state, ctx)) return;
+  if ((tab === 'lek' || e.target.dataset.lesson) && handleLekChange(e, state, ctx)) return;
   handleMoreChange(e, ctx);
 });
 app.addEventListener('input', (e) => { if (tab === 'lek') handleLekInput(e, ctx); });

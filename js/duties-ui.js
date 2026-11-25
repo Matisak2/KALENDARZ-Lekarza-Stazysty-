@@ -1,5 +1,6 @@
 // Ekran „Dyżury”: miesiąc (norma, suma, „tygodnie” z limitem 10 h 05 min, liczba ≤ 8) + okno wpisu.
-import { dutyMonth, dutyRoomOn, dutyTotals, fmtHM, DUTY_COUNT_MAX, DUTY_WEEK_LIMIT } from './engine.js';
+import { dutyMonth, dutyRoomOn, dutyTotals, fmtHM, proposeDuties, DUTY_COUNT_MAX, DUTY_WEEK_LIMIT } from './engine.js';
+import { printHtml } from './timesheet-ui.js';
 import { fmtDayShort, fmtLong, MONTHS } from './dates.js';
 import { esc } from './blocks-ui.js';
 
@@ -82,6 +83,10 @@ export function renderDuties(state, today, ym) {
         <div class="pills"><span class="pill">${status}</span></div>
       </div>
       <button class="btn primary add-ev" data-new-duty="${defDate}">＋ Dodaj dyżur</button>
+      <div class="quick two">
+        <button class="btn" data-duty-propose="${ym}" ${m.left > 0 ? '' : 'disabled'}>✨ Zaproponuj dyżury</button>
+        <button class="btn" data-duty-sheet="${ym}">🖨 Karta dyżurów</button>
+      </div>
       ${m.warnings.length ? `<div class="card fade todo-card"><div class="card-label">Uwaga</div>
         ${m.warnings.map((w) => `<div class="todo ${w.level}"><div class="todo-ic">⚠️</div><div class="grow"><div class="t">${esc(w.text)}</div></div></div>`).join('')}</div>` : ''}
     </div><div>
@@ -178,4 +183,79 @@ export function openDutyEditor(state, duty, ctx) {
   });
   root.addEventListener('input', (e) => { if (e.target.dataset.f === 'note') draft.note = e.target.value; });
   draw();
+}
+
+/* ---------- Propozycja dyżurów na miesiąc ---------- */
+
+const hhmm = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+
+export function openDutyProposal(state, ym, ctx) {
+  const list = proposeDuties(state, ym).map((x) => ({ ...x, on: true }));
+  const root = document.createElement('div');
+  root.className = 'sheet-wrap';
+  document.body.appendChild(root);
+  document.body.classList.add('no-scroll');
+  const close = () => { root.classList.add('closing'); document.body.classList.remove('no-scroll'); setTimeout(() => root.remove(), 220); };
+  const draw = () => {
+    const sum = list.filter((x) => x.on).reduce((a, x) => a + x.minutes, 0);
+    root.innerHTML = `<div class="sheet-backdrop" data-close></div><div class="sheet" role="dialog" aria-label="Propozycja dyżurów">
+      <div class="sheet-head"><button class="link" data-close>Anuluj</button><b>Propozycja dyżurów</b><button class="link strong" data-ok ${sum ? '' : 'disabled'}>Dodaj</button></div>
+      <div class="sheet-body">
+        <div class="form-card">
+          <p class="sub" style="margin-top:0">2 dyżury w każdym tygodniu rozliczeniowym (5 h 05 + 5 h), tylko pn–pt. Pominięte: weekendy, święta, przerwa świąteczna, kursy, urlop i bloki bez dyżurów. Odznacz dni, które Ci nie pasują – potem możesz je przestawić w kalendarzu dyżurów.</p>
+          ${list.length ? list.map((x, i) => `<label class="skill ${x.on ? 'on' : ''}"><input type="checkbox" data-pi="${i}" ${x.on ? 'checked' : ''}>
+            <span class="box"></span><span class="nm">${fmtLong(x.date)}<small>15:35–${hhmm(935 + x.minutes)} · ${fmtHM(x.minutes)}</small></span></label>`).join('')
+            : '<p class="hint">Brak wolnych dni na dyżury albo norma jest już zrobiona.</p>'}
+          <div class="imp-row" style="margin-top:8px">Razem: <b>${fmtHM(sum)}</b></div>
+        </div>
+      </div></div>`;
+  };
+  root.addEventListener('click', (e) => {
+    if (e.target.closest('[data-close]')) return close();
+    if (e.target.closest('[data-ok]')) {
+      const add = list.filter((x) => x.on).map((x, i) => ({ id: `d${Date.now()}${i}`, date: x.date, minutes: x.minutes, start: x.start, note: '' }));
+      if (!add.length) return;
+      state.duties.push(...add);
+      ctx.save(); ctx.render();
+      ctx.toast(`Dodano ${add.length} dyżurów ✓`, () => { state.duties = state.duties.filter((d) => !add.includes(d)); ctx.save(); ctx.render(); });
+      return close();
+    }
+  });
+  root.addEventListener('change', (e) => {
+    const i = e.target.dataset.pi;
+    if (i != null) { list[Number(i)].on = e.target.checked; draw(); }
+  });
+  draw();
+}
+
+/* ---------- Karta dyżurów (wzór USK2) ---------- */
+
+const MONTHS_NOM = ['styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec', 'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień'];
+/** 305 -> "5,05", 300 -> "5,00", 2420 -> "40,20" (godziny,minuty – jak na wzorze). */
+export const hcomma = (min) => `${Math.floor(min / 60)},${String(min % 60).padStart(2, '0')}`;
+
+export function dutySheetHtml(state, ym) {
+  const duties = (state.duties || []).filter((x) => x.date.startsWith(ym)).sort((a, b) => (a.date < b.date ? -1 : 1));
+  const n = Math.max(10, duties.length);
+  const rows = Array.from({ length: n }, (_, i) => {
+    const x = duties[i];
+    return `<tr><td class="c lp">${i + 1}</td><td>${x ? `${x.date.slice(8)}.${x.date.slice(5, 7)}.` : ''}</td><td class="c">${x ? hcomma(Number(x.minutes)) : ''}</td><td></td></tr>`;
+  }).join('');
+  const total = duties.reduce((a, x) => a + Number(x.minutes || 0), 0);
+  const name = state.settings.personal?.name || '';
+  return `<div class="ks">
+    <div class="ks-title">Karta Dyżurów</div>
+    <div class="ks-line">Lek.<span>${esc(name) || '……………………………………'}</span></div>
+    <div class="ks-line">miesiąc<span>${MONTHS_NOM[Number(ym.slice(5)) - 1]}</span></div>
+    <table class="ks-t">
+      <thead><tr><th>LP</th><th>DATA</th><th>ILOŚĆ GODZIN</th><th>POTWIERDZENIE</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr><td class="nb"></td><td class="sm">SUMA GODZIN:</td><td class="c">${total ? hcomma(total) : ''}</td><td class="nb"></td></tr></tfoot>
+    </table>
+    <div class="ks-sign"><div>SPORZĄDZIŁ:</div><div>ZATWIERDZIŁ:</div></div>
+  </div>`;
+}
+
+export function printDutySheet(state, ym) {
+  printHtml(dutySheetHtml(state, ym), `Karta dyżurów ${MONTHS_NOM[Number(ym.slice(5)) - 1]} ${ym.slice(0, 4)}`);
 }

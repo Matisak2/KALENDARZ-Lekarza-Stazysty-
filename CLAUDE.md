@@ -22,7 +22,7 @@ Pokazuje bloki stażu, dni robocze, święta, urlop, kursy OIL, odrabianie, dyż
 - `js/engine.js` – czysta logika: `summarize(state, today)`, `blockStats`, rezerwa, plan odrabiania, urlop, `alerts`.
 - `js/store.js` – zapis w `localStorage` (klucz `kalendarz-stazysty`), `migrate` (wersje danych), kopia .json.
 - `js/hospitals.js` – szpitale Szczecin/Police z oddziałami i adresami (ze stron szpitali, 11.2026) + przychodnie POZ do medycyny rodzinnej (`kind: 'poz'`, każda filia osobno; SCZ i „Podgórna” z katalogów – do potwierdzenia).
-- `js/ics.js` – eksport do Kalendarza (.ics) z adresem oddziału w LOCATION i alarmami LEK.
+- `js/ics.js` – eksport do Kalendarza (.ics) z adresem oddziału w LOCATION, alarmami LEK i terminów Kadr oraz dyżurami z godziną.
 - `js/blocks-ui.js` – ekran Bloki + arkusz edycji (podział bloku na oddziały po tygodniach).
 - `js/more-ui.js` – ekran Więcej (kursy OIL z terminami, dni wolne za soboty, eksport .ics, kopia, ustawienia, źródła).
 - `js/skills.js` – umiejętności z programu stażu (klucz = id bloku); stan w `state.skills` i `state.customSkills`.
@@ -33,7 +33,8 @@ Pokazuje bloki stażu, dni robocze, święta, urlop, kursy OIL, odrabianie, dyż
   Spisy kursów WNL tylko w danych użytkownika (nigdy w kodzie – materiały WNL). Hasła do WNL nie przyjmujemy.
 - `js/specs.js` + `data/nabory.json` (generuje `python3 scripts/nabory.py` z PDF-ów CMKP; wymaga pdftotext). Próg = min. wynik zakwalifikowanych, gdy miejsca obsadzone.
 - `js/timesheet.js` (karta czasu pracy wg wzoru USK2: zapis „7,35” = 7 h 35 min, sumy „166.50”) + `js/timesheet-ui.js` (podgląd, PDF przez `window.print` i CSS @media print). Imię i nazwisko w `settings.personal` – tylko lokalnie.
-- `js/duties-ui.js` – zakładka Dyżury (logika: `dutyMonth`, `dutyRoomOn`, `dutyTotals` w engine.js).
+- `js/duties-ui.js` – zakładka Dyżury (logika: `dutyMonth`, `dutyRoomOn`, `dutyTotals`, `proposeDuties` w engine.js) + karta dyżurów do druku wg wzoru USK2 (`dutySheetHtml`).
+- `vacationIdeas` (engine) – mosty/długie weekendy na ekranie Dziś; „Plan na dziś” (dyżur + lekcje LEK), „Prowadź” do Map.
 - `js/calendar-ui.js` – ekran Kalendarz (miesiąc, okno dnia, formularz wpisu z podglądem `eventImpact`).
 - Blok: `segments: [{id,start,end,hospital,ward,customName?,customAddress?}]` – oddziały; nie wpływają na liczenie dni.
 - `js/app.js` – interfejs (zakładki: Dziś, Bloki, Kalendarz, Dyżury, LEK, Więcej). Zmiany dat w ustawieniach tylko przez okienko „Zmień → Zapisz”, usuwanie z „Cofnij” (właściciel ma czuły ekran).

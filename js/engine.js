@@ -485,3 +485,95 @@ export function dutyTotals(state) {
   const total = (state.duties || []).reduce((a, x) => a + Number(x.minutes || 0), 0);
   return { total, count: (state.duties || []).length, max: 41 * DUTY_WEEK_LIMIT };
 }
+
+/* ---------- Propozycja dyżurów na miesiąc (zasady USK2) ---------- */
+
+/**
+ * Proponuje dyżury, by zrobić normę miesiąca: w każdym „tygodniu” 2 dyżury – 15:35–20:40 (5 h 05) i 15:35–20:35 (5 h).
+ * Tylko pn–pt, nie w święta, dni wolne, przerwy (DUTY_BREAKS), dni kursów i nieobecności, tylko w blokach z dyżurami.
+ * Uwzględnia dyżury już wpisane (limit tygodnia 10 h 05, max 8 w miesiącu). Preferuje wt/czw/śr i odstęp między dyżurami.
+ */
+export function proposeDuties(state, ym) {
+  const m = dutyMonth(state, ym);
+  const ctx = buildContext(state);
+  const st = state.settings;
+  const taken = new Set((state.duties || []).map((x) => x.date));
+  const blockOf = (d) => state.blocks.find((b) => b.start <= d && d <= b.end) || null;
+  const ok = (d) => d >= st.startDate && d <= st.endDate && !isWeekend(d) && !statutoryOff(ctx, d) && !ctx.absence.get(d)
+    && !DUTY_BREAKS.some((r) => r.start <= d && d <= r.end) && !!blockOf(d)?.duties && !taken.has(d);
+  const PREF = { 2: 0, 4: 1, 3: 2, 1: 3, 5: 4 }; // wt, czw, śr, pn, pt
+  const wd = (d) => new Date(`${d}T00:00:00Z`).getUTCDay();
+  let need = Math.max(0, m.norm - m.total);
+  let count = m.count;
+  const out = [];
+  for (const b of m.buckets) {
+    if (!b.dutyWeek) continue;
+    let room = DUTY_WEEK_LIMIT - b.minutes;
+    const inWeek = (state.duties || []).filter((x) => x.date >= b.start && x.date <= b.end).map((x) => x.date);
+    while (need > 0 && room >= 60 && count < DUTY_COUNT_MAX) {
+      const days = eachDay(b.start, b.end).filter((d) => ok(d) && !out.some((o) => o.date === d));
+      if (!days.length) break;
+      const near = (d) => [...inWeek, ...out.map((o) => o.date)].some((x) => Math.abs(toNum(x) - toNum(d)) <= 1);
+      days.sort((a, c) => (near(a) - near(c)) || (PREF[wd(a)] - PREF[wd(c)]) || (a < c ? -1 : 1));
+      const size = Math.min(room >= DUTY_WEEK_LIMIT ? 305 : Math.min(room, 305), need);
+      const date = days[0];
+      out.push({ date, minutes: size, start: '15:35' });
+      inWeek.push(date);
+      room -= size;
+      need -= size;
+      count++;
+    }
+  }
+  return out.sort((a, c) => (a.date < c.date ? -1 : 1));
+}
+
+/* ---------- Pomysły na urlop: gdzie mało dni urlopu daje długi odpoczynek ---------- */
+
+/**
+ * Okna urlopowe od `from` do końca umowy: k (1–3) kolejnych dni roboczych, które razem z weekendem/świętem
+ * dają długą przerwę. Zwraca {start, end, take:[daty urlopu], days, free, inBlock:[skróty bloków]} posortowane wg daty.
+ */
+export function vacationIdeas(state, from, limit = 8) {
+  const ctx = buildContext(state);
+  const end = state.settings.endDate;
+  const isFree = (d) => isWeekend(d) || !!statutoryOff(ctx, d);
+  const isWork = (d) => !isFree(d) && !ctx.absence.get(d);
+  const cand = new Map();
+  for (const d of eachDay(from, end)) {
+    if (!isWork(d)) continue;
+    for (let k = 1; k <= 3; k++) {
+      const take = [];
+      let cur = d;
+      let bad = false;
+      while (take.length < k) {
+        if (cur > end) { bad = true; break; }
+        if (isWork(cur)) take.push(cur);
+        else if (!isFree(cur)) { bad = true; break; } // dzień już zajęty nieobecnością
+        cur = addDays(cur, 1);
+      }
+      if (bad) break;
+      let s = take[0];
+      while (isFree(addDays(s, -1))) s = addDays(s, -1);
+      let e = take.at(-1);
+      while (isFree(addDays(e, 1)) && addDays(e, 1) <= end) e = addDays(e, 1);
+      const free = toNum(e) - toNum(s) + 1;
+      if (free - k < 3 || s < from) continue; // tylko gdy urlop „dokłada” wolne (most, długi weekend)
+      const key = `${s}|${e}`;
+      const prev = cand.get(key);
+      if (!prev || k < prev.days) {
+        const inBlock = [...new Set(take.map((x) => state.blocks.find((b) => b.start <= x && x <= b.end)?.short).filter(Boolean))];
+        cand.set(key, { start: s, end: e, take, days: k, free, inBlock });
+      }
+    }
+  }
+  // Najlepszy stosunek wolnego do dni urlopu, potem bliższe; bez nakładających się okien
+  const best = [...cand.values()].filter((x) => x.free / x.days >= 3)
+    .sort((a, b) => (b.free / b.days - a.free / a.days) || (a.start < b.start ? -1 : 1));
+  const chosen = [];
+  for (const c of best) {
+    if (chosen.some((x) => !(c.end < x.start || c.start > x.end))) continue;
+    chosen.push(c);
+    if (chosen.length >= limit) break;
+  }
+  return chosen.sort((a, b) => (a.start < b.start ? -1 : 1));
+}

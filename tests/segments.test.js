@@ -115,3 +115,13 @@ test('Przychodnie POZ do medycyny rodzinnej: każda filia osobno, z adresem; ID 
   assert.equal(placeText({ hospital: 'pmr-gumience', ward: 'Poradnia lekarza POZ (medycyna rodzinna)' }),
     'Poradnia lekarza POZ (medycyna rodzinna), PMR „Szafera” – Przychodnia Gumieńce, ul. Lubelska 29, 71-043 Szczecin');
 });
+
+test('Eksport .ics: terminy Kadr z alarmami i dyżury z godziną 15:35–20:40', () => {
+  const st = defaultState();
+  st.duties = [{ id: 'x1', date: '2026-12-01', minutes: 305, start: '15:35' }];
+  const ics = buildIcs(st, '2026-11-25');
+  assert.ok(ics.includes('UID:kadry-kp-2026-11@kalendarz-stazysty'));
+  assert.ok(ics.includes('DTSTART:20261201T153500\r\nDTEND:20261201T204000'));
+  st.settings.hrDone = { 'kp-2026-11': true };
+  assert.ok(!buildIcs(st, '2026-11-25').includes('UID:kadry-kp-2026-11@'));
+});

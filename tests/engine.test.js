@@ -192,3 +192,14 @@ test('Terminy Kadr USK2 i formalności przed stażem poza USK2 (z odhaczaniem)',
   b.segments[0].hospital = 'usk2';
   assert.ok(!get('2026-11-20').some((a) => a.id?.startsWith('ext-pers1')));
 });
+
+test('Pomysły na urlop: mosty i długie weekendy (1 dzień urlopu = 4+ dni wolnego)', async () => {
+  const { vacationIdeas } = await import('../js/engine.js');
+  const v = vacationIdeas(defaultState(), '2026-11-25');
+  const by = (d) => v.find((x) => x.take.includes(d));
+  assert.equal(by('2026-12-22').free, 6); // 22.12 + wolne 23.12 za 26.12 + Wigilia + święta + weekend
+  assert.equal(by('2027-05-28').start, '2027-05-27'); // Boże Ciało (czw) + piątek
+  assert.deepEqual(by('2027-05-28').inBlock, ['Med. rodzinna']);
+  assert.ok(v.every((x) => x.free / x.days >= 3));
+  for (let i = 1; i < v.length; i++) assert.ok(v[i].start > v[i - 1].end); // bez nakładania
+});
