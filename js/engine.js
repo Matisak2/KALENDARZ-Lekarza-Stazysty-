@@ -269,7 +269,8 @@ export function nthWorkday(ctx, ym, n) {
  * „dokumenty za miesiąc do 3. dnia roboczego następnego miesiąca” – tak jak za listopad (03.12). Do potwierdzenia w Kadrach.
  */
 export function hrDeadlines(state, ctx = buildContext(state)) {
-  const out = [...HR_DEADLINES];
+  // + terminy dopisane z maili Kadr (okno „Wklej mail z Kadr”, settings.hrCustom)
+  const out = [...HR_DEADLINES, ...(state.settings.hrCustom || []).filter((d) => d && d.due && d.id)];
   const known = new Set(HR_DEADLINES.map((d) => d.id.replace(/^[a-z]+-/, '')));
   const st = state.settings;
   let ym = st.startDate.slice(0, 7);

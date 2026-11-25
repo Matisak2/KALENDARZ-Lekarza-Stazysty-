@@ -448,7 +448,7 @@ function render() {
   else if (tab === 'lek') html = renderLek(state, getToday(), ctx);
   else if (tab === 'dyzury') html = renderDuties(state, getToday(), dmonth || (dmonth = todayMonth(getToday())));
   else if (tab === 'kalendarz') html = renderCalendar(state, getToday(), month || (month = todayMonth(getToday())));
-  else html = renderMore(state);
+  else html = renderMore(state, getToday());
   app.innerHTML = html;
   // Opóźnienie dla animacji kart i pierścieni
   app.querySelectorAll('.fade').forEach((el, i) => { el.style.animationDelay = `${Math.min(i, 10) * 45}ms`; });

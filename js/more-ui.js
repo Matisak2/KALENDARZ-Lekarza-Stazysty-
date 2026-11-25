@@ -8,8 +8,9 @@ import { syncStatus, signIn, signUp, signOutSync, syncNow } from './sync.js';
 import { openTimesheet } from './timesheet-ui.js';
 import { openLetters } from './letters-ui.js';
 import { esc, helpBox } from './blocks-ui.js';
+import { hrCard, openHrMail, deleteHrCustom } from './hrmail-ui.js';
 
-export function renderMore(state) {
+export function renderMore(state, today = todayIso()) {
   const mode = state.settings.holidayMode;
   const theme = state.settings.theme || 'auto';
   const last = state.meta?.lastBackup;
@@ -26,6 +27,7 @@ export function renderMore(state) {
       <div class="card fade"><div class="card-label">✉️ Pisma i maile</div>
         <p class="sub">Gotowe teksty z Twoimi datami: wniosek urlopowy, informacja o L4, zgoda koordynatora i informacja do Kadr o stażu poza USK2, mail z dokumentami za miesiąc. Kopiuj, wyślij mailem albo zapisz PDF.</p>
         <button class="btn" data-act="letters">Otwórz pisma i maile</button></div>
+      ${hrCard(state, today)}
       ${syncCard()}
       ${bookletCard(state)}
       ${coursesCard(state)}
@@ -287,6 +289,9 @@ function replaceWithUndo(ctx, data, reason, msg) {
 /** Obsługa kliknięć ekranu „Więcej”. Zwraca true, gdy obsłużono. */
 export function handleMoreClick(e, ctx) {
   const act = e.target.closest('[data-act]')?.dataset.act;
+  if (act === 'hr-mail') { openHrMail(ctx.state, ctx); return true; }
+  const hd = e.target.closest('[data-hr-del]');
+  if (hd) { deleteHrCustom(ctx, hd.dataset.hrDel); return true; }
   if (act === 'ics-all' || act === 'ics-new') {
     const st = ctx.state;
     const r = buildIcsExport(st, ctx.today(), act === 'ics-new' ? (st.meta.icsSent || {}) : null);

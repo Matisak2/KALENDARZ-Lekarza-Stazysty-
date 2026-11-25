@@ -53,6 +53,7 @@ Pokazuje bloki stażu, dni robocze, święta, urlop, kursy OIL, odrabianie, dyż
 - `js/letters.js` (szablony: wniosek urlopowy, informacja o L4, zgoda koordynatora i informacja do Kadr o stażu poza USK2, mail z dokumentami) + `js/letters-ui.js` (Kopiuj / e-mail / PDF). Wejścia: Więcej, okno urlopu/L4, przyciski „✉️ Pismo” i „🖨 Druki” na Dziś.
 - `js/cases.js` + `js/cases-ui.js` – przypadki z oddziału (`state.cases`, bez danych pacjenta; `patientDataWarnings` ostrzega przed PESEL, telefonem, adresem, nazwiskiem).
 - `hrDeadlines(state)` (engine) – terminy Kadr na cały staż: XI–XII 2026 z e-maili, dalej 3. dzień roboczy następnego miesiąca (do potwierdzenia w Kadrach).
+  + terminy z maili: Więcej → „📋 Terminy Kadr” → „Wklej mail z Kadr” (`js/hrmail.js` `parseHrMail`, `js/hrmail-ui.js`) → `settings.hrCustom`.
 - `weekSummary` (engine) – karta „Ten tydzień” na Dziś. `helpBox` (blocks-ui) – „Jak korzystać z tego ekranu” na każdej zakładce.
 - LEK: `settings.lek.registered/registeredAt/smkNo/feeNeeded/feePaid` (okno „Zapis na LEK”), `study.extras` (doktorat, publikacje – art. 16c ust. 10 pkt 1).
 - `js/duties-ui.js` – zakładka Dyżury (logika: `dutyMonth`, `dutyRoomOn`, `dutyTotals`, `proposeDuties`, `dutyDayIssues`, `proposalShortfall` w engine.js) + karta dyżurów do druku wg wzoru USK2 (`dutySheetHtml`).
