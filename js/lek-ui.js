@@ -118,8 +118,10 @@ function planSummary(state, st, p, today) {
         <span class="box"></span><span class="nm">${esc(l.name)}<small>${esc(domText(l))} · ${esc(l.section)} · ${h(l.hours)}${pyt(l)}</small></span></label>
       <button class="chip" data-skip="${esc(l.key)}" title="Pomiń">Pomiń</button></div>`;
   const two = b.stages.length > 1;
-  const stName = (i) => (i === 0 ? `do LEK ${fmtShort(s.examDate)}${two ? ' (trening)' : ''}` : `do ostatecznego LEK ${fmtShort(b.final.date)}`);
-  const perQ = (x) => (b.stages[x.stage]?.basePlan === 'second' ? 1 : 1.5);
+  const stName = (i) => { const x = b.stages[i]; return x.final && two ? `do ostatecznego LEK ${fmtFull(x.exam)}` : `do LEK ${fmtFull(x.exam)}${two ? ' (trening)' : ''}`; };
+  const perQ = (x) => b.stages[x.stage]?.perQ || 1.5;
+  const next = b.stages[0];
+  const trainings = b.stages.filter((x) => !x.final).map((x) => fmtFull(x.exam));
   let prevStage = -1;
   const weeksHtml = b.weeks.filter((x) => x !== w).slice(0, 60).map((x) => {
     const head = two && x.stage !== prevStage ? `<div class="sec-name"><span>Etap ${x.stage + 1} · ${esc(stName(x.stage))}</span></div>` : '';
@@ -135,19 +137,19 @@ function planSummary(state, st, p, today) {
   const stagesCard = two ? `<div class="card fade"><div class="card-label">🎯 Twój plan podejść</div>
       ${b.stages.map((x) => `<div class="stage-row">
         <div class="t-strong">Etap ${x.i + 1} · ${esc(stName(x.i))}</div>
-        <div class="sub">${x.basePlan === 'all' ? `🧩 cała baza CEM: ${x.baseQ} pytań (ok. ${Math.round(x.baseNeed)} h)` : x.basePlan === 'second' ? `🧩 drugie przejście bazy CEM na końcu etapu (ok. ${Math.round(x.baseNeed)} h)` : x.withBase ? `🧩 baza CEM: ok. ${Math.round(x.baseHours)} h` : '🧩 bez jawnej bazy – pytania do ćwiczeń'}<br>
-          📚 ${x.chosen.length} ${plural(x.chosen.length, 'lekcja', 'lekcje', 'lekcji')} (${h(x.lessonHours)})${x.i === 0 ? ' – najważniejsze tematy' : ' – pozostałe tematy'} · szacunek: <b>${pct(x.est)}%</b></div></div>`).join('')}
+        <div class="sub">${x.basePlan === 'all' ? `🧩 cała baza CEM: ${x.baseQ} pytań (ok. ${Math.round(x.baseNeed)} h${x.perQ < 1.5 ? ', kolejne przejście – szybciej' : ''})` : x.basePlan === 'second' ? `🧩 kolejne przejście bazy CEM na końcu etapu (ok. ${Math.round(x.baseNeed)} h)` : x.withBase ? `🧩 baza CEM: ok. ${Math.round(x.baseHours)} h` : '🧩 bez jawnej bazy – pytania do ćwiczeń'}<br>
+          📚 ${x.chosen.length} ${plural(x.chosen.length, 'lekcja', 'lekcje', 'lekcji')} (${h(x.lessonHours)})${x.final ? ' – pozostałe tematy' : x.i === 0 ? ' – najważniejsze tematy' : ' – kolejne najważniejsze tematy'} · szacunek: <b>${pct(x.est)}%</b></div></div>`).join('')}
       <p class="hint small">Zmienisz to w ankiecie („Edytuj ankietę” → Twój plan podejść).</p></div>` : '';
   const warnCard = b.warnings.length ? `<div class="card fade todo-card">${b.warnings.map((x) => `<div class="todo warn"><div class="todo-ic">⚠️</div><div class="grow"><div class="s">${esc(x)}</div></div></div>`).join('')}</div>` : '';
   const baseTotal = s.baseTotal || b.baseTotal;
   return `
     <div class="card hero fade" style="--block:var(--c-course)">
-      <div class="card-label">${esc(p.name)} · ${two ? `trening ${fmtShort(s.examDate)}, ostateczny LEK ${fmtShort(b.final.date)}` : s.mode === 'trening' ? 'podejście treningowe' : 'na serio'}</div>
+      <div class="card-label">${esc(p.name)} · ${two ? `trening ${trainings.join(', ')}, ostateczny LEK ${fmtFull(b.final.date)}` : s.mode === 'trening' ? 'podejście treningowe' : 'na serio'}</div>
       <div class="hero-top">
         <div class="hero-info">
           <div class="hero-name">${two ? b.daysLeftFinal : b.daysLeft} ${plural(two ? b.daysLeftFinal : b.daysLeft, 'dzień', 'dni', 'dni')}</div>
           <div class="hero-place">do ${two ? `ostatecznego LEK ${fmtFull(b.final.date)}` : `LEK ${fmtFull(s.examDate)}`} · cel ${b.target}%${s.spec ? ` (${esc(s.spec)})` : ''}</div>
-          ${two ? `<div class="sub">Najbliższy LEK (trening): ${fmtFull(s.examDate)} – za ${b.daysLeft} ${plural(b.daysLeft, 'dzień', 'dni', 'dni')} · szacunek ${pct(b.stages[0].est)}%</div>` : ''}
+          ${two ? `<div class="sub">Najbliższy LEK (trening): ${fmtFull(next.exam)} – za ${toNum(next.exam) - toNum(today)} ${plural(toNum(next.exam) - toNum(today), 'dzień', 'dni', 'dni')} · szacunek ${pct(next.est)}%</div>` : ''}
         </div>
       </div>
       <div class="est">
@@ -197,7 +199,7 @@ function planSummary(state, st, p, today) {
 const examsOf = (state) => {
   const p = activePlan(state.study || {});
   const sv = p?.survey || {};
-  return [sv.examDate, sv.finalLater ? sv.finalDate : null].filter(Boolean).sort();
+  return [sv.examDate, ...(sv.finalLater ? [...(sv.midExams || []).map((m) => m.date), sv.finalDate] : [])].filter(Boolean).sort();
 };
 
 /** Wiersze „Powtórki na dziś” z przyciskami oceny (ekran Dziś i zakładka LEK). */
@@ -583,12 +585,19 @@ function surveySheet(state, ctx, plan) {
       <div class="t-strong small-t">Czy najbliższy LEK to ten, na który chcesz być najlepiej przygotowany?</div>
       <div class="segmented"><button data-sv="finalLater:false" class="${!s.finalLater ? 'on' : ''}">Tak, to ten</button><button data-sv="finalLater:true" class="${s.finalLater ? 'on' : ''}">Nie – ostateczny później</button></div>
       ${s.finalLater ? `
+        <div class="t-strong small-t">Podejścia pośrednie (treningowe)</div>
+        ${(s.midExams || []).map((m, i) => `<div class="mid-row">
+          <label>Trening nr ${i + 2}<input type="date" data-mid-date="${i}" value="${esc(m.date || '')}"></label>
+          <div class="segmented"><button data-mid-base="${i}:true" class="${m.base !== false ? 'on' : ''}">Jawna baza</button><button data-mid-base="${i}:false" class="${m.base === false ? 'on' : ''}">Bez bazy</button></div>
+          <button class="chip danger-chip" data-mid-del="${i}">Usuń</button></div>`).join('') || '<p class="hint small">Brak – plan zakłada tylko najbliższy LEK jako trening.</p>'}
+        <button class="btn" data-mid-add>＋ Dodaj podejście pośrednie</button>
+        <p class="hint small">Przed każdym treningowym LEK plan przewidzi całą bazę CEM i najważniejsze z jeszcze nieprzerobionych lekcji.</p>
         <label>Termin ostatecznego LEK<input type="date" data-s="finalDate" value="${esc(s.finalDate || '')}"></label>
         <p class="hint small">Może być za pół roku albo za kilka lat. Data jest orientacyjna – CEM podaje dokładny termin później; zmienisz ją tutaj w każdej chwili.</p>
         <div class="t-strong small-t">Czy na ostatecznym LEK będzie jawna baza CEM?</div>
         <div class="segmented"><button data-sv="finalBase:true" class="${s.finalBase !== false ? 'on' : ''}">Tak (70% z bazy)</button><button data-sv="finalBase:false" class="${s.finalBase === false ? 'on' : ''}">Bez jawnej bazy</button></div>
         ${s.finalDate >= '2027-05-01' ? '<p class="hint small">Projekt UD384 (jeszcze nieprzyjęty) zakłada likwidację jawnej bazy od 1.05.2027. Sprawdź przepisy przed zapisami i w razie czego przełącz na „Bez jawnej bazy”.</p>' : ''}
-        <p class="sub plan-note">Plan: <b>do najbliższego LEK</b> – cała baza CEM i najważniejsze lekcje (tematy najczęstsze na LEK); <b>potem do ostatecznego LEK</b> – pozostałe lekcje, a na koniec drugie przejście bazy i tydzień powtórki.</p>` : '<p class="hint small">Plan przygotuje Cię jak najlepiej na najbliższy LEK.</p>'}
+        <p class="sub plan-note">Plan: <b>przed każdym treningowym LEK</b> – cała baza CEM i najważniejsze lekcje (tematy najczęstsze na LEK); <b>potem do ostatecznego LEK</b> – pozostałe lekcje, a na koniec drugie przejście bazy i tydzień powtórki.</p>` : '<p class="hint small">Plan przygotuje Cię jak najlepiej na najbliższy LEK.</p>'}
     </div>
     <div class="form-card">
       <div class="t-strong small-t">Cel${s.finalLater ? ' na ostatecznym LEK' : ''}</div>
@@ -643,6 +652,11 @@ function surveySheet(state, ctx, plan) {
   };
   root.addEventListener('input', (e) => { if (e.target.dataset.s) read(e.target); });
   root.addEventListener('change', (e) => {
+    if (e.target.dataset.midDate !== undefined) {
+      const i = Number(e.target.dataset.midDate);
+      s.midExams = (s.midExams || []).map((m, j) => (j === i ? { ...m, date: e.target.value } : m));
+      return;
+    }
     if (!e.target.dataset.s) return;
     read(e.target);
     if (e.target.dataset.s === 'spec' || e.target.dataset.s === 'woj') {
@@ -662,6 +676,25 @@ function surveySheet(state, ctx, plan) {
         if (!s.finalDate || s.finalDate <= s.examDate) s.finalDate = Number(s.examDate.slice(5, 7)) <= 6 ? `${y}-09-15` : `${y + 1}-02-15`;
         s.mode = 'trening';
       }
+      return redraw();
+    }
+    // Podejścia pośrednie (treningowe)
+    const nextSession = (d) => { const y = Number(d.slice(0, 4)); return Number(d.slice(5, 7)) <= 6 ? `${y}-09-15` : `${y + 1}-02-15`; };
+    if (e.target.closest('[data-mid-add]')) {
+      const mids = [...(s.midExams || [])];
+      const after = mids.length ? mids[mids.length - 1].date : s.examDate;
+      const d = nextSession(after);
+      mids.push({ date: d, base: true });
+      s.midExams = mids;
+      if (!s.finalDate || s.finalDate <= d) s.finalDate = nextSession(d);
+      return redraw();
+    }
+    const md = e.target.closest('[data-mid-del]');
+    if (md) { s.midExams = (s.midExams || []).filter((_, i) => i !== Number(md.dataset.midDel)); return redraw(); }
+    const mb = e.target.closest('[data-mid-base]');
+    if (mb) {
+      const [i, v] = mb.dataset.midBase.split(':');
+      s.midExams = (s.midExams || []).map((m, j) => (j === Number(i) ? { ...m, base: v === 'true' } : m));
       return redraw();
     }
     const rd = e.target.closest('[data-rest]');
@@ -690,6 +723,13 @@ function surveySheet(state, ctx, plan) {
     if (e.target.closest('[data-ok]')) {
       if (!s.examDate) return ctx.toast('Wpisz termin egzaminu');
       if (s.finalLater && (!s.finalDate || s.finalDate <= s.examDate)) return ctx.toast('Ostateczny LEK musi być później niż najbliższy');
+      if (s.finalLater) {
+        const mids = (s.midExams || []).filter((m) => m.date).sort((a, b) => (a.date < b.date ? -1 : 1));
+        if (mids.some((m, i) => m.date <= s.examDate || m.date >= s.finalDate || (i && m.date === mids[i - 1].date))) {
+          return ctx.toast('Podejścia pośrednie muszą być po najbliższym i przed ostatecznym LEK (różne daty)');
+        }
+        s.midExams = mids;
+      }
       if (s.goal === 'pass') s.targetPct = 56;
       if (plan) { plan.name = name; plan.survey = { ...s }; }
       else {

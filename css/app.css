@@ -838,3 +838,5 @@ th.att-boss { vertical-align: middle !important; font: 700 12px/1.35 "Times New 
 .rv-btns .btn { min-height: 44px; }
 .rv-btns .rv-hard { color: var(--danger); }
 .rv-btns .rv-easy { color: var(--ok); }
+.mid-row { display: grid; gap: 8px; padding: 10px 0; border-bottom: 0.5px solid var(--sep); }
+.mid-row .chip { justify-self: start; }

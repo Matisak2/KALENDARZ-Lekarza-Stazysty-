@@ -41,8 +41,9 @@ Pokazuje bloki stażu, dni robocze, święta, urlop, kursy OIL, odrabianie, dyż
   każde pytanie CEM przypisane do najlepiej pasującej lekcji użytkownika → „ok. X pytań na LEK” na temat (`topicYield`).
   `buildPlan(state, plan, today, {cem, reviewHours})`: czas na dziedziny ∝ pytaniom LEK, w dziedzinie tematy najczęstsze na LEK/h,
   „Wstęp do…” z działem, duplikaty tematów liczone raz (`duplicateMap`), ostrzeżenia (`warnings`); plan podejść (`finalExam`:
-  ankieta `finalLater/finalDate/finalBase`) – etap 1 do najbliższego LEK: cała baza CEM + najważniejsze lekcje; etap 2: reszta lekcji,
-  na końcu drugie przejście bazy; ostatni tydzień przed każdym LEK = powtórka. UD384 → ostrzeżenie dla terminów od 1.05.2027.
+  ankieta `finalLater/finalDate/finalBase` + podejścia pośrednie `midExams: [{date, base}]`, lista: `examPlan`) – etap na każde podejście:
+  przed każdym treningowym LEK cała baza CEM (1. przejście 1,5 min/pyt., kolejne 1 min) + najważniejsze z pozostałych lekcji;
+  przed ostatecznym: reszta lekcji, kolejne przejście bazy na końcu; ostatni tydzień przed każdym LEK = powtórka. UD384 → ostrzeżenie dla terminów od 1.05.2027.
 - `js/lek-review.js` – powtórki tematów (`study.reviews[klucz główny tematu]` = {due, ivl, ease, reps, hist}): 1→3→7→14→30 dni, dalej ×łatwość;
   oceny Trudne/Średnio/Łatwe (`rate`, nie po LEK – 2 dni przed), limit dziennie 3 / dyżur 1 / weekend-urlop 6 / L4 i przerwa 0 (`CAP`).
   `planFor` (lek-ui) = plan z czasem na powtórki (`projectReviews`, 2 przybliżenia; minuty na powtórkę w ankiecie `reviewMin`, domyślnie 10).

@@ -316,6 +316,7 @@ export const DEFAULT_SURVEY = {
   finalLater: false, // true = najbliższy LEK to nie ostateczny
   finalDate: '', // termin ostatecznego LEK (orientacyjny – można zmienić)
   finalBase: true, // czy na ostatecznym LEK będzie jawna baza CEM
+  midExams: [], // podejścia pośrednie (treningowe) między najbliższym a ostatecznym LEK: [{ date, base }]
   reviewMin: 10, // minut na jedną powtórkę tematu (0 = plan nie rezerwuje czasu na powtórki)
 };
 
@@ -423,6 +424,21 @@ export function coverage(lessons, chosenKeys) {
 export function finalExam(survey) {
   if (!survey.finalLater || !survey.finalDate || survey.finalDate <= survey.examDate) return null;
   return { date: survey.finalDate, base: survey.finalBase !== false };
+}
+
+/**
+ * Wszystkie podejścia po kolei: najbliższy LEK, podejścia pośrednie (treningowe) i ostateczny LEK.
+ * Podejścia pośrednie poza przedziałem (najbliższy, ostateczny) albo z tą samą datą są pomijane.
+ */
+export function examPlan(survey) {
+  const s = { ...DEFAULT_SURVEY, ...survey };
+  const fin = finalExam(s);
+  const first = { date: s.examDate, mode: fin ? s.mode : s.mode, base: s.base !== false, final: !fin };
+  if (!fin) return [first];
+  const mids = [...new Map((s.midExams || []).filter((m) => m?.date && m.date > s.examDate && m.date < fin.date)
+    .map((m) => [m.date, { date: m.date, mode: 'trening', base: m.base !== false, final: false }])).values()]
+    .sort((a, b) => (a.date < b.date ? -1 : 1));
+  return [first, ...mids, { date: fin.date, mode: 'serio', base: fin.base, final: true }];
 }
 
 const INTRO = /^(wstęp|podstawy|wprowadzenie)\b/i;
@@ -534,7 +550,7 @@ export function buildPlan(state, plan, today, opts = {}) {
   // Etapy: do najbliższego LEK i (opcjonalnie) od niego do ostatecznego LEK
   const baseTotal = Number(survey.baseTotal) || cem?.total || 0;
   const baseLeft = Math.max(0, baseTotal - (Number(survey.baseDone) || 0));
-  const mkStage = (i, from, exam, mode, withBase, basePlan) => {
+  const mkStage = (i, from, exam, mode, withBase, basePlan, perQ = MIN_PER_Q_1, baseQ = baseLeft) => {
     const days = studyDays(state, survey, from, exam).map((d) => {
       const rv = opts.reviewHours ? Math.min(d.hours, opts.reviewHours(d.date) || 0) : 0;
       return { ...d, reviews: rv, free: d.hours - rv, review: toNum(exam) - toNum(d.date) <= 7 };
@@ -545,20 +561,27 @@ export function buildPlan(state, plan, today, opts = {}) {
     const normal = days.filter((d) => !d.review).reduce((a, d) => a + d.free, 0);
     let baseHours;
     let baseNeed = 0;
-    if (basePlan === 'all') { baseNeed = (baseLeft * MIN_PER_Q_1) / 60; baseHours = Math.min(normal, baseNeed); }
-    else if (basePlan === 'second') { baseNeed = (baseTotal * MIN_PER_Q_2) / 60; baseHours = Math.min(normal, baseNeed); }
+    if (basePlan === 'all' || basePlan === 'second') { baseNeed = (baseQ * perQ) / 60; baseHours = Math.min(normal, baseNeed); }
     else baseHours = normal * (withBase ? (mode === 'trening' ? 0.55 : 0.4) : 0.2);
-    return { i, from, exam, mode, withBase, basePlan, days, hours, reviewsH, reviewHours, baseHours, baseNeed,
+    return { i, from, exam, mode, withBase, basePlan, perQ, baseQ, days, hours, reviewsH, reviewHours, baseHours, baseNeed,
       learnHours: Math.max(0, normal - baseHours), chosen: [] };
   };
+  // Każde podejście = etap. Przed każdym treningowym LEK: cała baza (1. przejście ok. 1,5 min/pyt., kolejne ok. 1 min)
+  // + najważniejsze lekcje; przed ostatecznym: reszta lekcji, kolejne przejście bazy na końcu etapu.
+  const exams = examPlan(survey).filter((e, i, arr) => e.date > today || i === arr.length - 1);
   const stages = [];
-  if (final) {
-    stages.push(mkStage(0, today, survey.examDate, survey.mode, survey.base, survey.base ? 'all' : 'share'));
-    const from2 = addDays(survey.examDate, 1) > today ? addDays(survey.examDate, 1) : today;
-    stages.push(mkStage(1, from2, final.date, 'serio', final.base, final.base ? (survey.base ? 'second' : 'all') : 'share'));
-  } else {
-    stages.push(mkStage(0, today, survey.examDate, survey.mode, survey.base, 'share'));
-  }
+  let passes = 0;
+  exams.forEach((e, i) => {
+    const prev = i ? exams[i - 1].date : null;
+    const from = prev && addDays(prev, 1) > today ? addDays(prev, 1) : today;
+    let plan = 'share';
+    if (exams.length > 1 && e.base) plan = e.final && passes ? 'second' : 'all';
+    const perQ = passes ? MIN_PER_Q_2 : MIN_PER_Q_1;
+    const st = mkStage(i, from, e.date, e.mode, e.base, plan, perQ, passes ? baseTotal : baseLeft);
+    st.final = e.final;
+    if (e.base) passes++;
+    stages.push(st);
+  });
 
   // Przydział lekcji do etapów wg kolejności (najważniejsze – do najbliższego LEK)
   const stageOf = new Map();
@@ -633,27 +656,26 @@ export function buildPlan(state, plan, today, opts = {}) {
   const totalExp = withDomain.reduce((a, l) => a + (l.exp || 0), 0);
   const k = (keys) => (yields && totalExp ? withDomain.filter((l) => keys.has(l.key)).reduce((a, l) => a + l.exp, 0) / totalExp : coverage(lessons, keys));
   const bNow = baseTotal ? (Number(survey.baseDone) || 0) / baseTotal : 0;
-  const keys0 = new Set([...doneKeys, ...stages[0].chosen.map((l) => l.key)]);
   const keysAll = new Set([...doneKeys, ...chosen.map((l) => l.key)]);
   const can = (st, perQ, left) => Math.min(left, Math.floor(((st.baseHours + st.reviewHours) * 60) / perQ));
   const st0 = stages[0];
-  const baseCanDo = can(st0, MIN_PER_Q_1, baseLeft);
-  const b0 = baseTotal ? Math.min(1, ((Number(survey.baseDone) || 0) + baseCanDo) / baseTotal) : 0;
+  const baseCanDo = can(st0, st0.perQ, baseLeft);
+  const doneQ = Number(survey.baseDone) || 0;
+  const keysSoFar = new Set(doneKeys);
+  let bPrev = baseTotal ? doneQ / baseTotal : 0;
   stages.forEach((st, i) => {
-    const keys = i === 0 ? keys0 : keysAll;
-    let b = b0;
-    let withBase = st.withBase;
-    if (i === 1) {
-      if (!st.withBase) withBase = false;
-      else if (st.basePlan === 'second') b = Math.max(b0, Math.min(1, can(st, MIN_PER_Q_2, baseTotal) / (baseTotal || 1)));
-      else b = Math.min(1, can(st, MIN_PER_Q_1, baseTotal) / (baseTotal || 1));
+    for (const l of st.chosen) keysSoFar.add(l.key);
+    let b = bPrev;
+    if (st.withBase && baseTotal) {
+      const first = st.baseQ === baseLeft && st.perQ === MIN_PER_Q_1;
+      b = Math.max(bPrev, Math.min(1, ((first ? doneQ : 0) + can(st, st.perQ, st.baseQ)) / baseTotal));
     }
-    st.k = k(keys);
+    st.k = k(new Set(keysSoFar));
     st.b = b;
-    st.est = estimateScore(st.k, b, withBase);
+    st.est = estimateScore(st.k, b, st.withBase);
     st.lessonHours = st.chosen.reduce((a, l) => a + l.hours, 0);
-    st.baseQ = st.basePlan === 'second' ? baseTotal : baseLeft;
     st.baseShort = st.baseNeed > 0 && st.baseHours + 0.01 < st.baseNeed;
+    if (st.withBase) bPrev = b;
   });
   const last = stages[stages.length - 1];
   const kNow = k(doneKeys);
@@ -675,9 +697,9 @@ export function buildPlan(state, plan, today, opts = {}) {
     warnings.push(`Plan mieści ok. ${Math.round(pctPlanned * 100)}% lekcji (${Math.round(plannedHours)} z ${Math.round(needHours)} h). Wybrane są tematy najczęstsze na LEK – resztę nadrób pytaniami z bazy albo dodaj godzin w ankiecie.`);
   }
   for (const st of stages) {
-    if (st.baseShort) warnings.push(`${st.i === 0 ? 'Do najbliższego LEK' : 'Przed ostatecznym LEK'} nie zmieścisz całej bazy CEM (potrzeba ok. ${Math.round(st.baseNeed)} h, jest ${Math.round(st.baseHours)} h) – dodaj godzin albo zmniejsz liczbę pytań do przerobienia.`);
+    if (st.baseShort) warnings.push(`${st.final && stages.length > 1 ? 'Przed ostatecznym LEK' : `Do LEK ${st.exam.slice(8)}.${st.exam.slice(5, 7)}.${st.exam.slice(0, 4)}`} nie zmieścisz całej bazy CEM (potrzeba ok. ${Math.round(st.baseNeed)} h, jest ${Math.round(st.baseHours)} h) – dodaj godzin albo zmniejsz liczbę pytań do przerobienia.`);
   }
-  const ud = [survey.base && survey.examDate >= UD384_FROM, final?.base && final.date >= UD384_FROM].some(Boolean);
+  const ud = stages.some((st) => st.withBase && st.exam >= UD384_FROM);
   if (ud) warnings.push('Projekt UD384 (jeszcze nieprzyjęty) zakłada likwidację jawnej bazy CEM od 1.05.2027 – sprawdź przepisy przed zapisami i w razie czego zmień w ankiecie „baza jawna”.');
   if (survey.base && !baseTotal) warnings.push('Wpisz w ankiecie liczbę pytań w bazie CEM – bez niej szacunek wyniku nie uwzględnia bazy.');
 

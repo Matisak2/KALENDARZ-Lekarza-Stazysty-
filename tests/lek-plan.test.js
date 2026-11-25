@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultState } from '../js/defaults.js';
-import { buildPlan, finalExam, duplicateMap, allLessons, lessonKey } from '../js/lek.js';
+import { buildPlan, finalExam, examPlan, duplicateMap, allLessons, lessonKey } from '../js/lek.js';
 import { prepareCem, topicYield, tokens, stem } from '../js/lek-freq.js';
 
 // Zmyślony mini-indeks bazy CEM (rdzenie słów jak w scripts/cem.py)
@@ -115,4 +115,36 @@ test('E: ostrzeżenie, gdy plan mieści mniej niż 30% lekcji', () => {
   assert.ok(b.warnings.some((w) => w.startsWith('Plan mieści ok.')));
   const lots = buildPlan(st, { id: 'p', survey: { examDate: '2027-09-20', base: false } }, '2026-11-25');
   assert.ok(!lots.warnings.some((w) => w.startsWith('Plan mieści ok.')));
+});
+
+test('Plan podejść z treningiem pośrednim: cała baza przed każdym treningiem, na końcu kolejne przejście', () => {
+  // podejścia pośrednie: tylko między najbliższym a ostatecznym, bez dubli, po kolei
+  const ex = examPlan({ examDate: '2027-02-20', finalLater: true, finalDate: '2028-02-15',
+    midExams: [{ date: '2027-09-15' }, { date: '2027-09-15' }, { date: '2026-12-01' }, { date: '2028-03-01' }, { date: '2027-06-01', base: false }] });
+  assert.deepEqual(ex.map((e) => [e.date, e.mode, e.base, e.final]), [
+    ['2027-02-20', 'trening', true, false], ['2027-06-01', 'trening', false, false], ['2027-09-15', 'trening', true, false], ['2028-02-15', 'serio', true, true]]);
+
+  const st = defaultState();
+  const many = (p, n) => Array.from({ length: n }, (_, i) => `${p} ${i + 1}`);
+  st.study.courses = [course('Kurs z interny', 'int', [['Dział', many('Temat', 400)]])];
+  const survey = { examDate: '2027-02-20', finalLater: true, finalDate: '2028-02-15', midExams: [{ date: '2027-09-15', base: true }], baseTotal: 2000, baseDone: 500 };
+  const b = buildPlan(st, { id: 'p', survey }, '2026-11-25');
+  assert.equal(b.stages.length, 3);
+  const [s1, s2, s3] = b.stages;
+  assert.deepEqual(b.stages.map((x) => [x.exam, x.basePlan, x.final]), [['2027-02-20', 'all', false], ['2027-09-15', 'all', false], ['2028-02-15', 'second', true]]);
+  assert.ok(Math.abs(s1.baseNeed - (1500 * 1.5) / 60) < 0.01); // 1. przejście: reszta bazy, 1,5 min/pyt.
+  assert.ok(Math.abs(s2.baseNeed - (2000 * 1.0) / 60) < 0.01); // 2. przejście: cała baza, 1 min/pyt.
+  assert.ok(Math.abs(s3.baseNeed - (2000 * 1.0) / 60) < 0.01);
+  // baza przed treningiem rozłożona na cały etap, przed ostatecznym – na końcu
+  const w2 = b.weeks.filter((w) => w.stage === 1 && !w.review);
+  assert.ok(w2[0].base > 0);
+  const w3 = b.weeks.filter((w) => w.stage === 2 && !w.review);
+  assert.equal(w3[0].base, 0);
+  assert.ok(w3.at(-1).base > 0);
+  // każdy etap ma lekcje; szacunek rośnie z etapu na etap
+  assert.ok(s1.chosen.length && s2.chosen.length && s3.chosen.length);
+  assert.ok(s1.est <= s2.est && s2.est <= s3.est);
+  // po pierwszym LEK plan zaczyna się od etapu z treningiem pośrednim
+  const later = buildPlan(st, { id: 'p', survey }, '2027-03-01');
+  assert.deepEqual(later.stages.map((x) => x.exam), ['2027-09-15', '2028-02-15']);
 });
