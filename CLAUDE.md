@@ -64,7 +64,8 @@ Pokazuje bloki stażu, dni robocze, święta, urlop, kursy OIL, odrabianie, dyż
 - `js/calendar-ui.js` – ekran Kalendarz (miesiąc, okno dnia, formularz wpisu z podglądem `eventImpact`).
 - Blok: `segments: [{id,start,end,hospital,ward,customName?,customAddress?}]` – oddziały; nie wpływają na liczenie dni.
 - `js/app.js` – interfejs (zakładki: Dziś, Bloki, Kalendarz, Dyżury, LEK, Więcej). Zmiany dat w ustawieniach tylko przez okienko „Zmień → Zapisz”, usuwanie z „Cofnij” (właściciel ma czuły ekran).
-- `sw.js` – offline; **przy każdej zmianie plików podbij `CACHE`**.
+- `sw.js` – offline: cała wersja instalowana naraz (`cache: 'reload'`), potem najpierw pamięć tej wersji; nowa wersja czeka →
+  pasek „✨ Jest nowa wersja – Odśwież” (app.js `updateBar`, `skipWaiting` na żądanie). **Przy każdej zmianie plików podbij `CACHE`**.
 - Podgląd na inny dzień: `?dzis=RRRR-MM-DD`.
 
 ## LEK i nabór (stan 11.2026, ustawa o zawodach lekarza t.j. Dz.U. 2026 poz. 37)

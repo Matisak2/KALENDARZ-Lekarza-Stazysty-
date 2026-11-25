@@ -1,5 +1,5 @@
 // Service worker: aplikacja działa offline, a nowe wersje pobiera w tle.
-const CACHE = 'stazysta-v45';
+const CACHE = 'stazysta-v46';
 const SHELL = [
   './', 'index.html', 'css/app.css', 'manifest.webmanifest',
   'js/app.js', 'js/store.js', 'js/engine.js', 'js/dates.js', 'js/holidays.js', 'js/defaults.js',
@@ -10,35 +10,38 @@ const SHELL = [
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
 ];
 
+// Instalacja: cała wersja naraz (z pominięciem pamięci podręcznej przeglądarki), żeby nigdy nie mieszać plików dwóch wersji.
+// Nowa wersja czeka – aplikacja pokazuje „Jest nowa wersja – Odśwież” (albo włącza się przy następnym otwarciu).
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })))));
+});
+
+self.addEventListener('message', (e) => {
+  if (e.data === 'skipWaiting') self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
-// Najpierw sieć (żeby zawsze była najnowsza wersja), a bez internetu – kopia z pamięci.
 const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 
+// Najpierw pamięć tej wersji (szybko, także bez zasięgu), sieć tylko dla plików spoza listy (audyt B1).
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
-  // Czcionka: najpierw z pamięci (rzadko się zmienia)
+  const store = (res) => {
+    if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
+    return res;
+  };
   if (FONT_HOSTS.includes(url.hostname)) {
-    e.respondWith(caches.match(e.request).then((r) => r || fetch(e.request).then((res) => {
-      if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
-      return res;
-    })));
+    e.respondWith(caches.match(e.request).then((r) => r || fetch(e.request).then(store)));
     return;
   }
   if (url.origin !== location.origin) return;
-  const offline = () => caches.match(e.request, { ignoreSearch: true }).then((r) => r || caches.match('index.html'));
-  const net = fetch(e.request).then((res) => {
-    if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
-    return res;
-  });
-  // Słaby zasięg (piwnica, winda): po 3 s bierzemy wersję z pamięci, a sieć i tak odświeży pamięć w tle
-  const slow = new Promise((resolve) => setTimeout(() => offline().then((r) => r && resolve(r)), 3000));
-  e.respondWith(Promise.race([net.catch(offline), slow]).then((r) => r || net));
+  if (e.request.mode === 'navigate') {
+    e.respondWith(caches.match('index.html').then((r) => r || fetch(e.request)));
+    return;
+  }
+  e.respondWith(caches.match(e.request, { ignoreSearch: true }).then((r) => r || fetch(e.request).then(store)));
 });

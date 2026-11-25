@@ -642,6 +642,28 @@ askPersistence();
 if ((state.study?.plans || []).length) loadCem(() => render());
 if (!loadProblem) dailySnapshot(state);
 
-if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+/* ---------- Aktualizacje (sw.js) ---------- */
+
+/** Pasek „Jest nowa wersja” – stuknięcie włącza nową wersję (cała pobrana wcześniej w tle). */
+function updateBar(reg) {
+  if (document.querySelector('.update-bar')) return;
+  const el = document.createElement('div');
+  el.className = 'update-bar';
+  el.innerHTML = '<span>✨ Jest nowa wersja aplikacji</span><button>Odśwież</button>';
+  el.querySelector('button').onclick = () => { el.querySelector('button').disabled = true; reg.waiting?.postMessage('skipWaiting'); };
+  document.body.appendChild(el);
+}
+
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (!reloading) { reloading = true; location.reload(); } });
+  navigator.serviceWorker.register('sw.js').then((reg) => {
+    if (reg.waiting && navigator.serviceWorker.controller) updateBar(reg);
+    reg.addEventListener('updatefound', () => {
+      const w = reg.installing;
+      w?.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) updateBar(reg); });
+    });
+    // Po powrocie do aplikacji – sprawdź, czy nie ma nowej wersji
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+  }).catch(() => {});
 }
