@@ -214,6 +214,53 @@ export function mergeCourse(courses, parsed) {
   return list;
 }
 
+/**
+ * Klucz kursu odporny na odmianę i zapis: „Kurs Chirurgia” = „Kurs z chirurgii”,
+ * „Kurs z Ginekologii i Położnictwa” = „Kurs z ginekologii i położnictwa”.
+ */
+export function courseKey(name) {
+  return String(name || '').toLowerCase().replace(/[^a-ząćęłńóśźż ]/g, ' ').split(/\s+/)
+    .filter((w) => w && !['kurs', 'z', 'ze', 'i', 'oraz'].includes(w)).map((w) => w.slice(0, 5)).join(' ');
+}
+
+/**
+ * Dokłada kursy bez dublowania: nowy kurs – dodany; kurs, który już jest – dopisywane są tylko brakujące
+ * działy i lekcje (nic nie jest usuwane, odhaczenia zostają). Zwraca { courses, added, updated, same }.
+ */
+export function mergeCourses(courses, parsedList) {
+  const list = (courses || []).map((c) => ({ ...c, sections: c.sections.map((s) => ({ ...s, lessons: [...s.lessons] })) }));
+  const added = [];
+  const updated = [];
+  const same = [];
+  const low = (x) => String(x).toLowerCase().replace(/\s+/g, ' ').trim();
+  parsedList.forEach((p, k) => {
+    const c = list.find((x) => courseKey(x.name) === courseKey(p.name));
+    if (!c) {
+      list.push({ id: `c${Date.now()}${k}`, name: p.name, domain: p.domain,
+        sections: p.sections.map((s) => ({ name: s.name, lessons: s.lessons.map((l) => ({ name: l.name, hMin: l.hMin, hMax: l.hMax })) })),
+        importedAt: new Date().toISOString().slice(0, 10) });
+      added.push(p.name);
+      return;
+    }
+    let n = 0;
+    for (const ps of p.sections) {
+      let s = c.sections.find((x) => low(x.name) === low(ps.name));
+      if (!s) { s = { name: ps.name, lessons: [] }; c.sections.push(s); }
+      for (const l of ps.lessons) {
+        if (!s.lessons.some((x) => low(x.name) === low(l.name))) { s.lessons.push({ name: l.name, hMin: l.hMin, hMax: l.hMax }); n++; }
+      }
+    }
+    if (n) { c.importedAt = new Date().toISOString().slice(0, 10); updated.push({ name: c.name, lessons: n }); } else same.push(c.name);
+  });
+  return { courses: list, added, updated, same };
+}
+
+/** Plik z kursami do zachowania (i ponownego wczytania): bez odhaczeń, tylko spis. */
+export function coursesFileJson(courses) {
+  return JSON.stringify({ type: 'kalendarz-stazysty-kursy', version: 1, savedAt: new Date().toISOString().slice(0, 10),
+    courses: (courses || []).map((c) => ({ name: c.name, domain: c.domain, sections: c.sections.map((s) => ({ name: s.name, lessons: s.lessons.map((l) => ({ name: l.name, hMin: l.hMin, hMax: l.hMax })) })) })) }, null, 1);
+}
+
 /* ---------- Czas na naukę z grafiku stażu ---------- */
 
 /**

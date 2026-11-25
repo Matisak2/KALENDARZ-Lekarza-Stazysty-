@@ -232,7 +232,7 @@ function download(name, text, type) {
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
-async function shareOrDownload(name, text, type) {
+export async function shareOrDownload(name, text, type) {
   try {
     const file = new File([text], name, { type });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {

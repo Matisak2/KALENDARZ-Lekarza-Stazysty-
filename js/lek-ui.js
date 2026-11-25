@@ -1,5 +1,6 @@
 // Zakładka „LEK”: planer nauki (Plan), spis kursów WNL (Materiały), wyniki LEK i próbne (Wyniki), Specjalizacje.
-import { DOMAINS, domainOf, guessDomain, parseCoursesText, coursesFromFile, mergeCourse, allLessons, buildPlan, currentWeek, DEFAULT_SURVEY } from './lek.js';
+import { shareOrDownload } from './more-ui.js';
+import { DOMAINS, domainOf, guessDomain, parseCoursesText, coursesFromFile, mergeCourses, coursesFileJson, mergeCourse, allLessons, buildPlan, currentWeek, DEFAULT_SURVEY } from './lek.js';
 import { specNames, wojNames, specStats, suggestTarget, chance, MY_SPECS, TRYBY } from './specs.js';
 import { fmtShort, fmtFull, fmtDayShort, toNum, plural, todayIso } from './dates.js';
 import { esc } from './blocks-ui.js';
@@ -202,8 +203,11 @@ function materialsView(st) {
       </ol>
       <p class="hint small">Daty i dni tygodnia z planu WNL są pomijane – plan układa ta aplikacja według Twojego grafiku. Zapisują się tylko nazwy tematów i czasy, w Twoich danych (nie w publicznym kodzie).</p>
       <button class="btn primary" data-lek="paste">Wklej spis kursu</button>
-      <label class="btn" style="margin-top:8px">Wczytaj plik z kursami…<input type="file" accept=".json,.txt,application/json,text/plain" data-courses-file hidden></label>
-      <p class="hint small">Plik z kursami zastępuje wszystkie kursy na liście. Odhaczone lekcje o tych samych nazwach zostają.</p>
+      <div class="quick two" style="margin-top:8px">
+        <label class="btn">Wczytaj plik…<input type="file" accept=".json,.txt,application/json,text/plain" data-courses-file hidden></label>
+        <button class="btn" data-lek="save-courses" ${courses.length ? '' : 'disabled'}>Zapisz plik z kursami</button>
+      </div>
+      <p class="hint small">Wczytanie pliku dodaje tylko to, czego jeszcze nie masz: nowe kursy oraz brakujące działy i lekcje. Nic nie znika, odhaczenia zostają. „Zapisz plik” robi aktualną kopię spisu (np. do Plików na iPhonie).</p>
     </div>
     ${list || '<p class="hint">Brak kursów. Wklej pierwszy spis powyżej.</p>'}`;
 }
@@ -326,8 +330,12 @@ function pasteSheet(state, ctx) {
       const ps = parse();
       if (!ps.length) { ctx.toast('Nie rozpoznano lekcji – sprawdź wklejony tekst'); return; }
       if (ps.some((p) => p.noName)) { ctx.toast('Wpisz nazwę kursu'); cname.focus(); return; }
-      for (const p of ps) st.courses = mergeCourse(st.courses, p);
-      ctx.save(); ctx.render(); ctx.toast(`Dodano: ${ps.map((p) => p.name).join(', ')} ✓`);
+      const old = st.courses || [];
+      const r = mergeCourses(old, ps);
+      if (!r.added.length && !r.updated.length) { ctx.toast('Nic nowego – ten kurs już jest ✓'); close(); return; }
+      st.courses = r.courses;
+      ctx.save(); ctx.render();
+      ctx.toast(`${[...r.added.map((n) => `dodano ${n}`), ...r.updated.map((u) => `${u.name} +${u.lessons} lekcji`)].join(', ')} ✓`, () => { st.courses = old; ctx.save(); ctx.render(); });
       close();
     }
   });
@@ -475,6 +483,7 @@ export function handleLekClick(e, state, ctx, today) {
   if ((el = t('[data-lek]'))) {
     const a = el.dataset.lek;
     if (a === 'paste') pasteSheet(state, ctx);
+    else if (a === 'save-courses') shareOrDownload(`kursy-wnl-${todayIso()}.json`, coursesFileJson(st.courses), 'application/json');
     else if (a === 'new-plan') surveySheet(state, ctx, null);
     else if (a === 'edit-plan') surveySheet(state, ctx, activePlan(st));
     else if (a === 'add-att') {
@@ -571,12 +580,12 @@ export function handleLekChange(e, state, ctx) {
       el.value = '';
       if (!ps.length) { ctx.toast('W pliku nie ma kursów'); return; }
       const old = st.courses || [];
-      let list = [];
-      for (const p of ps) list = mergeCourse(list, p);
-      st.courses = list;
-      const n = list.reduce((a, c) => a + c.sections.reduce((b, s) => b + s.lessons.length, 0), 0);
+      const r = mergeCourses(old, ps);
+      if (!r.added.length && !r.updated.length) { ctx.toast('Nic nowego – wszystkie kursy z pliku już są ✓'); return; }
+      st.courses = r.courses;
       ctx.save(); ctx.render();
-      ctx.toast(`Wczytano ${list.length} kursów · ${n} lekcji ✓`, () => { st.courses = old; ctx.save(); ctx.render(); });
+      const msg = [r.added.length ? `dodano: ${r.added.join(', ')}` : '', r.updated.length ? `uzupełniono: ${r.updated.map((u) => `${u.name} (+${u.lessons})`).join(', ')}` : ''].filter(Boolean).join(' · ');
+      ctx.toast(`${msg} ✓`, () => { st.courses = old; ctx.save(); ctx.render(); });
     });
     return true;
   }

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultState } from '../js/defaults.js';
-import { DOMAINS, parseCourseText, parseCoursesText, coursesFromFile, mergeCourse, guessDomain, studyDays, buildPlan, estimateScore, coverage, domainCoverage, lessonDomains, allLessons, lessonKey, DEFAULT_SURVEY } from '../js/lek.js';
+import { DOMAINS, parseCourseText, parseCoursesText, coursesFromFile, mergeCourses, courseKey, coursesFileJson, mergeCourse, guessDomain, studyDays, buildPlan, estimateScore, coverage, domainCoverage, lessonDomains, allLessons, lessonKey, DEFAULT_SURVEY } from '../js/lek.js';
 
 const SAMPLE = `Kurs z Interny
 ZMIEŃ KURS
@@ -330,4 +330,33 @@ test('Plik z kursami: JSON (prywatny plik użytkownika) albo tekst z WNL', () =>
   assert.equal(allLessons({ courses: merged }).length, 2);
   assert.equal(coursesFromFile(SAMPLE)[0].name, 'Kurs z Interny');
   assert.deepEqual(coursesFromFile('{"zle": 1}'), []);
+});
+
+test('Wykrywanie powtórzeń: ten sam plik + 1 nowy kurs → dodaje tylko nowy; brakujące lekcje dopisuje; nic nie znika', () => {
+  assert.equal(courseKey('Kurs Chirurgia'), courseKey('Kurs z chirurgii'));
+  assert.equal(courseKey('Kurs z Ginekologii i Położnictwa'), courseKey('Kurs z ginekologii i położnictwa'));
+  assert.notEqual(courseKey('Kurs z pediatrii'), courseKey('Kurs z psychiatrii'));
+  const A = { name: 'Kurs z chirurgii', domain: 'chir', sections: [{ name: 'Dział', lessons: [{ name: 'L1', hMin: 1, hMax: 2 }, { name: 'L2', hMin: 1, hMax: 2 }] }] };
+  const B = { name: 'Kurs z pediatrii', domain: 'ped', sections: [{ name: 'Neo', lessons: [{ name: 'P1', hMin: 1.5, hMax: 2.5 }] }] };
+  const r1 = mergeCourses([], [A]);
+  const keyL1 = allLessons({ courses: r1.courses })[0].key;
+  // ponownie ten sam plik + nowy kurs
+  const r2 = mergeCourses(r1.courses, [A, B]);
+  assert.deepEqual(r2.added, ['Kurs z pediatrii']);
+  assert.deepEqual(r2.same, ['Kurs z chirurgii']);
+  assert.equal(r2.courses.length, 2);
+  assert.equal(r2.courses[0].id, r1.courses[0].id);
+  // ten sam kurs pod inną nazwą, z 1 nową lekcją i nowym działem
+  const A2 = { name: 'Kurs Chirurgia', domain: 'chir', sections: [
+    { name: 'dział', lessons: [{ name: 'L1', hMin: 1, hMax: 2 }, { name: 'L3', hMin: 2, hMax: 3 }] },
+    { name: 'Nowy', lessons: [{ name: 'N1', hMin: 1, hMax: 2 }] }] };
+  const r3 = mergeCourses(r2.courses, [A2]);
+  assert.deepEqual(r3.updated, [{ name: 'Kurs z chirurgii', lessons: 2 }]);
+  const chir = r3.courses.find((c) => c.name === 'Kurs z chirurgii');
+  assert.deepEqual(chir.sections[0].lessons.map((l) => l.name), ['L1', 'L2', 'L3']); // L2 nie znika
+  assert.equal(allLessons({ courses: r3.courses })[0].key, keyL1); // odhaczenia zostają
+  assert.equal(r1.courses[0].sections[0].lessons.length, 2); // wejście nienaruszone
+  // zapis i ponowne wczytanie pliku = nic nowego
+  const again = mergeCourses(r3.courses, coursesFromFile(coursesFileJson(r3.courses)));
+  assert.equal(again.added.length + again.updated.length, 0);
 });
