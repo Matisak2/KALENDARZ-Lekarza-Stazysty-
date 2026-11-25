@@ -676,38 +676,45 @@ code { background: var(--card-2); padding: 1px 5px; border-radius: 5px; }
 .ts-nav { justify-content: space-between; margin: 0; }
 .ts-nav b { font-size: 17px; text-transform: capitalize; }
 .ts-preview { overflow-x: auto; background: #fff; border-radius: 12px; padding: 10px; box-shadow: var(--shadow); }
-.ts { color: #000; background: #fff; font-family: "Times New Roman", Times, serif; font-size: 10px; min-width: 760px; }
-.ts-top { display: flex; align-items: center; gap: 20px; }
-.ts-logo { font-family: Arial, sans-serif; font-size: 9px; font-weight: 700; color: #000; border-left: 3px solid #000; padding-left: 6px; }
-.ts-title { flex: 1; text-align: center; font-weight: 700; font-size: 13px; }
-.ts-who { display: flex; justify-content: space-between; margin: 10px 0 4px; text-align: center; }
-.ts-who > div { flex: 1; }
-.ts-who b { display: block; color: #000; font-size: 11px; border-bottom: 1px dotted #000; margin: 0 30px 2px; }
-.ts-who small { font-size: 8px; }
-.ts-month { margin: 6px 0; text-align: center; }
-.ts-month span { margin-left: 60px; }
-.ts-t { width: 99.5%; border-collapse: collapse; table-layout: fixed; }
-.ts-t th, .ts-t td { border: 1px solid #000; padding: 1px 3px; height: 13px; font-weight: 400; }
-.ts-t th { font-size: 8px; vertical-align: top; text-align: center; }
-.ts-t th:nth-child(1) { width: 22px; }
-.ts-t tr.num td { text-align: center; font-size: 7px; }
+.ts { color: #000; background: #fff; font-family: "Times New Roman", Times, serif; font-size: 10px; width: 822px; min-width: 760px; }
+.ts table { border-collapse: collapse; table-layout: fixed; width: 822px; }
+.ts td, .ts th { padding: 1px 3px; height: 13px; font-weight: 400; vertical-align: middle; }
+.ts .c { text-align: center; }
+.ts-logo { height: 58px; }
+.ts-logo img { height: 56px; display: block; }
+.ts td.ts-title { text-align: center; font-weight: 700; font-size: 12.5px; padding-top: 4px; }
+.ts-name { font-size: 10px; padding-top: 10px; }
+.ts-name .dots { letter-spacing: -1px; }
+.ts-g tr.lbl td { font-size: 7.5px; }
+.ts-t { margin-top: 6px; }
+.ts-t th, .ts-t td { border: 1px solid #000; }
+.ts-t th { font-size: 8.5px; text-align: center; vertical-align: top; line-height: 1.2; }
+.ts-t th.l { text-align: left; }
+.ts-t thead tr:first-child th { border-top: 1.5px solid #000; }
+.ts-t tr.num td { text-align: center; font-size: 7px; height: 10px; }
 .ts-t td.n { text-align: right; }
-.ts-t td.red { color: #000; }
-.ts-t td.note { font-size: 8px; }
-.ts-t tr.sh td { background: #b8814f; }
-.ts-t tfoot td { font-weight: 700; border-width: 1.5px; }
-.ts-sign { display: flex; justify-content: space-between; margin: 14px 4px; }
-.ts-sign small { font-size: 8px; }
-.ts-pay { width: 100%; border-collapse: collapse; margin-top: 6px; }
-.ts-pay td { border: 2px solid #000; padding: 4px; text-align: center; }
-.ts-foot { font-size: 7px; margin-top: 4px; color: #333; }
+.ts-t td.note { font-size: 7.5px; overflow: hidden; white-space: nowrap; }
+.ts-t tr.sh td { background: #b5764a; }
+.ts-t tr.wk td { border-bottom: 1.5px solid #e2231a; }
+.ts-t tfoot td { border: 2px solid #000; height: 15px; }
+.ts-t tfoot td.big { font-size: 12px; font-weight: 700; }
+.ts-t tfoot tr.blank td { height: 12px; }
+.ts-s td { font-size: 9px; vertical-align: top; }
+.ts-s tr.sp td { height: 18px; }
+.ts-s td.box { border: 1px solid #000; padding: 6px 4px 3px; }
+.ts-pay { margin-top: 10px; }
+.ts-pay td { border: 1px solid #000; padding: 3px 4px; font-size: 10px; }
+.ts-pay tr:first-child td, .ts-pay tr:last-child td { border-top: 2.5px solid #000; }
+.ts-pay tr:last-child td { border-bottom: 2.5px solid #000; height: 10px; }
+.ts-foot { font-size: 6.5px; margin-top: 4px; line-height: 1.6; }
 #print-root { display: none; }
 @media print {
   @page { size: A4 portrait; margin: 8mm; }
   body.printing > *:not(#print-root) { display: none !important; }
   body.printing #print-root { display: block !important; }
   body.printing { background: #fff !important; }
-  body.printing .ts { min-width: 0; width: 100%; font-size: 9.5px; box-sizing: border-box; padding-right: 2px; }
+  body.printing .ts, body.printing .ts table { min-width: 0; width: 100%; box-sizing: border-box; }
+  body.printing .ts-t tr.wk td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body.printing .ts-t tr.sh td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 [hidden] { display: none !important; }

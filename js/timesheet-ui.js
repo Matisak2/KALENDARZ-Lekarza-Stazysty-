@@ -11,42 +11,55 @@ function shift(ym, n) {
   return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}`;
 }
 
-/** HTML karty w układzie wzoru USK2 (do podglądu i druku). */
+/**
+ * HTML karty – wierna kopia wzoru USK2 „WZÓR – KARTA.xlsx” (Wydanie 4, KP-WK 2023-11-27): logo, 10 kolumn,
+ * zacienione dni wolne, kreska pod tygodniami rozliczeniowymi (1–7, 8–14, 15–21, 22–koniec), RA/ZE/M, podpisy.
+ */
 export function timesheetHtml(k) {
   const v = (x) => hm(x);
-  const rows = k.rows.map((r) => `<tr class="${r.shaded ? 'sh' : ''}">
-    <td>${r.day}</td><td class="${r.dutyRed ? 'red' : ''}">${esc(r.hours)}</td><td class="n">${v(r.nominal)}</td>
-    <td class="n ${r.duty ? 'red' : ''}">${v(r.duty)}</td><td></td><td></td>
+  const cols = [45, 110, 98, 69, 85, 85, 118, 86, 82, 44].map((w) => `<col style="width:${w}px">`).join('');
+  const rows = k.rows.map((r) => `<tr class="${r.shaded ? 'sh' : ''} ${[7, 14, 21].includes(r.day) ? 'wk' : ''}">
+    <td class="c">${r.day}</td><td>${esc(r.hours)}</td><td class="n">${v(r.nominal)}</td>
+    <td class="n">${v(r.duty)}</td><td></td><td></td>
     <td class="n">${v(r.dutyHoliday)}</td><td class="n">${v(r.dutyNightHoliday)}</td><td class="n">${v(r.dutyPhone)}</td>
-    <td class="note">${esc(r.note || '')}</td></tr>`).join('');
+    <td class="note">${r.shaded ? '' : esc(r.note || '')}</td></tr>`).join('');
   const t = k.totals;
+  const dots = (txt) => `<span class="dots">……</span>${esc(txt)}<span class="dots">……………………</span>`;
   return `<div class="ts">
-    <div class="ts-top"><div class="ts-logo">Uniwersytecki Szpital Kliniczny nr 2<br>PUM w Szczecinie</div><div class="ts-title">KARTA CZASU PRACY</div></div>
-    <div class="ts-who"><div><b>${esc(k.name || '……………………………')}</b><small>Imię i nazwisko</small></div>
-      <div><b>${esc(k.unit)}</b><small>Komórka organizacyjna</small></div></div>
-    <div class="ts-month">Liczba godzin przepracowanych w miesiącu <b>${esc(k.monthLabel)}</b> roku <span>gr stażowa <b>${esc(k.group)}</b></span></div>
-    <table class="ts-t">
+    <table class="ts-g"><colgroup>${cols}</colgroup>
+      <tr><td colspan="3" rowspan="2" class="ts-logo"><img src="img/usk2-logo.svg" alt="Uniwersytecki Szpital Kliniczny nr 2 PUM w Szczecinie"></td><td colspan="7"></td></tr>
+      <tr><td colspan="7" class="ts-title">KARTA CZASU PRACY</td></tr>
+      <tr><td colspan="4" class="c ts-name">${k.name ? dots(k.name.toUpperCase()) : '……………………………………………'}</td><td colspan="2"></td><td colspan="4" class="c ts-name">${dots(k.unit)}</td></tr>
+      <tr class="lbl"><td colspan="4" class="c">Imię i nazwisko</td><td colspan="2"></td><td colspan="4" class="c">Komórka organizacyjna</td></tr>
+      <tr><td colspan="2"></td><td colspan="5">Liczba godzin przepracowanych w miesiącu ${esc(k.monthLabel)} roku</td><td colspan="3">gr stażowa …${esc(k.group)}.</td></tr>
+    </table>
+    <table class="ts-t"><colgroup>${cols}</colgroup>
       <thead>
-        <tr><th rowspan="2">Lp.</th><th rowspan="2">Godziny pracy<br>od-do</th><th rowspan="2">Nominalne godziny pracy (proporcjonalnie do wymiaru czasu pracy)</th>
-          <th colspan="3">Dyżur medyczny zwykły</th><th colspan="2">Dyżur medyczny świąteczny</th><th rowspan="2">Dyżur pod telefonem</th><th rowspan="2">Uwagi</th></tr>
-        <tr><th>godziny zwykłe dyżuru (razem 5+6)</th><th>dodatek 50% za godziny dzienne do 22 (liczba godzin)</th><th>dodatek 100% za godziny nocne od 22 do 6 (liczba godzin)</th>
-          <th>godziny zwykłe dyżuru z dodatkiem 100%</th><th>dodatek 20% za godziny nocne od 22 do 6 (liczba godzin)</th></tr>
+        <tr><th rowspan="2">Lp.</th><th rowspan="2" class="l"><b>Godziny pracy<br>od-do</b></th><th rowspan="2">Nominalne godziny pracy (proporcjonalnie do wymiaru czasu pracy)</th>
+          <th colspan="3"><b>Dyżur medyczny zwykły</b></th><th colspan="2"><b>Dyżur medyczny świąteczny</b></th><th rowspan="2"><b>Dyżur pod telefonem</b></th><th rowspan="2">Uwagi</th></tr>
+        <tr><th>godziny zwykłe dyżuru<br>(razem 5+6)</th><th>dodatek 50% za godziny dzienne do 22<br>(liczba godzin)</th><th>dodatek 100% za godziny nocne od 22 do 6<br>(liczba godzin)</th>
+          <th>godziny zwykłe dyżuru z dodatkiem 100%</th><th>dodatek 20% za godziny nocne od 22 do 6<br>(liczba godzin)</th></tr>
         <tr class="num"><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td><td>9</td><td>10</td></tr>
       </thead>
       <tbody>${rows}</tbody>
       <tfoot>
-        <tr><td>RA</td><td></td><td class="n red">${hm(t.nominal, '.')}</td><td class="n red">${hm(t.duty, '.')}</td><td></td><td></td>
-          <td class="n">${hm(t.dutyHoliday, '.')}</td><td class="n">${hm(t.dutyNightHoliday, '.')}</td><td class="n">${hm(t.dutyPhone, '.')}</td><td></td></tr>
-        <tr><td>ZE</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-        <tr><td>M:</td><td></td><td class="n red"><b>${hm(t.all, '.')}</b></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr><td><b>RA</b></td><td></td><td>${hm(t.nominal, '.')}</td><td>${hm(t.duty, '.')}</td><td></td><td></td>
+          <td>${hm(t.dutyHoliday, '.')}</td><td>${hm(t.dutyNightHoliday, '.')}</td><td>${hm(t.dutyPhone, '.')}</td><td></td></tr>
+        <tr><td><b>ZE</b></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr><td><b>M:</b></td><td></td><td class="big">${hm(t.all, '.')}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr class="blank"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
       </tfoot>
     </table>
-    <div class="ts-sign">
-      <div>……………………………………<br><small>podpis pracownika</small><br><br>data i podpis……………………<br><small>sprawdził (Dział Kadrowo-Płacowy)</small></div>
-      <div>……………………………………<br><small>podpis lekarza kierującego / koordynatora</small><br><br>……………………………………<br><small>zatwierdził (Dyrektor)</small></div>
-    </div>
-    <table class="ts-pay"><tr><td>Liczba godzin wypłaconych</td><td>Dział Kadrowo-Płacowy (data i podpis)</td></tr><tr><td>&nbsp;</td><td></td></tr></table>
-    <div class="ts-foot">Wydanie 4 · Opracował: KP-WK, data 2023-11-27 · wygenerowano w Kalendarzu Stażysty</div>
+    <table class="ts-g ts-s"><colgroup>${cols}</colgroup>
+      <tr class="sp"><td colspan="10"></td></tr>
+      <tr><td colspan="3" class="box">……………………………………………<br>podpis pracownika</td><td colspan="3"></td><td colspan="2" class="box">……………………………………………<br>podpis lekarza kierującego/ koordynatora</td><td colspan="2"></td></tr>
+      <tr><td colspan="3">data i podpis…………………………<br>sprawdził (Dział Kadrowo-Płacowy)</td><td colspan="3"></td><td colspan="4"><br>……………………………………………<br>zatwierdził (Dyrektor)</td></tr>
+    </table>
+    <table class="ts-pay"><colgroup>${cols}</colgroup>
+      <tr><td colspan="2" class="c">Liczba godzin<br>wypłaconych</td><td colspan="8">Dział Kadrowo-Płacowy (data i podpis)</td></tr>
+      <tr><td colspan="2">&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+    </table>
+    <div class="ts-foot">Wydanie 4<br>Opracował:KP-WK, data 2023-11-27</div>
   </div>`;
 }
 
