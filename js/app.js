@@ -8,7 +8,7 @@ import { renderMore, handleMoreClick, handleMoreChange } from './more-ui.js';
 import { hospitalOf } from './hospitals.js';
 import { renderCalendar, openDay, openEventEditor, shiftMonth, todayMonth } from './calendar-ui.js';
 import { renderDuties, openDutyEditor, dutyTodayCard, dutyPlanCard, openDutyProposal, printDutySheet } from './duties-ui.js';
-import { renderLek, handleLekClick, handleLekChange, handleLekInput, openLekRegistration, planFor, reviewRows, handleReviewClick } from './lek-ui.js';
+import { renderLek, handleLekClick, handleLekChange, handleLekInput, openLekRegistration, planFor, reviewRows, handleReviewClick, dayPlanHtml, handleBaseAdd } from './lek-ui.js';
 import { loadCem } from './lek-freq.js';
 import { openTimesheet } from './timesheet-ui.js';
 import { openLetters } from './letters-ui.js';
@@ -247,13 +247,8 @@ function todayPlanCard(sum) {
   if (plan && (st.courses || []).length) {
     try {
       const b = planFor(state, plan, t);
-      const w = currentWeek(b, t);
-      const todo = (w?.lessons || []).filter((l) => !st.done?.[l.key]).slice(0, 2);
-      for (const l of todo) {
-        rows.push(`<label class="skill"><input type="checkbox" data-lesson="${esc(l.key)}"><span class="box"></span>
-          <span class="nm">📚 ${esc(l.name)}<small>${esc(l.section)} · ${String(l.hours).replace('.', ',')} h</small></span></label>`);
-      }
-      if (w && !todo.length && w.lessons.length) rows.push('<div class="sub">📚 Lekcje z tego tygodnia zrobione ✓ – czas na pytania z bazy.</div>');
+      const dp = dayPlanHtml(state, b, t);
+      if (dp.html) rows.push(dp.html);
     } catch { /* plan nie powinien blokować ekranu Dziś */ }
   }
   if (!rows.length) return '';
@@ -579,6 +574,7 @@ app.addEventListener('click', (e) => {
     return;
   }
   if (tab !== 'lek' && handleReviewClick(e, state, ctx)) return;
+  if (tab !== 'lek' && handleBaseAdd(e, state, ctx)) return;
   if (tab === 'lek' && handleLekClick(e, state, ctx, getToday())) return;
   const gt = e.target.closest('[data-goto-tab]');
   if (gt) { tab = gt.dataset.gotoTab; window.scrollTo({ top: 0 }); return render(); }

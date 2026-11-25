@@ -165,3 +165,41 @@ test('Onkologia (≥30 pytań w dziedzinach klinicznych): lekcje o nowotworach i
   assert.equal(b.onco.cov, 1);
   assert.equal(b.oncoNow.cov, 0);
 });
+
+test('Plan dnia: każda lekcja ma swój dzień przed LEK, długa lekcja nie trafia na krótki dzień, tydzień powtórki bez lekcji', () => {
+  const st = defaultState();
+  const ls = Array.from({ length: 30 }, (_, i) => ({ name: `Temat ${i + 1}`, hMin: i % 5 === 0 ? 3 : 1, hMax: 4 }));
+  st.study.courses = [{ id: 'c', name: 'Kurs z interny', domain: 'int', sections: [{ name: 'Dział', lessons: ls }] }];
+  st.duties = [{ id: 'd', date: '2026-12-01', minutes: 305 }];
+  const b = buildPlan(st, { id: 'p', survey: { examDate: '2027-02-20', base: false, hWork: 1.5, hDuty: 0.5, hWeekend: 4 } }, '2026-11-25');
+  const days = b.schedule;
+  assert.ok(days.length > 80);
+  const placed = days.flatMap((d) => d.lessons);
+  assert.equal(placed.length, b.chosen.length);
+  assert.ok(days.filter((d) => d.review).every((d) => !d.lessons.length));
+  const duty = days.find((d) => d.date === '2026-12-01');
+  assert.ok(duty.lessons.every((l) => l.hours <= 0.75)); // dzień dyżuru: 0,5 h – bez długiej lekcji
+  assert.ok(days.every((d) => d.lessons.length === 0 || d.used <= d.cap + 0.75));
+});
+
+test('Plan dnia na bieżąco: odhaczone dziś zostaje na liście dnia; zrobienie więcej niż plan wciąga pominięte lekcje', () => {
+  const st = defaultState();
+  const ls = Array.from({ length: 40 }, (_, i) => ({ name: `Temat ${i + 1}`, hMin: 2, hMax: 3 }));
+  st.study.courses = [{ id: 'c', name: 'Kurs z interny', domain: 'int', sections: [{ name: 'Dział', lessons: ls }] }];
+  const plan = { id: 'p', survey: { examDate: '2026-12-20', base: false, hWork: 1, hDuty: 1, hWeekend: 2 } };
+  const b0 = buildPlan(st, plan, '2026-11-25', { pinToday: true });
+  const dropped0 = b0.dropped.length;
+  assert.ok(dropped0 > 0);
+  // dziś zrobione 3 lekcje (więcej niż plan na dziś)
+  const key = (n) => lessonKey('Kurs z interny', 'Dział', n);
+  st.study.done = { [key('Temat 1')]: '2026-11-25', [key('Temat 2')]: '2026-11-25', [key('Temat 3')]: '2026-11-25' };
+  const b1 = buildPlan(st, plan, '2026-11-25', { pinToday: true });
+  const today = b1.schedule.find((d) => d.date === '2026-11-25');
+  assert.deepEqual(today.lessons.map((l) => l.name).slice(0, 3), ['Temat 1', 'Temat 2', 'Temat 3']);
+  assert.ok(today.lessons.every((l) => l.doneToday));
+  assert.ok(b1.dropped.length < dropped0); // zwolniony czas – pominięta wcześniej lekcja wchodzi do planu
+  // następnego dnia te lekcje są już po prostu zrobione
+  const b2 = buildPlan(st, plan, '2026-11-26', { pinToday: true });
+  assert.equal(b2.lessonsDone, 3);
+  assert.ok(!b2.schedule.some((d) => d.lessons.some((l) => l.name === 'Temat 1')));
+});

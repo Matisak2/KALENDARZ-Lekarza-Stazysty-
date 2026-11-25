@@ -515,11 +515,16 @@ export function buildPlan(state, plan, today, opts = {}) {
   const all = allLessons(study, survey.pace).map((l) => ({ ...l, hours: Math.round(l.hours * factor * 10) / 10 }));
   const yields = topicYield(all, cem);
   const dup = duplicateMap(all);
-  const groupDone = new Set(all.filter((l) => done[l.key]).map((l) => dup.get(l.key)));
+  // opts.pinToday: lekcje odhaczone DZIŚ zostają na dzisiejszej liście (lista dnia nie „ucieka” przy odhaczaniu)
+  const pin = opts.pinToday ? today : null;
+  const doneDay = (l) => String(done[l.key] || '').slice(0, 10);
+  const groupDone = new Set(all.filter((l) => done[l.key] && doneDay(l) !== pin).map((l) => dup.get(l.key)));
+  const groupToday = new Set(all.filter((l) => done[l.key] && doneDay(l) === pin).map((l) => dup.get(l.key)));
   const lessons = all.map((l, idx) => ({ ...l, idx, exp: yields ? yields.get(l.key)?.exp || 0 : null, mainKey: dup.get(l.key) }));
-  const isDone = (l) => !!done[l.key] || groupDone.has(l.mainKey);
+  const isDone = (l) => groupDone.has(l.mainKey);
   const canon = lessons.filter((l) => l.mainKey === l.key);
-  const doneKeys = new Set(canon.filter(isDone).map((l) => l.key));
+  for (const l of canon) if (!isDone(l) && groupToday.has(l.mainKey)) { l.doneToday = true; must.add(l.key); }
+  const doneKeys = new Set(canon.filter((l) => isDone(l) || l.doneToday).map((l) => l.key));
   const todo = canon.filter((l) => !isDone(l));
   const dropped = [];
   for (const l of lessons.filter((x) => x.mainKey !== x.key && !isDone(x))) {
@@ -608,8 +613,18 @@ export function buildPlan(state, plan, today, opts = {}) {
   const stageOf = new Map();
   for (const st of stages) {
     let left = st.learnHours;
+    // Zrobione dziś „zużywają” tylko dzisiejszy czas z planu – to, co ponad plan, to dodatkowa praca (zwalnia miejsce na kolejne lekcje)
+    const normalFree = st.days.filter((d) => !d.review).reduce((a, d) => a + d.free, 0);
+    const d0 = st.days.find((d) => d.date === today && !d.review);
+    let todayCap = d0 && normalFree ? (d0.free * st.learnHours) / normalFree : 0;
     for (const l of order) {
       if (stageOf.has(l.key)) continue;
+      if (l.doneToday && st.i === 0) {
+        const charge = Math.min(l.hours, todayCap);
+        todayCap -= charge;
+        stageOf.set(l.key, st.i); st.chosen.push(l); left -= charge;
+        continue;
+      }
       if (l.hours <= left + 0.25) { stageOf.set(l.key, st.i); st.chosen.push(l); left -= l.hours; }
     }
   }
@@ -641,14 +656,20 @@ export function buildPlan(state, plan, today, opts = {}) {
     } else {
       for (const w of ws) w.base = normalTotal ? (w.normal * st.baseHours) / normalTotal : 0;
     }
+    for (const w of ws) w.cap = Math.max(0, w.normal - w.base);
+    // Plan dnia: baza (Remedium) proporcjonalnie do godzin dnia w tygodniu, reszta na lekcje; tydzień powtórki – tylko baza
+    const sched = st.days.map((d) => {
+      const w = ws.find((x) => x.start <= d.date && d.date <= x.end);
+      const base = d.review ? d.free : (w.normal ? (d.free * (w.normal - w.cap)) / w.normal : 0);
+      return { date: d.date, kind: d.kind, hours: d.hours, reviews: d.reviews, review: d.review, base, cap: d.review ? 0 : Math.max(0, d.free - base), used: 0, lessons: [], stage: st.i, perQ: st.perQ };
+    });
     for (const w of ws) {
-      w.cap = Math.max(0, w.normal - w.base);
       const revDays = st.days.filter((d) => d.review && d.date >= w.start && d.date <= w.end);
       w.base = Math.round((w.base + revDays.reduce((a, d) => a + d.free, 0)) * 10) / 10;
     }
     // Kolejność nauki w etapie: dziedziny przeplatane wg wagi, w dziedzinie kolejność kursu (wstęp najpierw)
     const qs = new Map();
-    for (const l of st.chosen) { const d = mainDomain(l); if (!qs.has(d)) qs.set(d, []); qs.get(d).push(l); }
+    for (const l of st.chosen.filter((x) => !x.doneToday)) { const d = mainDomain(l); if (!qs.has(d)) qs.set(d, []); qs.get(d).push(l); }
     for (const q of qs.values()) q.sort((a, b) => a.idx - b.idx);
     const seq = [];
     const credit = {};
@@ -658,17 +679,24 @@ export function buildPlan(state, plan, today, opts = {}) {
       seq.push(qs.get(best).shift());
       credit[best] -= 100;
     }
-    let qi = 0;
-    for (const w of ws) {
-      if (w.review && w.normal === 0) continue;
-      while (qi < seq.length && (w.lessonHours + seq[qi].hours <= w.cap + 0.5 || (w.lessons.length === 0 && w.cap > 0.5))) {
-        w.lessons.push(seq[qi]);
-        w.lessonHours += seq[qi].hours;
-        qi++;
-      }
+    // Zrobione dziś – na dzisiejszej liście (nawet ponad plan)
+    const first = sched.find((x) => x.date === today);
+    for (const l of st.chosen.filter((x) => x.doneToday)) { const day = first || sched[0]; if (day) { day.lessons.push(l); day.used += l.hours; } }
+    // Każda lekcja na najbliższy dzień, w którym się zmieści (długa lekcja nie trafia na krótki dzień po dyżurze)
+    const learnDays = sched.filter((x) => !x.review);
+    for (const l of seq) {
+      let day = learnDays.find((x) => x.cap - x.used >= l.hours - 0.25);
+      if (!day) day = [...learnDays].sort((x, y) => (y.cap - y.used) - (x.cap - x.used))[0] || sched[sched.length - 1];
+      if (!day) continue;
+      day.lessons.push(l);
+      day.used += l.hours;
     }
-    const lastLearn = [...ws].reverse().find((w) => !w.review) || ws[ws.length - 1];
-    while (qi < seq.length && lastLearn) { lastLearn.lessons.push(seq[qi]); lastLearn.lessonHours += seq[qi].hours; qi++; }
+    for (const w of ws) {
+      const ds = sched.filter((x) => x.date >= w.start && x.date <= w.end);
+      w.lessons = ds.flatMap((x) => x.lessons);
+      w.lessonHours = w.lessons.reduce((a, l) => a + l.hours, 0);
+    }
+    st.schedule = sched;
     weeks.push(...ws);
   }
 
@@ -728,7 +756,7 @@ export function buildPlan(state, plan, today, opts = {}) {
     survey, final, stages, days: stages.flatMap((s) => s.days), hoursTotal: stages.reduce((a, s) => a + s.hours, 0),
     learnHours: stages.reduce((a, s) => a + s.learnHours, 0), baseHours: stages.reduce((a, s) => a + s.baseHours, 0),
     reviewHours: stages.reduce((a, s) => a + s.reviewHours, 0), share: st0.learnHours + st0.baseHours ? st0.baseHours / (st0.learnHours + st0.baseHours) : 0,
-    weeks, chosen, dropped, yields: !!yields,
+    weeks, chosen, dropped, yields: !!yields, schedule: stages.flatMap((x) => x.schedule || []),
     domains: domainCoverage(lessons.filter((l) => l.mainKey === l.key), keysAll), domainsNow: domainCoverage(lessons.filter((l) => l.mainKey === l.key), doneKeys),
     onco: oncologyCoverage(canon, keysAll), oncoNow: oncologyCoverage(canon, doneKeys),
     baseOnlyQ: domainCoverage(canon, doneKeys).filter((d) => d.baseOnly).reduce((a, d) => a + d.q, 0),

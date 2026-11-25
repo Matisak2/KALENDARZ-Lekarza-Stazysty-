@@ -4,7 +4,7 @@ import { DOMAINS, domainOf, guessDomain, parseCoursesText, coursesFromFile, merg
 import { cemIndex, loadCem } from './lek-freq.js';
 import { projectReviews, REVIEW_MIN, reviewsToday, rate, hardest, GRADES } from './lek-review.js';
 import { specNames, wojNames, specStats, suggestTarget, chance, TRYBY } from './specs.js';
-import { fmtShort, fmtFull, fmtDayShort, toNum, plural, todayIso } from './dates.js';
+import { fmtShort, fmtFull, fmtDayShort, toNum, plural, todayIso, addDays } from './dates.js';
 import { esc, helpBox } from './blocks-ui.js';
 
 let seg = 'plan';
@@ -45,18 +45,28 @@ export function planFor(state, plan, today) {
   const k = JSON.stringify([state.meta?.updatedAt, plan.id, plan.survey, plan.skip, plan.must, today, !!cem, Object.keys(st.done || {}).length, Object.keys(st.reviews || {}).length]);
   if (planMemo.k === k) return planMemo.b;
   const min = Number(plan.survey?.reviewMin ?? REVIEW_MIN) || 0;
-  let b = buildPlan(state, plan, today, { cem });
+  let b = buildPlan(state, plan, today, { cem, pinToday: true });
   let load = new Map();
   if (min > 0) {
     // Dwa przybliżenia: powtórki liczone dla lekcji, które naprawdę zmieszczą się w planie
     for (let i = 0; i < 2; i++) {
       load = projectReviews(state, b, today);
       const ld = load;
-      b = buildPlan(state, plan, today, { cem, reviewHours: (d) => ((ld.get(d) || 0) * min) / 60 });
+      b = buildPlan(state, plan, today, { cem, pinToday: true, reviewHours: (d) => ((ld.get(d) || 0) * min) / 60 });
     }
   }
   b.reviewLoad = load;
   b.reviewMin = min;
+  // Ile lekcji z wczorajszego planu nie zostało zrobionych (plan sam je przesunął)
+  b.moved = 0;
+  // tylko gdy plan istniał już wczoraj
+  if (plan.createdAt && plan.createdAt < today) try {
+    const y = addDays(today, -1);
+    const yb = buildPlan(state, plan, y, { cem });
+    const yd = yb.schedule.find((d) => d.date === y);
+    const done = st.done || {};
+    b.moved = (yd?.lessons || []).filter((l) => !done[l.key] && !b.schedule.some((d) => d.lessons.some((x) => x.key === l.key && x.doneToday))).length;
+  } catch { b.moved = 0; }
   planMemo = { k, b };
   return b;
 }
@@ -166,13 +176,15 @@ function planSummary(state, st, p, today) {
     </div>
     ${warnCard}
     <div class="desk-2"><div>
+      ${(() => { const dp = dayPlanHtml(state, b, today); return dp.html ? `<div class="card fade"><div class="card-label">Plan na dziś</div>${dp.html}</div>` : ''; })()}
+      ${next7Card(state, b, today)}
       ${stagesCard}
       ${w ? `<div class="card fade"><div class="card-label">Ten tydzień · ${fmtShort(w.start)}–${fmtShort(w.end)} · ${h(w.hours)}${two ? ` · etap ${w.stage + 1}` : ''}</div>
         ${w.lessons.length ? w.lessons.map(lessonRow).join('') : '<p class="sub">W tym tygodniu: pytania z bazy i powtórka.</p>'}
         ${b.stages[w.stage]?.withBase ? `<div class="base-row">🧩 Baza pytań: ok. <b>${Math.round((w.base * 60) / perQ(w))}</b> pytań (${h(w.base)})${b.baseOnlyQ ? `<br><small>w tym ok. ${Math.round(((w.base * 60) / perQ(w)) * b.baseOnlyQ / 200)} z prawa i bioetyki, zdrowia publicznego i orzecznictwa – tych dziedzin uczysz się tylko z bazy</small>` : ''}</div>` : `<div class="base-row">🧩 Pytania do przerobionych tematów: ${h(w.base)}</div>`}
       </div>` : ''}
       ${reviewsCard(state, b, today)}
-      ${s.base ? `<div class="card fade"><div class="card-label">🧩 Baza CEM</div>
+      ${s.base ? `<div class="card fade"><div class="card-label">🧩 Baza CEM (Remedium)</div>
         <div class="val-row"><span><b>${s.baseDone || 0}</b> / ${baseTotal || '?'} pytań</span>
           <span><button class="chip" data-base-add="50">+50</button><button class="chip" data-base-add="100">+100</button><button class="chip" data-lek="edit-plan">Zmień</button></span></div>
         ${baseTotal ? `<div class="minibar" style="--block:var(--c-course)"><div style="width:${Math.min(100, ((s.baseDone || 0) / baseTotal) * 100)}%"></div></div>` : '<p class="hint small">Wpisz w ankiecie, ile pytań ma baza.</p>'}
@@ -194,6 +206,60 @@ function planSummary(state, st, p, today) {
     </div></div>`;
 }
 
+/* ---------- Plan dnia ---------- */
+
+const num = (x) => String(Math.round(x * 10) / 10).replace('.', ',');
+
+/**
+ * Plan na dany dzień: lekcje (z odhaczaniem), cel w Remedium (pytania z bazy CEM), postęp i – gdy wszystko zrobione –
+ * „następna w kolejce” do dorzucenia. Zwraca { html, total, done }.
+ */
+export function dayPlanHtml(state, b, date, { extra = true } = {}) {
+  const st = study(state);
+  const day = b.schedule.find((d) => d.date === date);
+  if (!day) return { html: '', total: 0, done: 0 };
+  const done = st.done || {};
+  const isDone = (l) => l.doneToday || !!done[l.key];
+  const nDone = day.lessons.filter(isDone).length;
+  const rows = [];
+  if (day.kind === 'sick') rows.push('<div class="sub">🤒 Dziś odpoczywasz – plan nauki przesunie się sam.</div>');
+  else if (day.kind === 'rest') rows.push('<div class="sub">☕ Dzień przerwy od nauki (z ankiety).</div>');
+  if (b.moved && date === b.schedule[0]?.date) rows.push(`<div class="sub">↪︎ Przeniesiono ${b.moved} ${plural(b.moved, 'lekcję', 'lekcje', 'lekcji')} z wczoraj – plan przeliczył się sam.</div>`);
+  for (const l of day.lessons) {
+    rows.push(`<label class="skill ${isDone(l) ? 'on' : ''}"><input type="checkbox" data-lesson="${esc(l.key)}" ${isDone(l) ? 'checked' : ''}><span class="box"></span>
+      <span class="nm">📚 ${esc(l.name)}<small>${esc(l.section)} · ${num(l.hours)} h${l.exp != null ? ` · ok. ${num(l.exp)} pyt. na LEK` : ''}</small></span></label>`);
+  }
+  const stg = b.stages[day.stage];
+  if (day.base >= 0.25 && stg?.withBase) {
+    const q = Math.round((day.base * 60) / (day.perQ || 1.5));
+    rows.push(`<div class="base-row">🧩 <b>Remedium</b>: ${day.review ? `powtórki i pytania z błędami (ok. ${num(day.base)} h)` : `ok. <b>${q}</b> ${day.perQ < 1.5 ? 'pytań – kolejne przejście bazy' : 'nowych pytań z bazy CEM'} + powtórki z Remedium`}
+      <div class="quick three rv-btns"><button class="btn" data-base-add="10">+10 zrobionych</button><button class="btn" data-base-add="25">+25</button><button class="btn" data-base-add="50">+50</button></div></div>`);
+  } else if (day.base >= 0.25) rows.push(`<div class="base-row">🧩 Pytania do przerobionych tematów: ok. ${num(day.base)} h</div>`);
+  if (day.lessons.length) rows.push(`<div class="sub">${nDone === day.lessons.length ? '✓ Lekcje na dziś zrobione' : `${nDone} z ${day.lessons.length} ${plural(day.lessons.length, 'lekcji', 'lekcji', 'lekcji')} ✓`} · plan: ${num(day.hours)} h nauki</div>`);
+  if (extra && nDone === day.lessons.length) {
+    const next = b.schedule.filter((d) => d.date > date).flatMap((d) => d.lessons).find((l) => !isDone(l));
+    if (next) rows.push(`<details class="course-list"><summary>Masz jeszcze czas? Dorzuć kolejną lekcję</summary>
+      <label class="skill"><input type="checkbox" data-lesson="${esc(next.key)}"><span class="box"></span><span class="nm">📚 ${esc(next.name)}<small>${esc(next.section)} · ${num(next.hours)} h – plan przeliczy się sam</small></span></label></details>`);
+  }
+  return { html: rows.join(''), total: day.lessons.length, done: nDone };
+}
+
+/** Karta „Najbliższe 7 dni” (zakładka LEK). */
+function next7Card(state, b, today) {
+  const days = b.schedule.filter((d) => d.date >= today).slice(0, 7);
+  if (!days.length) return '';
+  const done = study(state).done || {};
+  const rows = days.map((d) => {
+    const q = d.base >= 0.25 && b.stages[d.stage]?.withBase ? `🧩 Remedium ok. ${Math.round((d.base * 60) / (d.perQ || 1.5))} pyt.` : '';
+    const rv = b.reviewLoad?.get(d.date) ? `🔁 ${b.reviewLoad.get(d.date)} powt.` : '';
+    const ls = d.lessons.map((l) => `${l.doneToday || done[l.key] ? '✓ ' : ''}${esc(l.name)}`).join(' · ');
+    return `<div class="wk ${d.review ? 'rv' : ''}"><div class="wk-h"><b>${d.date === today ? 'Dziś' : esc(fmtDayShort(d.date))}</b><span>${num(d.hours)} h${d.review ? ' · powtórka przed LEK' : ''}${d.kind === 'sick' ? ' · L4' : ''}</span></div>
+      ${ls ? `<div class="wk-l">${ls}</div>` : ''}${q || rv ? `<div class="wk-l muted">${[q, rv].filter(Boolean).join(' · ')}</div>` : ''}</div>`;
+  }).join('');
+  return `<div class="card fade"><div class="card-label">📅 Najbliższe 7 dni</div>${rows}
+    <p class="hint small">Plan liczy się zawsze od dziś: niezrobione lekcje przechodzą na kolejne dni, a gdy zrobisz więcej – do planu wchodzą lekcje dotąd pominięte.</p></div>`;
+}
+
 /* ---------- Powtórki ---------- */
 
 const examsOf = (state) => {
@@ -212,6 +278,19 @@ export function reviewRows(state, today) {
       <div class="quick three rv-btns">${Object.entries(GRADES).map(([g, l]) => `<button class="btn rv-${g}" data-rv="${esc(x.key)}|${g}">${l}</button>`).join('')}</div>
     </div>`).join('') + (r.more ? `<p class="hint small">+ ${r.more} ${plural(r.more, 'zaległa powtórka', 'zaległe powtórki', 'zaległych powtórek')} – przejdą na kolejne dni (limit dziś: ${r.cap}).</p>` : '');
   return { html, ...r };
+}
+
+/** „+10 / +25 / +50 zrobionych” pytań z bazy (Remedium) – z „Cofnij”; plan przelicza się od razu. */
+export function handleBaseAdd(e, state, ctx) {
+  const el = e.target.closest('[data-base-add]');
+  if (!el) return false;
+  const p = activePlan(study(state));
+  if (!p) return true;
+  const n = Number(el.dataset.baseAdd);
+  p.survey.baseDone = (Number(p.survey.baseDone) || 0) + n;
+  ctx.save(); ctx.render();
+  ctx.toast(`+${n} pytań z bazy ✓`, () => { p.survey.baseDone = Math.max(0, (Number(p.survey.baseDone) || 0) - n); ctx.save(); ctx.render(); });
+  return true;
 }
 
 /** Ocena powtórki (przycisk Trudne / Średnio / Łatwe) – z „Cofnij”. */
@@ -834,11 +913,7 @@ export function handleLekClick(e, state, ctx, today) {
     undoable('Dodano do planu', () => { p.must = [...new Set([...(p.must || []), k])]; p.skip = (p.skip || []).filter((x) => x !== k); }, () => { p.must = p.must.filter((x) => x !== k); });
     return true;
   }
-  if ((el = t('[data-base-add]'))) {
-    const p = activePlan(st); const n = Number(el.dataset.baseAdd);
-    undoable(`+${n} pytań`, () => { p.survey.baseDone = (p.survey.baseDone || 0) + n; }, () => { p.survey.baseDone -= n; });
-    return true;
-  }
+  if (handleBaseAdd(e, state, ctx)) return true;
   if ((el = t('[data-plan-use]'))) { st.activePlan = el.dataset.planUse; ctx.save(); ctx.render(); return true; }
   if ((el = t('[data-plan-arch]'))) {
     const p = st.plans.find((x) => x.id === el.dataset.planArch);

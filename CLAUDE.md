@@ -45,6 +45,10 @@ Pokazuje bloki stażu, dni robocze, święta, urlop, kursy OIL, odrabianie, dyż
   ankieta `finalLater/finalDate/finalBase` + podejścia pośrednie `midExams: [{date, base}]`, lista: `examPlan`) – etap na każde podejście:
   przed każdym treningowym LEK cała baza CEM (1. przejście 1,5 min/pyt., kolejne 1 min) + najważniejsze z pozostałych lekcji;
   przed ostatecznym: reszta lekcji, kolejne przejście bazy na końcu; onkologia (≥30 pytań w dziedzinach klinicznych, `isOncology` po nazwie lekcji, `oncologyCoverage` → `b.onco`) w karcie „Dziedziny LEK”; ostatni tydzień przed każdym LEK = powtórka. UD384 → ostrzeżenie dla terminów od 1.05.2027.
+- Plan dnia (`b.schedule`): każda lekcja na najbliższy dzień, w którym się zmieści (długa nie na krótki dzień po dyżurze), baza = Remedium
+  (cel „ok. N nowych pytań + powtórki z Remedium”, przyciski +10/+25/+50 → `survey.baseDone`; Remedium nie ma API – postęp wpisuje użytkownik).
+  Plan liczony zawsze od dziś (`pinToday`: odhaczone dziś zostają na liście dnia i zużywają tylko dzisiejszy czas – nadwyżka wciąga pominięte lekcje);
+  „Przeniesiono N lekcji z wczoraj”; „Dorzuć kolejną lekcję”; LEK → „Najbliższe 7 dni”. Wspólny widok: `dayPlanHtml` (lek-ui).
 - `js/lek-review.js` – powtórki tematów (`study.reviews[klucz główny tematu]` = {due, ivl, ease, reps, hist}): 1→3→7→14→30 dni, dalej ×łatwość;
   oceny Trudne/Średnio/Łatwe (`rate`, nie po LEK – 2 dni przed), limit dziennie 3 / dyżur 1 / weekend-urlop 6 / L4 i przerwa 0 (`CAP`).
   `planFor` (lek-ui) = plan z czasem na powtórki (`projectReviews`, 2 przybliżenia; minuty na powtórkę w ankiecie `reviewMin`, domyślnie 10).
