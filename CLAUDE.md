@@ -21,7 +21,7 @@ Pokazuje bloki stażu, dni robocze, święta, urlop, kursy OIL, odrabianie, dyż
 - `js/defaults.js` – domyślny harmonogram, kursy, terminy LEK, typy nieobecności.
 - `js/engine.js` – czysta logika: `summarize(state, today)`, `blockStats`, rezerwa, plan odrabiania, urlop, `alerts`.
 - `js/store.js` – zapis w `localStorage` (klucz `kalendarz-stazysty`), `migrate` (wersje danych, obecnie v5), kopia .json.
-  Kopie automatyczne (`snapshot`, klucz `kalendarz-stazysty-kopie`, 6 ostatnich): raz dziennie, przed wczytaniem kopii z pliku,
+  Kopie automatyczne (`snapshot`, klucz `kalendarz-stazysty-kopie`; osobno 3 dzienne i 6 „przed operacją”): raz dziennie, przed wczytaniem kopii z pliku,
   przed każdym pobraniem z chmury i przed przywróceniem kopii (UI: Więcej → Kopie automatyczne, z „Cofnij”).
   Nieczytelne dane przy starcie (`loadProblem`): surowy zapis zostaje pod `kalendarz-stazysty-nieczytelne`, ostrzeżenie na Dziś;
   dane z nowszej wersji aplikacji (`'newer'`) – `save()` nic nie zapisuje, żeby ich nie nadpisać.

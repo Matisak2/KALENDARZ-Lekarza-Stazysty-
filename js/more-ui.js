@@ -135,7 +135,7 @@ function snapshotsCard() {
   const when = (iso) => { const d = new Date(iso); return `${fmtFull(d.toISOString().slice(0, 10))} ${d.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}`; };
   return `<div class="card fade">
     <div class="card-label">🛟 Kopie automatyczne (w tym urządzeniu)</div>
-    <p class="sub">Aplikacja sama zapisuje kopię raz dziennie oraz przed wczytaniem kopii z pliku i przed pobraniem danych z chmury. Trzyma 6 ostatnich. Nie zastępuje kopii w pliku (gdy zgubisz telefon, te kopie zginą razem z nim).</p>
+    <p class="sub">Aplikacja sama zapisuje kopię raz dziennie oraz przed wczytaniem kopii z pliku i przed pobraniem danych z chmury. Trzyma 3 ostatnie kopie dzienne i 6 ostatnich kopii sprzed operacji. Nie zastępuje kopii w pliku (gdy zgubisz telefon, te kopie zginą razem z nim).</p>
     ${list.length ? `<details class="course-list"><summary>Pokaż kopie (${list.length})</summary>
       ${list.map((x) => `<div class="val-row snap-row"><span><b>${when(x.at)}</b><br><span class="muted small">${esc(x.reason)}</span></span>
         <button class="chip" data-snap-restore="${esc(x.id)}">Przywróć</button></div>`).join('')}</details>`

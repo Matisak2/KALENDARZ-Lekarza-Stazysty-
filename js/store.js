@@ -4,7 +4,9 @@ import { defaultState, SCHEMA_VERSION } from './defaults.js';
 const KEY = 'kalendarz-stazysty';
 const SNAP_KEY = 'kalendarz-stazysty-kopie';
 const RAW_KEY = 'kalendarz-stazysty-nieczytelne';
-const SNAP_MAX = 6;
+const SNAP_MAX = 6; // kopie „przed operacją”
+const DAILY_MAX = 3; // kopie dzienne
+const DAILY = 'kopia dzienna';
 
 /**
  * Problem przy odczycie zapisanych danych: null | 'broken' (uszkodzone) | 'newer' (zapisała je nowsza wersja aplikacji).
@@ -137,18 +139,24 @@ export function snapshots() {
 
 /**
  * Zapisuje kopię danych (obiekt stanu albo tekst JSON) przed ryzykowną operacją.
- * Trzyma do 6 ostatnich; gdy brakuje miejsca – usuwa najstarsze. Zwraca id kopii albo null.
+ * Trzyma 3 kopie dzienne i 6 kopii „przed operacją”; gdy brakuje miejsca – usuwa najstarsze (najpierw te „przed operacją”). Zwraca id kopii albo null.
  */
 export function snapshot(data, reason, now = Date.now()) {
   const text = typeof data === 'string' ? data : JSON.stringify(data);
   let list = snapshots();
   if (list[0] && list[0].data === text) return list[0].id; // ta sama wersja – bez dublowania
   const item = { id: `k${now}`, at: new Date(now).toISOString(), reason: String(reason || ''), data: text };
-  list = [item, ...list].slice(0, SNAP_MAX);
+  // Osobno: 3 kopie dzienne i 6 kopii „przed operacją” – częsta synchronizacja nie wypycha kopii dziennych (audyt B11)
+  const daily = (x) => x.reason === DAILY;
+  list = [item, ...list];
+  list = [...list.filter(daily).slice(0, DAILY_MAX), ...list.filter((x) => !daily(x)).slice(0, SNAP_MAX)]
+    .sort((a, b) => (a.at < b.at ? 1 : -1));
   while (list.length) {
-    try { localStorage.setItem(SNAP_KEY, JSON.stringify(list)); return item.id; } catch (e) {
+    try { localStorage.setItem(SNAP_KEY, JSON.stringify(list)); return list.some((x) => x.id === item.id) ? item.id : null; } catch (e) {
       if (list.length === 1) return null;
-      list = list.slice(0, -1);
+      // Brak miejsca: najpierw usuwamy najstarszą kopię „przed operacją”, potem najstarszą dzienną
+      const i = list.map((x, k) => [x, k]).reverse().find(([x]) => !daily(x) && x.id !== item.id)?.[1] ?? list.length - 1;
+      list = list.filter((_, k) => k !== i);
     }
   }
   return null;
@@ -163,9 +171,9 @@ export function snapshotData(id) {
 
 /** Kopia „raz dziennie” przy otwarciu aplikacji. */
 export function dailySnapshot(state, now = Date.now()) {
-  const last = snapshots().find((x) => x.reason === 'kopia dzienna');
+  const last = snapshots().find((x) => x.reason === DAILY);
   if (last && now - Date.parse(last.at) < 20 * 3600 * 1000) return null;
-  return snapshot(state, 'kopia dzienna', now);
+  return snapshot(state, DAILY, now);
 }
 
 export async function askPersistence() {

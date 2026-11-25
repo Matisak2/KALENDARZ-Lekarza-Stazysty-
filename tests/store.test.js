@@ -61,3 +61,15 @@ test('Dane bez study.reviews dostają puste powtórki, odhaczone lekcje zostają
   assert.deepEqual(m.study.reviews, {});
   assert.deepEqual(m.study.done, { 'k|d|l': '2026-11-20' });
 });
+
+test('Audyt B11: kopie dzienne (3) osobno od kopii „przed operacją” (6) – synchronizacja ich nie wypycha', () => {
+  mem.clear();
+  const s = defaultState();
+  const DAY = 24 * 3600 * 1000;
+  for (let d = 0; d < 4; d++) { s.notes = { a: `dzień ${d}` }; store.dailySnapshot(s, d * DAY); }
+  for (let i = 0; i < 10; i++) { s.notes = { a: `pobranie ${i}` }; store.snapshot(s, 'przed pobraniem z chmury', 4 * DAY + i); }
+  const list = store.snapshots();
+  assert.equal(list.filter((x) => x.reason === 'kopia dzienna').length, 3);
+  assert.equal(list.filter((x) => x.reason !== 'kopia dzienna').length, 6);
+  assert.ok(list[0].at > list.at(-1).at); // najnowsza pierwsza
+});
