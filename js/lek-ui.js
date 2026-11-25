@@ -1,6 +1,7 @@
 // Zakładka „LEK”: planer nauki (Plan), spis kursów WNL (Materiały), wyniki LEK i próbne (Wyniki), Specjalizacje.
 import { shareOrDownload } from './more-ui.js';
 import { DOMAINS, domainOf, guessDomain, parseCoursesText, coursesFromFile, mergeCourses, coursesFileJson, mergeCourse, allLessons, buildPlan, currentWeek, DEFAULT_SURVEY, explainLesson } from './lek.js';
+import { cemIndex, loadCem } from './lek-freq.js';
 import { specNames, wojNames, specStats, suggestTarget, chance, MY_SPECS, TRYBY } from './specs.js';
 import { fmtShort, fmtFull, fmtDayShort, toNum, plural, todayIso } from './dates.js';
 import { esc, helpBox } from './blocks-ui.js';
@@ -22,15 +23,20 @@ const study = (state) => {
   return state.study;
 };
 const activePlan = (st) => (st.plans || []).find((p) => p.id === st.activePlan && !p.archived) || null;
+const pct = (n) => String(n).replace('.', ',');
 const h = (n) => `${String(Math.round(n * 10) / 10).replace(".", ",")} h`;
 const pctBar = (v, target) => `<div class="score-bar"><div style="width:${Math.min(100, v)}%"></div>
   <i style="left:56%" title="próg 56%"></i>${target > 56 ? `<i class="tg" style="left:${Math.min(100, target)}%" title="cel"></i>` : ''}</div>`;
 
 /* ---------- Ekran ---------- */
 
+/** Opcje planu: indeks bazy CEM (częstość tematów). */
+export const planOpts = () => ({ cem: cemIndex() });
+
 export function renderLek(state, today, ctx) {
   const st = study(state);
   loadNabory(() => ctx.render());
+  loadCem(() => ctx.render());
   const tabs = [['plan', 'Plan'], ['mat', 'Materiały'], ['wyn', 'Wyniki'], ['spec', 'Specjalizacje']];
   let body = '';
   if (seg === 'plan') body = planView(state, st, today);
@@ -68,7 +74,7 @@ function planView(state, st, today) {
 }
 
 function planSummary(state, st, p, today) {
-  const b = buildPlan(state, p, today);
+  const b = buildPlan(state, p, today, planOpts(state, today));
   const s = b.survey;
   const w = currentWeek(b, today);
   const vColor = { good: 'var(--ok)', tight: 'var(--warn)', hard: 'var(--danger)' }[b.verdict];
@@ -78,52 +84,78 @@ function planSummary(state, st, p, today) {
     hard: 'Przy tym czasie cel jest mało realny. Rozważ więcej godzin, inny cel albo późniejszy termin.',
   }[b.verdict];
   const doneSet = st.done || {};
+  const pyt = (l) => (l.exp != null ? ` · ok. ${String(Math.round(l.exp * 10) / 10).replace('.', ',')} pyt. na LEK` : '');
   const lessonRow = (l) => `<div class="lesson ${doneSet[l.key] ? 'on' : ''}">
       <label class="skill ${doneSet[l.key] ? 'on' : ''}"><input type="checkbox" data-lesson="${esc(l.key)}" ${doneSet[l.key] ? 'checked' : ''}>
-        <span class="box"></span><span class="nm">${esc(l.name)}<small>${esc(domText(l))} · ${esc(l.section)} · ${h(l.hours)}</small></span></label>
+        <span class="box"></span><span class="nm">${esc(l.name)}<small>${esc(domText(l))} · ${esc(l.section)} · ${h(l.hours)}${pyt(l)}</small></span></label>
       <button class="chip" data-skip="${esc(l.key)}" title="Pomiń">Pomiń</button></div>`;
-  const weeksHtml = b.weeks.filter((x) => x !== w).slice(0, 30).map((x) => `<div class="wk ${x.review ? 'rv' : ''}">
-      <div class="wk-h"><b>${fmtShort(x.start)}–${fmtShort(x.end)}</b><span>${h(x.hours)}${x.review ? ' · powtórka' : ''}</span></div>
-      ${x.lessons.length ? `<div class="wk-l">${x.lessons.map((l) => esc(l.name)).join(' · ')}</div>` : `<div class="wk-l muted">${x.review ? 'Powtórka i pytania z bazy' : 'Pytania i powtórki'}</div>`}
-    </div>`).join('');
+  const two = b.stages.length > 1;
+  const stName = (i) => (i === 0 ? `do LEK ${fmtShort(s.examDate)}${two ? ' (trening)' : ''}` : `do ostatecznego LEK ${fmtShort(b.final.date)}`);
+  const perQ = (x) => (b.stages[x.stage]?.basePlan === 'second' ? 1 : 1.5);
+  let prevStage = -1;
+  const weeksHtml = b.weeks.filter((x) => x !== w).slice(0, 60).map((x) => {
+    const head = two && x.stage !== prevStage ? `<div class="sec-name"><span>Etap ${x.stage + 1} · ${esc(stName(x.stage))}</span></div>` : '';
+    prevStage = x.stage;
+    return `${head}<div class="wk ${x.review ? 'rv' : ''}">
+      <div class="wk-h"><b>${fmtShort(x.start)}–${fmtShort(x.end)}</b><span>${h(x.hours)}${x.review ? ' · powtórka przed LEK' : ''}</span></div>
+      ${x.lessons.length ? `<div class="wk-l">${x.lessons.map((l) => esc(l.name)).join(' · ')}</div>` : ''}
+      ${x.base >= 0.5 ? `<div class="wk-l muted">🧩 baza CEM: ok. ${Math.round((x.base * 60) / perQ(x))} pytań</div>` : (!x.lessons.length ? '<div class="wk-l muted">Pytania i powtórki</div>' : '')}
+    </div>`;
+  }).join('');
+  const dups = b.dropped.filter((l) => l.dup);
+  const drops = b.dropped.filter((l) => !l.dup);
+  const stagesCard = two ? `<div class="card fade"><div class="card-label">🎯 Twój plan podejść</div>
+      ${b.stages.map((x) => `<div class="stage-row">
+        <div class="t-strong">Etap ${x.i + 1} · ${esc(stName(x.i))}</div>
+        <div class="sub">${x.basePlan === 'all' ? `🧩 cała baza CEM: ${x.baseQ} pytań (ok. ${Math.round(x.baseNeed)} h)` : x.basePlan === 'second' ? `🧩 drugie przejście bazy CEM na końcu etapu (ok. ${Math.round(x.baseNeed)} h)` : x.withBase ? `🧩 baza CEM: ok. ${Math.round(x.baseHours)} h` : '🧩 bez jawnej bazy – pytania do ćwiczeń'}<br>
+          📚 ${x.chosen.length} ${plural(x.chosen.length, 'lekcja', 'lekcje', 'lekcji')} (${h(x.lessonHours)})${x.i === 0 ? ' – najważniejsze tematy' : ' – pozostałe tematy'} · szacunek: <b>${pct(x.est)}%</b></div></div>`).join('')}
+      <p class="hint small">Zmienisz to w ankiecie („Edytuj ankietę” → Twój plan podejść).</p></div>` : '';
+  const warnCard = b.warnings.length ? `<div class="card fade todo-card">${b.warnings.map((x) => `<div class="todo warn"><div class="todo-ic">⚠️</div><div class="grow"><div class="s">${esc(x)}</div></div></div>`).join('')}</div>` : '';
+  const baseTotal = s.baseTotal || b.baseTotal;
   return `
     <div class="card hero fade" style="--block:var(--c-course)">
-      <div class="card-label">${esc(p.name)} · ${s.mode === 'trening' ? 'podejście treningowe' : 'na serio'}</div>
+      <div class="card-label">${esc(p.name)} · ${two ? `trening ${fmtShort(s.examDate)}, ostateczny LEK ${fmtShort(b.final.date)}` : s.mode === 'trening' ? 'podejście treningowe' : 'na serio'}</div>
       <div class="hero-top">
         <div class="hero-info">
-          <div class="hero-name">${b.daysLeft} ${plural(b.daysLeft, 'dzień', 'dni', 'dni')}</div>
-          <div class="hero-place">do LEK ${fmtFull(s.examDate)} · cel ${b.target}%${s.spec ? ` (${esc(s.spec)})` : ''}</div>
+          <div class="hero-name">${two ? b.daysLeftFinal : b.daysLeft} ${plural(two ? b.daysLeftFinal : b.daysLeft, 'dzień', 'dni', 'dni')}</div>
+          <div class="hero-place">do ${two ? `ostatecznego LEK ${fmtFull(b.final.date)}` : `LEK ${fmtFull(s.examDate)}`} · cel ${b.target}%${s.spec ? ` (${esc(s.spec)})` : ''}</div>
+          ${two ? `<div class="sub">Najbliższy LEK (trening): ${fmtFull(s.examDate)} – za ${b.daysLeft} ${plural(b.daysLeft, 'dzień', 'dni', 'dni')} · szacunek ${pct(b.stages[0].est)}%</div>` : ''}
         </div>
       </div>
       <div class="est">
-        <div><span>Szacowany wynik przy realizacji planu</span><b style="color:${vColor}">${b.estPlan}%</b></div>
+        <div><span>Szacowany wynik${two ? ' na ostatecznym LEK' : ''} przy realizacji planu</span><b style="color:${vColor}">${pct(b.estPlan)}%</b></div>
         ${pctBar(b.estPlan, b.target)}
         <div class="sub" style="color:${vColor};font-weight:700">${vText}</div>
-        <div class="sub">Gdyby egzamin był dziś: ~${b.estNow}%. To orientacyjny szacunek – wpisuj wyniki próbnych, będą dokładniejsze.</div>
+        <div class="sub">Gdyby egzamin był dziś: ~${pct(b.estNow)}%. To orientacyjny szacunek${b.yields ? ' (pokrycie tematów ważone tym, jak często pojawiają się w bazie CEM)' : ''} – wpisuj wyniki próbnych.</div>
       </div>
       <div class="hero-stats">
-        <div class="stat"><b>${Math.round(b.hoursTotal)}</b><span>godzin nauki do egzaminu</span></div>
-        <div class="stat"><b>${b.chosen.length}</b><span>lekcji w planie (${h(b.chosen.reduce((a, l) => a + l.hours, 0))})</span></div>
-        <div class="stat"><b>${b.dropped.length}</b><span>pominiętych</span></div>
+        <div class="stat"><b>${Math.round(b.hoursTotal)}</b><span>godzin nauki do ${two ? 'ostatecznego ' : ''}LEK</span></div>
+        <div class="stat"><b>${b.chosen.length}</b><span>lekcji w planie (${h(b.plannedHours)})</span></div>
+        <div class="stat"><b>${drops.length}</b><span>pominiętych</span></div>
       </div>
     </div>
+    ${warnCard}
     <div class="desk-2"><div>
-      ${w ? `<div class="card fade"><div class="card-label">Ten tydzień · ${fmtShort(w.start)}–${fmtShort(w.end)} · ${h(w.hours)}</div>
-        ${w.lessons.length ? w.lessons.map(lessonRow).join('') : '<p class="sub">W tym tygodniu: powtórka i pytania.</p>'}
-        ${s.base ? `<div class="base-row">🧩 Baza pytań: ok. <b>${Math.round((w.base * 60) / 1.5)}</b> pytań (${h(w.base)})${b.baseOnlyQ ? `<br><small>w tym ok. ${Math.round(((w.base * 60) / 1.5) * b.baseOnlyQ / 200)} z prawa i bioetyki, zdrowia publicznego i orzecznictwa – tych dziedzin uczysz się tylko z bazy</small>` : ''}</div>` : `<div class="base-row">🧩 Pytania WNL do przerobionych tematów: ${h(w.base)}</div>`}
+      ${stagesCard}
+      ${w ? `<div class="card fade"><div class="card-label">Ten tydzień · ${fmtShort(w.start)}–${fmtShort(w.end)} · ${h(w.hours)}${two ? ` · etap ${w.stage + 1}` : ''}</div>
+        ${w.lessons.length ? w.lessons.map(lessonRow).join('') : '<p class="sub">W tym tygodniu: pytania z bazy i powtórka.</p>'}
+        ${b.stages[w.stage]?.withBase ? `<div class="base-row">🧩 Baza pytań: ok. <b>${Math.round((w.base * 60) / perQ(w))}</b> pytań (${h(w.base)})${b.baseOnlyQ ? `<br><small>w tym ok. ${Math.round(((w.base * 60) / perQ(w)) * b.baseOnlyQ / 200)} z prawa i bioetyki, zdrowia publicznego i orzecznictwa – tych dziedzin uczysz się tylko z bazy</small>` : ''}</div>` : `<div class="base-row">🧩 Pytania do przerobionych tematów: ${h(w.base)}</div>`}
       </div>` : ''}
       ${s.base ? `<div class="card fade"><div class="card-label">🧩 Baza CEM</div>
-        <div class="val-row"><span><b>${s.baseDone || 0}</b> / ${s.baseTotal || '?'} pytań</span>
+        <div class="val-row"><span><b>${s.baseDone || 0}</b> / ${baseTotal || '?'} pytań</span>
           <span><button class="chip" data-base-add="50">+50</button><button class="chip" data-base-add="100">+100</button><button class="chip" data-lek="edit-plan">Zmień</button></span></div>
-        ${s.baseTotal ? `<div class="minibar" style="--block:var(--c-course)"><div style="width:${Math.min(100, ((s.baseDone || 0) / s.baseTotal) * 100)}%"></div></div>` : '<p class="hint small">Wpisz w ankiecie, ile pytań ma baza (zobaczysz w swoim narzędziu do bazy).</p>'}
-        <p class="hint small">Do egzaminu zmieścisz jeszcze ok. ${b.baseCanDo} pytań. Na luty 2027 baza daje 70% pytań (art. 14c ustawy).</p></div>` : ''}
+        ${baseTotal ? `<div class="minibar" style="--block:var(--c-course)"><div style="width:${Math.min(100, ((s.baseDone || 0) / baseTotal) * 100)}%"></div></div>` : '<p class="hint small">Wpisz w ankiecie, ile pytań ma baza.</p>'}
+        <p class="hint small">${!s.baseTotal && b.baseTotal ? `Cała baza CEM (cem.edu.pl) ma ${b.baseTotal} pytań. ` : ''}Do najbliższego LEK zmieścisz jeszcze ok. ${b.baseCanDo} pytań.</p></div>` : ''}
     </div><div>
       ${domainsCard(b)}
       <div class="card fade"><details class="course-list"><summary>Kolejne tygodnie (${b.weeks.length})</summary>${weeksHtml}</details></div>
-      <div class="card fade"><details class="course-list"><summary>Pominięte lekcje (${b.dropped.length})</summary>
-        ${b.dropped.map((l) => `<div class="lesson"><span class="nm">${esc(l.name)}<small>${esc(l.reason)} · ${h(l.hours)}</small></span>
+      <div class="card fade"><details class="course-list"><summary>Pominięte lekcje (${drops.length})</summary>
+        ${drops.map((l) => `<div class="lesson"><span class="nm">${esc(l.name)}<small>${esc(l.reason)} · ${h(l.hours)}</small></span>
           <button class="chip" data-must="${esc(l.key)}">Jednak zrób</button></div>`).join('') || '<p class="sub">Nic – wszystko się mieści.</p>'}
-      </details></div>
+      </details>
+      ${dups.length ? `<details class="course-list"><summary>Te same tematy w kilku kursach (${dups.length}) – liczone raz</summary>
+        <p class="hint small">Odhaczenie tematu w jednym kursie zalicza go we wszystkich.</p>
+        ${dups.map((l) => `<div class="lesson"><span class="nm">${esc(l.name)}<small>${esc(l.course)} → ${esc(l.reason)}</small></span></div>`).join('')}</details>` : ''}</div>
       <div class="card fade"><div class="card-label">Plan</div>
         <div class="quick two"><button class="btn" data-lek="edit-plan">Edytuj ankietę</button><button class="btn" data-lek="new-plan">Nowy plan</button></div>
         ${plansList(st)}
@@ -458,10 +490,24 @@ function surveySheet(state, ctx, plan) {
   const html = () => `
     <div class="form-card">
       <label>Nazwa planu<input data-s="name" value="${esc(name)}"></label>
-      <label>Termin egzaminu<input type="date" data-s="examDate" value="${s.examDate}"></label>
-      <div class="t-strong small-t">Jak traktujesz to podejście?</div>
+      <label>Termin najbliższego LEK<input type="date" data-s="examDate" value="${s.examDate}"></label>
+      <div class="t-strong small-t">Jak traktujesz najbliższe podejście?</div>
       <div class="segmented"><button data-sv="mode:trening" class="${s.mode === 'trening' ? 'on' : ''}">Trening</button><button data-sv="mode:serio" class="${s.mode === 'serio' ? 'on' : ''}">Na serio</button></div>
-      <div class="t-strong small-t">Cel</div>
+    </div>
+    <div class="form-card">
+      <div class="card-label">🎯 Twój plan podejść</div>
+      <div class="t-strong small-t">Czy najbliższy LEK to ten, na który chcesz być najlepiej przygotowany?</div>
+      <div class="segmented"><button data-sv="finalLater:false" class="${!s.finalLater ? 'on' : ''}">Tak, to ten</button><button data-sv="finalLater:true" class="${s.finalLater ? 'on' : ''}">Nie – ostateczny później</button></div>
+      ${s.finalLater ? `
+        <label>Termin ostatecznego LEK<input type="date" data-s="finalDate" value="${esc(s.finalDate || '')}"></label>
+        <p class="hint small">Może być za pół roku albo za kilka lat. Data jest orientacyjna – CEM podaje dokładny termin później; zmienisz ją tutaj w każdej chwili.</p>
+        <div class="t-strong small-t">Czy na ostatecznym LEK będzie jawna baza CEM?</div>
+        <div class="segmented"><button data-sv="finalBase:true" class="${s.finalBase !== false ? 'on' : ''}">Tak (70% z bazy)</button><button data-sv="finalBase:false" class="${s.finalBase === false ? 'on' : ''}">Bez jawnej bazy</button></div>
+        ${s.finalDate >= '2027-05-01' ? '<p class="hint small">Projekt UD384 (jeszcze nieprzyjęty) zakłada likwidację jawnej bazy od 1.05.2027. Sprawdź przepisy przed zapisami i w razie czego przełącz na „Bez jawnej bazy”.</p>' : ''}
+        <p class="sub plan-note">Plan: <b>do najbliższego LEK</b> – cała baza CEM i najważniejsze lekcje (tematy najczęstsze na LEK); <b>potem do ostatecznego LEK</b> – pozostałe lekcje, a na koniec drugie przejście bazy i tydzień powtórki.</p>` : '<p class="hint small">Plan przygotuje Cię jak najlepiej na najbliższy LEK.</p>'}
+    </div>
+    <div class="form-card">
+      <div class="t-strong small-t">Cel${s.finalLater ? ' na ostatecznym LEK' : ''}</div>
       <div class="segmented"><button data-sv="goal:pass" class="${s.goal === 'pass' ? 'on' : ''}">Zdać (56%)</button><button data-sv="goal:score" class="${s.goal === 'score' ? 'on' : ''}">Wynik pod specjalizację</button></div>
       ${s.goal === 'score' ? `
         <label>Specjalizacja<select data-s="spec"><option value="">— wybierz —</option>${specs.map((x) => `<option ${x === s.spec ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
@@ -523,6 +569,12 @@ function surveySheet(state, ctx, plan) {
     if (sv) {
       const [k, v] = sv.dataset.sv.split(':');
       s[k] = v === 'true' ? true : v === 'false' ? false : v;
+      if (k === 'finalLater' && s.finalLater) {
+        // Propozycja: następna sesja (luty -> wrzesień, wrzesień -> luty kolejnego roku); trening przed ostatecznym LEK
+        const y = Number(s.examDate.slice(0, 4));
+        if (!s.finalDate || s.finalDate <= s.examDate) s.finalDate = Number(s.examDate.slice(5, 7)) <= 6 ? `${y}-09-15` : `${y + 1}-02-15`;
+        s.mode = 'trening';
+      }
       return redraw();
     }
     const rd = e.target.closest('[data-rest]');
@@ -550,6 +602,7 @@ function surveySheet(state, ctx, plan) {
     }
     if (e.target.closest('[data-ok]')) {
       if (!s.examDate) return ctx.toast('Wpisz termin egzaminu');
+      if (s.finalLater && (!s.finalDate || s.finalDate <= s.examDate)) return ctx.toast('Ostateczny LEK musi być później niż najbliższy');
       if (s.goal === 'pass') s.targetPct = 56;
       if (plan) { plan.name = name; plan.survey = { ...s }; }
       else {

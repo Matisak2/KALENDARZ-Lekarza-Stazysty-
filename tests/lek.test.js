@@ -156,7 +156,7 @@ test('Dziedziny lekcji: kurs + dopasowanie po nazwie (bez kursu z POZ, prawa, or
   assert.ok(lessonDomains('rat', 'Toksykologia', 'Zatrucia alkoholami').includes('psych'));
 });
 
-test('Plan przy małej ilości czasu: wybiera lekcje przydatne dla kilku dziedzin; czas nie przepada', () => {
+test('Plan przy małej ilości czasu (bez indeksu CEM): lekcje w kolejności kursu, dziedziny tylko z bazy', () => {
   const st = defaultState();
   const parsed = { name: 'Kurs z interny', domain: 'int', warnings: [], sections: [{ name: 'Kardiologia', lessons: [
     { name: 'Wady zastawkowe 1', hMin: 2, hMax: 3 }, { name: 'Wady zastawkowe 2', hMin: 2, hMax: 3 },
@@ -164,10 +164,9 @@ test('Plan przy małej ilości czasu: wybiera lekcje przydatne dla kilku dziedzi
   st.study = { courses: mergeCourse([], parsed), done: {} };
   const plan = { id: 'p', survey: { examDate: '2026-12-20', hWork: 0.5, hDuty: 0, hWeekend: 0, hVacation: 0, base: false } };
   const b = buildPlan(st, plan, '2026-11-25');
-  const names = b.chosen.map((l) => l.name);
-  assert.ok(names.includes('Leczenie nadciśnienia tętniczego') && names.includes('Przewlekłe zespoły wieńcowe'));
-  assert.ok(!names.includes('Wady zastawkowe 2'));
   assert.equal(b.chosen.length + b.dropped.length, 4);
+  assert.ok(b.chosen.length >= 1 && b.chosen.length < 4);
+  assert.deepEqual(b.chosen.map((l) => l.name), ['Wady zastawkowe 1', 'Wady zastawkowe 2']); // bez bazy CEM – kolejność kursu
   assert.ok(b.domains.find((d) => d.id === 'rodz').lessons === 2);
   assert.deepEqual(b.domains.filter((d) => d.baseOnly).map((d) => d.id), ['etyka', 'zp', 'orz']);
   assert.equal(b.baseOnlyQ, 25);

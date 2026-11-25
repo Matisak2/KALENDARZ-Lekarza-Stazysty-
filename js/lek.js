@@ -5,6 +5,7 @@ import { addDays, eachDay, isWeekend, toNum, weekday } from './dates.js';
 import { buildContext, statutoryOff } from './engine.js';
 import { EVENT_TYPES } from './defaults.js';
 import { classifyLesson } from './lek-domains.js';
+import { topicYield } from './lek-freq.js';
 
 export const DOMAINS = [
   { id: 'int', name: 'Choroby wewnętrzne', q: 39, kw: /intern|chorób wewn|choroby wewn|kardio(?!chir)|wewnętrzn|zakaźn|neurolog|hematolog|endokryn|diabetolog|nefrolog|gastroenterolog|hepatolog|pulmonolog|reumatolog|alergolog|onkolog(?!.*(ginekolog|dziecięc))/i },
@@ -310,6 +311,10 @@ export const DEFAULT_SURVEY = {
   baseDone: 0,
   previous: [], // [{year, session, pct}]
   restDays: [], // dni tygodnia wolne od nauki (0 = niedziela … 6 = sobota)
+  // Plan podejść: najbliższy LEK (examDate) może być treningiem przed ostatecznym LEK (finalDate)
+  finalLater: false, // true = najbliższy LEK to nie ostateczny
+  finalDate: '', // termin ostatecznego LEK (orientacyjny – można zmienić)
+  finalBase: true, // czy na ostatecznym LEK będzie jawna baza CEM
 };
 
 const STYLE_FACTOR = { video: 1.15, read: 1.0, questions: 0.85, mix: 1.0 };
@@ -412,147 +417,279 @@ export function coverage(lessons, chosenKeys) {
   return tot ? domainCoverage(lessons, chosenKeys).reduce((a, d) => a + d.q * d.cov, 0) / tot : 0;
 }
 
+/** Ostateczny LEK (gdy najbliższe podejście jest treningiem) – albo null, gdy najbliższy LEK jest ostateczny. */
+export function finalExam(survey) {
+  if (!survey.finalLater || !survey.finalDate || survey.finalDate <= survey.examDate) return null;
+  return { date: survey.finalDate, base: survey.finalBase !== false };
+}
+
+const INTRO = /^(wstęp|podstawy|wprowadzenie)\b/i;
+const MIN_PER_Q_1 = 1.5; // pierwsze przejście bazy: ok. 1,5 min na pytanie (z wyjaśnieniem)
+const MIN_PER_Q_2 = 1.0; // drugie przejście (pytania już znane): ok. 1 min
+/** Data, od której wg projektu UD384 (nieprzyjętego) mogłaby zniknąć jawna baza CEM. */
+export const UD384_FROM = '2027-05-01';
+
 /**
- * Buduje plan od dnia `today` do egzaminu:
- *  – godziny z grafiku, część na bazę pytań, reszta na lekcje,
- *  – budżet godzin na dziedzinę proporcjonalny do wagi, lekcje w kolejności kursu,
- *  – czego nie zmieścimy -> „pominięte” (z najmniej opłacalnych dziedzin),
- *  – rozkład na tygodnie (ostatni tydzień = powtórka).
+ * Te same tematy w kilku kursach (np. „Medycyna paliatywna” w internie, ratunkowej i onkologii):
+ * liczymy je raz – w kursie dziedziny z największą liczbą pytań na LEK. Zwraca Map: klucz lekcji -> klucz „główny”.
  */
-export function buildPlan(state, plan, today) {
+export function duplicateMap(lessons) {
+  const groups = new Map();
+  lessons.forEach((l, i) => {
+    const k = l.name.toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push({ l, i });
+  });
+  const q = (l) => (DOMAIN_IDS.includes(l.domain) ? domainOf(l.domain).q : 0);
+  const map = new Map();
+  for (const g of groups.values()) {
+    const main = [...g].sort((a, b) => q(b.l) - q(a.l) || a.i - b.i)[0].l;
+    for (const { l } of g) map.set(l.key, main.key);
+  }
+  return map;
+}
+
+/** Główna dziedzina lekcji: dziedzina kursu (jeśli jest dziedziną LEK), inaczej pierwsza rozpoznana z nazwy. */
+const mainDomain = (l) => (DOMAIN_IDS.includes(l.domain) ? l.domain : (l.domains || [])[0] || null);
+
+/**
+ * Buduje plan od dnia `today`:
+ *  – jedno podejście (najbliższy LEK jest ostateczny) albo dwa etapy: do treningowego LEK (cała baza CEM + najważniejsze lekcje)
+ *    i od niego do ostatecznego LEK (reszta lekcji, na końcu drugie przejście bazy), ostatni tydzień przed egzaminem = powtórka,
+ *  – czas na lekcje dzielony między dziedziny proporcjonalnie do liczby pytań na LEK (słabsza ×1,3, mocniejsza ×0,7),
+ *  – w dziedzinie najpierw tematy najczęstsze na LEK w przeliczeniu na godzinę (baza CEM – opts.cem), „Wstęp do…” razem ze swoim działem,
+ *  – ten sam temat z kilku kursów liczony raz, odhaczenie w jednym kursie = zrobione wszędzie,
+ *  – czego nie zmieścimy -> „pominięte” (z powodem).
+ * opts: { cem – indeks bazy CEM (lek-freq.js), reviewHours(date) – godziny powtórek danego dnia }.
+ */
+export function buildPlan(state, plan, today, opts = {}) {
   const survey = { ...DEFAULT_SURVEY, ...plan.survey };
   const study = state.study || {};
   const done = study.done || {};
-  const from = today;
-  const days = studyDays(state, survey, from, survey.examDate);
-  const hoursTotal = days.reduce((a, d) => a + d.hours, 0);
-  const share = baseShare(survey);
-  const reviewDays = days.filter((d) => toNum(survey.examDate) - toNum(d.date) <= 7);
-  const reviewHours = reviewDays.reduce((a, d) => a + d.hours, 0);
-  const learnHours = Math.max(0, (hoursTotal - reviewHours) * (1 - share));
-  const baseHours = Math.max(0, (hoursTotal - reviewHours) * share);
+  const cem = opts.cem || null;
+  const final = finalExam(survey);
   const factor = STYLE_FACTOR[survey.style] || 1;
-
-  const lessons = allLessons(study, survey.pace).map((l) => ({ ...l, hours: Math.round(l.hours * factor * 10) / 10 }));
-  const todo = lessons.filter((l) => !done[l.key]);
-  const doneKeys = new Set(lessons.filter((l) => done[l.key]).map((l) => l.key));
   const skipped = new Set(plan.skip || []);
   const must = new Set(plan.must || []);
 
-  // Budżet na dziedzinę ∝ wadze. Kandydaci dziedziny = lekcje, które do niej pasują (także z innych kursów).
-  const idx = new Map(lessons.map((l, i) => [l.key, i]));
-  const value = (l) => l.domains.reduce((a, id) => a + domainWeight(survey, id), 0); // ile pytań „obsługuje” lekcja
-  const cand = (id) => todo.filter((l) => l.domains.includes(id) && !skipped.has(l.key));
-  const domainsWithWork = DOMAINS.filter((d) => cand(d.id).length);
-  const need = {};
-  for (const d of domainsWithWork) need[d.id] = cand(d.id).reduce((a, l) => a + l.hours, 0);
-  // Rozdział budżetu z przelewaniem nadwyżek do dziedzin, które potrzebują więcej
-  const budget = {};
-  let left = learnHours;
-  let open = [...domainsWithWork];
-  for (let guard = 0; guard < 10 && open.length && left > 0.01; guard++) {
-    const ws = open.reduce((a, d) => a + domainWeight(survey, d.id), 0) || 1;
-    const next = [];
-    let spent = 0;
-    for (const d of open) {
-      const give = left * (domainWeight(survey, d.id) / ws);
-      const room = need[d.id] - (budget[d.id] || 0);
-      const g = Math.min(give, room);
-      budget[d.id] = (budget[d.id] || 0) + g;
-      spent += g;
-      if (room - g > 0.01) next.push(d);
-    }
-    left -= spent;
-    open = next;
-    if (spent < 0.01) break;
-  }
-
-  // Wybór: najpierw małe dziedziny (mają mało pasujących lekcji), w dziedzinie najpierw „muszę”, potem lekcje
-  // przydatne dla największej liczby pytań (np. nadciśnienie: interna + medycyna rodzinna).
-  const chosenBy = new Map(); // klucz lekcji -> dziedzina, z której budżetu ją wzięto
-  const byValue = (a, b) => value(b) - value(a) || idx.get(a.key) - idx.get(b.key);
-  for (const l of todo) if (must.has(l.key) && !skipped.has(l.key)) chosenBy.set(l.key, l.domains[0] || l.domain);
-  const order0 = [...domainsWithWork].sort((a, b) => domainWeight(survey, a.id) - domainWeight(survey, b.id));
-  for (const d of order0) {
-    let b = (budget[d.id] || 0) - todo.filter((l) => chosenBy.get(l.key) === d.id).reduce((a, l) => a + l.hours, 0);
-    for (const l of cand(d.id).filter((x) => !chosenBy.has(x.key)).sort(byValue)) {
-      if (l.hours <= b + 0.25) { chosenBy.set(l.key, d.id); b -= l.hours; }
-    }
-  }
-  // Czas, który został (lekcje „zajęte” przez inne dziedziny) – dobieramy najcenniejsze pozostałe lekcje
-  let spare = learnHours - todo.filter((l) => chosenBy.has(l.key)).reduce((a, l) => a + l.hours, 0);
-  for (const l of todo.filter((x) => !chosenBy.has(x.key) && !skipped.has(x.key) && x.domains.length).sort(byValue)) {
-    if (l.hours <= spare + 0.25) { chosenBy.set(l.key, l.domains[0]); spare -= l.hours; }
-  }
-  const chosen = todo.filter((l) => chosenBy.has(l.key));
+  // Lekcje: czas wg tempa i stylu, częstość na LEK z bazy CEM, duplikaty
+  const all = allLessons(study, survey.pace).map((l) => ({ ...l, hours: Math.round(l.hours * factor * 10) / 10 }));
+  const yields = topicYield(all, cem);
+  const dup = duplicateMap(all);
+  const groupDone = new Set(all.filter((l) => done[l.key]).map((l) => dup.get(l.key)));
+  const lessons = all.map((l, idx) => ({ ...l, idx, exp: yields ? yields.get(l.key)?.exp || 0 : null, mainKey: dup.get(l.key) }));
+  const isDone = (l) => !!done[l.key] || groupDone.has(l.mainKey);
+  const canon = lessons.filter((l) => l.mainKey === l.key);
+  const doneKeys = new Set(canon.filter(isDone).map((l) => l.key));
+  const todo = canon.filter((l) => !isDone(l));
   const dropped = [];
-  for (const l of todo.filter((x) => !chosenBy.has(x.key))) {
-    if (skipped.has(l.key)) dropped.push({ ...l, reason: 'pominięte przez Ciebie' });
-    else if (!l.domains.length) dropped.push({ ...l, reason: 'poza dziedzinami LEK – przypisz kurs do dziedziny, jeśli to potrzebne' });
-    else { const d = domainOf(l.domains[0]); dropped.push({ ...l, reason: `brak czasu – ${d.name}: ${d.q} pytań na LEK` }); }
+  for (const l of lessons.filter((x) => x.mainKey !== x.key && !isDone(x))) {
+    const m = lessons.find((x) => x.key === l.mainKey);
+    dropped.push({ ...l, reason: `ten sam temat co w: ${m?.course || 'innym kursie'}`, dup: true });
   }
 
-  // Kolejność nauki: przeplatamy dziedziny wg wagi (żeby każdy tydzień był zróżnicowany)
-  const queues = DOMAINS.map((d) => ({ d, q: chosen.filter((l) => chosenBy.get(l.key) === d.id).sort((a, b) => idx.get(a.key) - idx.get(b.key)) })).filter((x) => x.q.length);
-  const order = [];
-  const credit = Object.fromEntries(queues.map((x) => [x.d.id, 0]));
-  while (queues.some((x) => x.q.length)) {
-    for (const x of queues) if (x.q.length) credit[x.d.id] += domainWeight(survey, x.d.id);
-    const pick = queues.filter((x) => x.q.length).sort((a, b) => credit[b.d.id] - credit[a.d.id])[0];
-    order.push(pick.q.shift());
-    credit[pick.d.id] -= 100;
-  }
-
-  // Tygodnie (pn–nd); godziny na lekcje w tygodniu = godziny tygodnia × (1 − udział bazy)
-  const weeks = [];
-  for (const d of days) {
-    const wd = (new Date(`${d.date}T00:00:00Z`).getUTCDay() + 6) % 7;
-    if (!weeks.length || wd === 0) weeks.push({ start: d.date, end: d.date, hours: 0, review: false, lessons: [], base: 0, lessonHours: 0 });
-    const w = weeks[weeks.length - 1];
-    w.end = d.date;
-    w.hours += d.hours;
-    if (toNum(survey.examDate) - toNum(d.date) <= 7) w.review = true;
-  }
-  let qi = 0;
-  for (const w of weeks) {
-    if (w.review && w.start >= addDays(survey.examDate, -7)) { w.base = Math.round(w.hours); continue; }
-    const cap = w.hours * (1 - share);
-    w.base = Math.round(w.hours * share * 10) / 10;
-    while (qi < order.length && (w.lessonHours + order[qi].hours <= cap + 0.5 || w.lessons.length === 0 && cap > 0.5)) {
-      w.lessons.push(order[qi]);
-      w.lessonHours += order[qi].hours;
-      qi++;
+  // Kolejność wyboru (A + B): w dziedzinie wg częstości na LEK na godzinę; dziedziny przeplatane proporcjonalnie do pytań
+  const score = new Map();
+  for (const l of todo) score.set(l.key, yields ? (l.exp + 0.02) / Math.max(0.25, l.hours) : 0);
+  if (yields) {
+    // „Wstęp do…” / „Podstawy…” – tak ważne jak średnio lekcje jego działu (wchodzi razem z działem)
+    const bySec = new Map();
+    for (const l of todo) { const k = `${l.courseId}|${l.section}`; if (!bySec.has(k)) bySec.set(k, []); bySec.get(k).push(l); }
+    for (const l of todo) {
+      if (!INTRO.test(l.name)) continue;
+      const sec = bySec.get(`${l.courseId}|${l.section}`);
+      const avg = sec.reduce((a, x) => a + score.get(x.key), 0) / sec.length;
+      score.set(l.key, Math.max(score.get(l.key), avg * 1.05));
     }
   }
-  // Co nie zmieściło się w tygodniach (zaokrąglenia) – trafia do ostatniego tygodnia nauki
-  const lastLearn = [...weeks].reverse().find((w) => !w.review) || weeks[weeks.length - 1];
-  while (qi < order.length && lastLearn) { lastLearn.lessons.push(order[qi]); lastLearn.lessonHours += order[qi].hours; qi++; }
+  const queues = new Map();
+  for (const l of todo) {
+    if (skipped.has(l.key)) { dropped.push({ ...l, reason: 'pominięte przez Ciebie' }); continue; }
+    const d = mainDomain(l);
+    if (!d) { dropped.push({ ...l, reason: 'poza dziedzinami LEK – przypisz kurs do dziedziny, jeśli to potrzebne' }); continue; }
+    if (!queues.has(d)) queues.set(d, []);
+    queues.get(d).push(l);
+  }
+  for (const q of queues.values()) q.sort((a, b) => (must.has(b.key) - must.has(a.key)) || (score.get(b.key) - score.get(a.key)) || a.idx - b.idx);
+  const order = todo.filter((l) => must.has(l.key) && !skipped.has(l.key) && mainDomain(l));
+  const inOrder = new Set(order.map((l) => l.key));
+  const taken = {};
+  for (;;) {
+    let pick = null;
+    for (const [d, q] of queues) {
+      while (q.length && inOrder.has(q[0].key)) q.shift();
+      if (!q.length) continue;
+      const r = (taken[d] || 0) / domainWeight(survey, d);
+      if (!pick || r < pick.r) pick = { d, r };
+    }
+    if (!pick) break;
+    const l = queues.get(pick.d).shift();
+    order.push(l);
+    inOrder.add(l.key);
+    taken[pick.d] = (taken[pick.d] || 0) + l.hours;
+  }
 
-  // Szacunki
-  const plannedKeys = new Set([...doneKeys, ...chosen.map((l) => l.key)]);
-  const kNow = coverage(lessons, doneKeys);
-  const kPlan = coverage(lessons, plannedKeys);
-  const baseLeft = Math.max(0, (survey.baseTotal || 0) - (survey.baseDone || 0));
-  const minPerQ = 1.5; // pierwsze przejście + krótka powtórka
-  const baseCanDo = Math.min(baseLeft, Math.floor(((baseHours + reviewHours) * 60) / minPerQ));
-  const bNow = survey.baseTotal ? (survey.baseDone || 0) / survey.baseTotal : 0;
-  const bPlan = survey.baseTotal ? ((survey.baseDone || 0) + baseCanDo) / survey.baseTotal : (survey.base ? 0.85 : 0);
+  // Etapy: do najbliższego LEK i (opcjonalnie) od niego do ostatecznego LEK
+  const baseTotal = Number(survey.baseTotal) || cem?.total || 0;
+  const baseLeft = Math.max(0, baseTotal - (Number(survey.baseDone) || 0));
+  const mkStage = (i, from, exam, mode, withBase, basePlan) => {
+    const days = studyDays(state, survey, from, exam).map((d) => {
+      const rv = opts.reviewHours ? Math.min(d.hours, opts.reviewHours(d.date) || 0) : 0;
+      return { ...d, reviews: rv, free: d.hours - rv, review: toNum(exam) - toNum(d.date) <= 7 };
+    });
+    const hours = days.reduce((a, d) => a + d.hours, 0);
+    const reviewsH = days.reduce((a, d) => a + d.reviews, 0);
+    const reviewHours = days.filter((d) => d.review).reduce((a, d) => a + d.free, 0);
+    const normal = days.filter((d) => !d.review).reduce((a, d) => a + d.free, 0);
+    let baseHours;
+    let baseNeed = 0;
+    if (basePlan === 'all') { baseNeed = (baseLeft * MIN_PER_Q_1) / 60; baseHours = Math.min(normal, baseNeed); }
+    else if (basePlan === 'second') { baseNeed = (baseTotal * MIN_PER_Q_2) / 60; baseHours = Math.min(normal, baseNeed); }
+    else baseHours = normal * (withBase ? (mode === 'trening' ? 0.55 : 0.4) : 0.2);
+    return { i, from, exam, mode, withBase, basePlan, days, hours, reviewsH, reviewHours, baseHours, baseNeed,
+      learnHours: Math.max(0, normal - baseHours), chosen: [] };
+  };
+  const stages = [];
+  if (final) {
+    stages.push(mkStage(0, today, survey.examDate, survey.mode, survey.base, survey.base ? 'all' : 'share'));
+    const from2 = addDays(survey.examDate, 1) > today ? addDays(survey.examDate, 1) : today;
+    stages.push(mkStage(1, from2, final.date, 'serio', final.base, final.base ? (survey.base ? 'second' : 'all') : 'share'));
+  } else {
+    stages.push(mkStage(0, today, survey.examDate, survey.mode, survey.base, 'share'));
+  }
+
+  // Przydział lekcji do etapów wg kolejności (najważniejsze – do najbliższego LEK)
+  const stageOf = new Map();
+  for (const st of stages) {
+    let left = st.learnHours;
+    for (const l of order) {
+      if (stageOf.has(l.key)) continue;
+      if (l.hours <= left + 0.25) { stageOf.set(l.key, st.i); st.chosen.push(l); left -= l.hours; }
+    }
+  }
+  for (const l of order) {
+    if (stageOf.has(l.key)) continue;
+    const d = domainOf(mainDomain(l));
+    dropped.push({ ...l, reason: `brak czasu – ${d.name}: ${d.q} pytań na LEK${l.exp != null ? ` (ten temat: ok. ${String(l.exp).replace('.', ',')} pyt.)` : ''}` });
+  }
+  const chosen = order.filter((l) => stageOf.has(l.key));
+
+  // Tygodnie (pn–nd) w każdym etapie; godziny na lekcje w tygodniu
+  const weeks = [];
+  for (const st of stages) {
+    const ws = [];
+    for (const d of st.days) {
+      const wd = (new Date(`${d.date}T00:00:00Z`).getUTCDay() + 6) % 7;
+      if (!ws.length || wd === 0) ws.push({ start: d.date, end: d.date, hours: 0, normal: 0, reviews: 0, review: false, lessons: [], base: 0, lessonHours: 0, stage: st.i, cap: 0 });
+      const w = ws[ws.length - 1];
+      w.end = d.date;
+      w.hours += d.hours;
+      w.reviews += d.reviews;
+      if (d.review) w.review = true; else w.normal += d.free;
+    }
+    const normalTotal = ws.reduce((a, w) => a + w.normal, 0);
+    if (st.basePlan === 'second') {
+      // Drugie przejście bazy – na końcu etapu (przed tygodniem powtórki)
+      let need = st.baseHours;
+      for (const w of [...ws].reverse()) { const b = Math.min(w.normal, need); w.base = b; need -= b; }
+    } else {
+      for (const w of ws) w.base = normalTotal ? (w.normal * st.baseHours) / normalTotal : 0;
+    }
+    for (const w of ws) {
+      w.cap = Math.max(0, w.normal - w.base);
+      const revDays = st.days.filter((d) => d.review && d.date >= w.start && d.date <= w.end);
+      w.base = Math.round((w.base + revDays.reduce((a, d) => a + d.free, 0)) * 10) / 10;
+    }
+    // Kolejność nauki w etapie: dziedziny przeplatane wg wagi, w dziedzinie kolejność kursu (wstęp najpierw)
+    const qs = new Map();
+    for (const l of st.chosen) { const d = mainDomain(l); if (!qs.has(d)) qs.set(d, []); qs.get(d).push(l); }
+    for (const q of qs.values()) q.sort((a, b) => a.idx - b.idx);
+    const seq = [];
+    const credit = {};
+    while ([...qs.values()].some((q) => q.length)) {
+      let best = null;
+      for (const [d, q] of qs) { if (!q.length) continue; credit[d] = (credit[d] || 0) + domainWeight(survey, d); if (!best || credit[d] > credit[best]) best = d; }
+      seq.push(qs.get(best).shift());
+      credit[best] -= 100;
+    }
+    let qi = 0;
+    for (const w of ws) {
+      if (w.review && w.normal === 0) continue;
+      while (qi < seq.length && (w.lessonHours + seq[qi].hours <= w.cap + 0.5 || (w.lessons.length === 0 && w.cap > 0.5))) {
+        w.lessons.push(seq[qi]);
+        w.lessonHours += seq[qi].hours;
+        qi++;
+      }
+    }
+    const lastLearn = [...ws].reverse().find((w) => !w.review) || ws[ws.length - 1];
+    while (qi < seq.length && lastLearn) { lastLearn.lessons.push(seq[qi]); lastLearn.lessonHours += seq[qi].hours; qi++; }
+    weeks.push(...ws);
+  }
+
+  // Szacunki: pokrycie tematów (ważone częstością na LEK, gdy jest baza CEM) i przerobiona baza
+  const withDomain = canon.filter((l) => mainDomain(l));
+  const totalExp = withDomain.reduce((a, l) => a + (l.exp || 0), 0);
+  const k = (keys) => (yields && totalExp ? withDomain.filter((l) => keys.has(l.key)).reduce((a, l) => a + l.exp, 0) / totalExp : coverage(lessons, keys));
+  const bNow = baseTotal ? (Number(survey.baseDone) || 0) / baseTotal : 0;
+  const keys0 = new Set([...doneKeys, ...stages[0].chosen.map((l) => l.key)]);
+  const keysAll = new Set([...doneKeys, ...chosen.map((l) => l.key)]);
+  const can = (st, perQ, left) => Math.min(left, Math.floor(((st.baseHours + st.reviewHours) * 60) / perQ));
+  const st0 = stages[0];
+  const baseCanDo = can(st0, MIN_PER_Q_1, baseLeft);
+  const b0 = baseTotal ? Math.min(1, ((Number(survey.baseDone) || 0) + baseCanDo) / baseTotal) : 0;
+  stages.forEach((st, i) => {
+    const keys = i === 0 ? keys0 : keysAll;
+    let b = b0;
+    let withBase = st.withBase;
+    if (i === 1) {
+      if (!st.withBase) withBase = false;
+      else if (st.basePlan === 'second') b = Math.max(b0, Math.min(1, can(st, MIN_PER_Q_2, baseTotal) / (baseTotal || 1)));
+      else b = Math.min(1, can(st, MIN_PER_Q_1, baseTotal) / (baseTotal || 1));
+    }
+    st.k = k(keys);
+    st.b = b;
+    st.est = estimateScore(st.k, b, withBase);
+    st.lessonHours = st.chosen.reduce((a, l) => a + l.hours, 0);
+    st.baseQ = st.basePlan === 'second' ? baseTotal : baseLeft;
+    st.baseShort = st.baseNeed > 0 && st.baseHours + 0.01 < st.baseNeed;
+  });
+  const last = stages[stages.length - 1];
+  const kNow = k(doneKeys);
+  const kPlan = last.k;
   const estNow = estimateScore(kNow, bNow, survey.base);
-  const estPlan = estimateScore(kPlan, bPlan, survey.base);
+  const estPlan = last.est;
   const target = survey.goal === 'pass' ? 56 : Math.max(56, Number(survey.targetPct) || 56);
-  const needHours = todo.filter((l) => !skipped.has(l.key) && l.domains.length).reduce((a, l) => a + l.hours, 0);
+  const needHours = todo.filter((l) => !skipped.has(l.key) && mainDomain(l)).reduce((a, l) => a + l.hours, 0);
+  const plannedHours = chosen.reduce((a, l) => a + l.hours, 0);
   let verdict;
   if (estPlan >= target + 5) verdict = 'good';
   else if (estPlan >= target) verdict = 'tight';
   else verdict = 'hard';
 
+  // Ostrzeżenia (E i inne)
+  const warnings = [];
+  const pctPlanned = needHours ? plannedHours / needHours : 1;
+  if (needHours && pctPlanned < 0.3) {
+    warnings.push(`Plan mieści ok. ${Math.round(pctPlanned * 100)}% lekcji (${Math.round(plannedHours)} z ${Math.round(needHours)} h). Wybrane są tematy najczęstsze na LEK – resztę nadrób pytaniami z bazy albo dodaj godzin w ankiecie.`);
+  }
+  for (const st of stages) {
+    if (st.baseShort) warnings.push(`${st.i === 0 ? 'Do najbliższego LEK' : 'Przed ostatecznym LEK'} nie zmieścisz całej bazy CEM (potrzeba ok. ${Math.round(st.baseNeed)} h, jest ${Math.round(st.baseHours)} h) – dodaj godzin albo zmniejsz liczbę pytań do przerobienia.`);
+  }
+  const ud = [survey.base && survey.examDate >= UD384_FROM, final?.base && final.date >= UD384_FROM].some(Boolean);
+  if (ud) warnings.push('Projekt UD384 (jeszcze nieprzyjęty) zakłada likwidację jawnej bazy CEM od 1.05.2027 – sprawdź przepisy przed zapisami i w razie czego zmień w ankiecie „baza jawna”.');
+  if (survey.base && !baseTotal) warnings.push('Wpisz w ankiecie liczbę pytań w bazie CEM – bez niej szacunek wyniku nie uwzględnia bazy.');
+
   return {
-    survey, days, hoursTotal, learnHours, baseHours, reviewHours, share, weeks, chosen, dropped,
-    domains: domainCoverage(lessons, plannedKeys), domainsNow: domainCoverage(lessons, doneKeys),
-    baseOnlyQ: domainCoverage(lessons, doneKeys).filter((d) => d.baseOnly).reduce((a, d) => a + d.q, 0),
-    lessonsTotal: lessons.length, lessonsDone: doneKeys.size, needHours,
-    baseLeft, baseCanDo, kNow, kPlan, estNow, estPlan, target, verdict,
+    survey, final, stages, days: stages.flatMap((s) => s.days), hoursTotal: stages.reduce((a, s) => a + s.hours, 0),
+    learnHours: stages.reduce((a, s) => a + s.learnHours, 0), baseHours: stages.reduce((a, s) => a + s.baseHours, 0),
+    reviewHours: stages.reduce((a, s) => a + s.reviewHours, 0), share: st0.learnHours + st0.baseHours ? st0.baseHours / (st0.learnHours + st0.baseHours) : 0,
+    weeks, chosen, dropped, yields: !!yields,
+    domains: domainCoverage(lessons.filter((l) => l.mainKey === l.key), keysAll), domainsNow: domainCoverage(lessons.filter((l) => l.mainKey === l.key), doneKeys),
+    baseOnlyQ: domainCoverage(canon, doneKeys).filter((d) => d.baseOnly).reduce((a, d) => a + d.q, 0),
+    lessonsTotal: canon.length, lessonsDone: doneKeys.size, needHours, plannedHours,
+    baseTotal, baseLeft, baseCanDo, kNow, kPlan, estNow, estPlan, target, verdict, warnings,
     daysLeft: Math.max(0, toNum(survey.examDate) - toNum(today)),
+    daysLeftFinal: final ? Math.max(0, toNum(final.date) - toNum(today)) : null,
   };
 }
 

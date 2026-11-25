@@ -8,7 +8,8 @@ import { renderMore, handleMoreClick, handleMoreChange } from './more-ui.js';
 import { hospitalOf } from './hospitals.js';
 import { renderCalendar, openDay, openEventEditor, shiftMonth, todayMonth } from './calendar-ui.js';
 import { renderDuties, openDutyEditor, dutyTodayCard, dutyPlanCard, openDutyProposal, printDutySheet } from './duties-ui.js';
-import { renderLek, handleLekClick, handleLekChange, handleLekInput, openLekRegistration } from './lek-ui.js';
+import { renderLek, handleLekClick, handleLekChange, handleLekInput, openLekRegistration, planOpts } from './lek-ui.js';
+import { loadCem } from './lek-freq.js';
 import { openTimesheet } from './timesheet-ui.js';
 import { openLetters } from './letters-ui.js';
 import { openCaseEditor } from './cases-ui.js';
@@ -248,7 +249,7 @@ function todayPlanCard(sum) {
   const plan = (st?.plans || []).find((p) => p.id === st.activePlan && !p.archived);
   if (plan && (st.courses || []).length) {
     try {
-      const b = buildPlan(state, plan, t);
+      const b = buildPlan(state, plan, t, planOpts(state, t));
       const w = currentWeek(b, t);
       const todo = (w?.lessons || []).filter((l) => !st.done?.[l.key]).slice(0, 2);
       for (const l of todo) {
@@ -271,7 +272,7 @@ function weekCard(sum) {
   const st = state.study;
   const plan = (st?.plans || []).find((p) => p.id === st.activePlan && !p.archived);
   if (plan && (st.courses || []).length) {
-    try { lessons = (currentWeek(buildPlan(state, plan, t), t)?.lessons || []).filter((l) => !st.done?.[l.key]).length; } catch { /* bez planu */ }
+    try { lessons = (currentWeek(buildPlan(state, plan, t, planOpts(state, t)), t)?.lessons || []).filter((l) => !st.done?.[l.key]).length; } catch { /* bez planu */ }
   }
   const DAYS = ['pn', 'wt', 'śr', 'cz', 'pt', 'sb', 'nd'];
   const ic = { work: '', free: '☀️', absence: '🏖', course: '🎓', none: '' };
@@ -616,6 +617,8 @@ app.addEventListener('touchend', (e) => {
 applyTheme();
 render();
 askPersistence();
+// Indeks bazy CEM (częstość tematów na LEK) – w tle; plan przelicza się po wczytaniu
+if ((state.study?.plans || []).length) loadCem(() => render());
 if (!loadProblem) dailySnapshot(state);
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {

@@ -821,3 +821,9 @@ th.att-boss { vertical-align: middle !important; font: 700 12px/1.35 "Times New 
 .wk-l { flex: 1; min-width: 0; }
 .wk-du { flex: none; font-weight: 700; }
 .wk-items { margin-top: 8px; padding-top: 8px; border-top: 0.5px solid var(--sep); font-size: 14px; line-height: 1.6; }
+
+/* Plan podejść do LEK (etapy) */
+.stage-row { padding: 10px 0; border-bottom: 0.5px solid var(--sep); }
+.stage-row:last-of-type { border-bottom: 0; }
+.stage-row .sub { margin-top: 4px; line-height: 1.45; }
+.plan-note { background: var(--fill, rgba(120,120,128,.12)); border-radius: 12px; padding: 10px 12px; margin-top: 10px; line-height: 1.45; }
