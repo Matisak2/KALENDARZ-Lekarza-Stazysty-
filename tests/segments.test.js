@@ -123,5 +123,7 @@ test('Eksport .ics: terminy Kadr z alarmami i dyżury z godziną 15:35–20:40',
   assert.ok(ics.includes('UID:kadry-kp-2026-11@kalendarz-stazysty'));
   assert.ok(ics.includes('DTSTART:20261201T153500\r\nDTEND:20261201T204000'));
   st.settings.hrDone = { 'kp-2026-11': true };
-  assert.ok(!buildIcs(st, '2026-11-25').includes('UID:kadry-kp-2026-11@'));
+  // zrobiony termin zostaje w kalendarzu jako „✓”, bez przypomnień (żeby eksport zmian nie uznał go za odwołany)
+  const done = buildIcs(st, '2026-11-25');
+  assert.ok(done.includes('SUMMARY:✓ Oddaj w Kadrach dokumenty za listopad'));
 });

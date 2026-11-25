@@ -115,9 +115,10 @@ function icsCard(state) {
   return `<div class="card fade">
     <div class="card-label">📅 Kalendarz iPhone'a</div>
     <div class="t-strong">Dodaj staż do Kalendarza</div>
-    <p class="sub">Bloki i oddziały (z adresem), odrabianie, kursy, urlop, dyżury z godziną oraz terminy LEK i Kadr z przypomnieniami.</p>
+    <p class="sub">Bloki i oddziały (z adresem), odrabianie, kursy, urlop, dyżury z godziną oraz terminy LEK i Kadr z przypomnieniami.
+      „Wyślij zmiany” zawiera nowe i zmienione wydarzenia, a usunięte w aplikacji (np. dyżur) – jako „❌ Odwołane”.</p>
     ${first ? '<button class="btn primary" data-act="ics-all">Eksportuj do Kalendarza (.ics)</button>'
-      : `<button class="btn primary" data-act="ics-new" ${n ? '' : 'disabled'}>${n ? `Dodaj tylko nowe i zmienione (${n})` : 'Kalendarz jest aktualny ✓'}</button>
+      : `<button class="btn primary" data-act="ics-new" ${n ? '' : 'disabled'}>${n ? `Wyślij zmiany do Kalendarza (${n})` : 'Kalendarz jest aktualny ✓'}</button>
         <button class="btn" data-act="ics-all">Eksportuj wszystko od nowa</button>`}
     <ol class="steps">
       <li>Stuknij przycisk powyżej.</li>

@@ -97,7 +97,7 @@ export function defaultState() {
     // reviews: klucz tematu -> { due, ivl, ease, reps, hist } – powtórki (lek-review.js)
     study: { courses: [], done: {}, plans: [], activePlan: null, attempts: [], mocks: [], extras: { phd: '', pubs: [] }, domainFix: {}, reviews: {}, mySpecs: [] },
     timesheets: {},
-    // icsSent: uid -> skrót treści wydarzenia z ostatniego eksportu (eksport „tylko nowe i zmienione”)
+    // icsSent: uid -> { h: skrót treści, s/e: DTSTART/DTEND, t: tytuł } z ostatniego eksportu („tylko nowe i zmienione”, odwołania)
     meta: { lastBackup: null, createdAt: null, icsSent: {} },
   };
 }

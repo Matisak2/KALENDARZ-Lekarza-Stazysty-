@@ -27,7 +27,8 @@ Pokazuje bloki stażu, dni robocze, święta, urlop, kursy OIL, odrabianie, dyż
   dane z nowszej wersji aplikacji (`'newer'`) – `save()` nic nie zapisuje, żeby ich nie nadpisać.
 - `js/hospitals.js` – szpitale Szczecin/Police z oddziałami i adresami (ze stron szpitali, 11.2026) + przychodnie POZ do medycyny rodzinnej (`kind: 'poz'`, każda filia osobno; SCZ i „Podgórna” z katalogów – do potwierdzenia).
 - `js/ics.js` – eksport do Kalendarza (.ics) z adresem oddziału w LOCATION, alarmami LEK i terminów Kadr oraz dyżurami z godziną.
-  `buildIcsExport(state, today, sent)` – „tylko nowe i zmienione” (skróty wydarzeń w `meta.icsSent`); `buildDutiesIcs` – sam plik z dyżurami.
+  `buildIcsExport(state, today, sent)` – „Wyślij zmiany”: nowe i zmienione (SEQUENCE) + usunięte przyszłe jako STATUS:CANCELLED „❌ Odwołane”
+  (`meta.icsSent[uid]` = {h, s, e, t}; stary zapis-sam-skrót nie jest odwoływany); zrobione terminy Kadr jako „✓” bez alarmów; `buildDutiesIcs` – sam plik z dyżurami.
 - `js/blocks-ui.js` – ekran Bloki + arkusz edycji (podział bloku na oddziały po tygodniach).
 - `js/more-ui.js` – ekran Więcej (kursy OIL z terminami, dni wolne za soboty, eksport .ics, kopia, ustawienia, źródła).
 - `js/skills.js` – umiejętności z programu stażu (klucz = id bloku); stan w `state.skills` i `state.customSkills`.

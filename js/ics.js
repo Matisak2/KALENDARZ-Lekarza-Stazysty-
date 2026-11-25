@@ -34,7 +34,7 @@ function fold(line) {
 /** Godzina lokalna (czas telefonu) – 935 -> "153500". */
 const hms = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}${String(min % 60).padStart(2, '0')}00`;
 
-function vevent({ uid, start, end, summary, location, description, alarms = [], stamp, from = null, to = null }) {
+function vevent({ uid, start, end, summary, location, description, alarms = [], stamp, from = null, to = null, status = null, seq = null }) {
   // Koniec po północy (np. dyżur 8:00 + 24 h) – następny dzień, godzina w zakresie 0–23 (audyt B10)
   const endDay = to != null ? addDays(start, Math.floor(to / 1440)) : null;
   const lines = [
@@ -46,6 +46,8 @@ function vevent({ uid, start, end, summary, location, description, alarms = [], 
       : [`DTSTART;VALUE=DATE:${ymd(start)}`, `DTEND;VALUE=DATE:${ymd(addDays(end, 1))}`]),
     `SUMMARY:${esc(summary)}`,
   ];
+  if (seq != null) lines.push(`SEQUENCE:${seq}`);
+  if (status) lines.push(`STATUS:${status}`);
   if (location) lines.push(`LOCATION:${esc(location)}`);
   if (description) lines.push(`DESCRIPTION:${esc(description)}`);
   lines.push(from != null ? 'TRANSP:OPAQUE' : 'TRANSP:TRANSPARENT');
@@ -88,7 +90,7 @@ const file = (lines) => [...HEAD, ...lines, 'END:VCALENDAR'].map(fold).join('\r\
 
 /** Krótki skrót treści wydarzenia (bez DTSTAMP) – do eksportu „tylko nowe i zmienione”. */
 function digest(lines) {
-  const t = lines.filter((l) => !l.startsWith('DTSTAMP:')).join('\n');
+  const t = lines.filter((l) => !l.startsWith('DTSTAMP:') && !l.startsWith('SEQUENCE:')).join('\n');
   let h = 5381;
   for (let i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0;
   return h.toString(36);
@@ -108,13 +110,32 @@ export function buildIcsExport(state, today, sent = null) {
   const events = icsEvents(state, today);
   const all = {};
   const pick = [];
+  // SEQUENCE rośnie z każdym eksportem – iPhone przyjmuje zmianę istniejącego wydarzenia (ten sam UID)
+  const seq = Math.floor(Date.now() / 1000);
+  const field = (ev, k) => (ev.find((l) => l.startsWith(k)) || '').slice(k.length);
   for (const ev of events) {
     const uid = ev[1].slice(4);
     const d = digest(ev);
-    all[uid] = d;
-    if (!sent || sent[uid] !== d) pick.push(ev);
+    // Zapamiętujemy też datę i tytuł – żeby móc wysłać „odwołane”, gdy wydarzenie zniknie z aplikacji (audyt B3)
+    all[uid] = { h: d, s: field(ev, 'DTSTART'), e: field(ev, 'DTEND'), t: field(ev, 'SUMMARY:') };
+    const prev = sent?.[uid];
+    const prevH = typeof prev === 'string' ? prev : prev?.h;
+    if (!sent || prevH !== d) pick.push(sent ? [...ev.slice(0, 3), `SEQUENCE:${seq}`, ...ev.slice(3)] : ev);
   }
-  return { text: file(pick.flat()), sent: all, count: pick.length, total: events.length };
+  let cancelled = 0;
+  if (sent) {
+    const stamp = STAMP();
+    const todayYmd = ymd(today);
+    for (const [uid, prev] of Object.entries(sent)) {
+      if (all[uid] || typeof prev !== 'object' || !prev?.s) continue; // stary zapis (sam skrót) – brak daty, nie odwołujemy
+      const startYmd = prev.s.replace(/^[^:]*:/, '').slice(0, 8);
+      if (startYmd < todayYmd) continue; // przeszłe wydarzenia zostają w kalendarzu
+      pick.push(['BEGIN:VEVENT', `UID:${uid}`, `DTSTAMP:${stamp}`, `DTSTART${prev.s}`, `DTEND${prev.e}`,
+        `SUMMARY:❌ Odwołane: ${prev.t.replace(/^❌ Odwołane: /, '')}`, `SEQUENCE:${seq}`, 'STATUS:CANCELLED', 'TRANSP:TRANSPARENT', 'END:VEVENT']);
+      cancelled++;
+    }
+  }
+  return { text: file(pick.flat()), sent: all, count: pick.length, total: events.length, cancelled };
 }
 
 export function buildIcs(state, today) {
@@ -206,7 +227,9 @@ function icsEvents(state, today) {
 
   // Terminy Kadr USK2 (karty czasu pracy, dyżurów, listy obecności)
   for (const d of hrDeadlines(state, sum.ctx)) {
-    if (state.settings.hrDone?.[d.id] || d.due < today) continue;
+    if (d.due < today) continue;
+    // Zrobione – zostaje w kalendarzu jako „✓” bez przypomnień (żeby nie wyglądało na odwołane)
+    if (state.settings.hrDone?.[d.id]) { L.push(...vevent({ uid: `kadry-${d.id}`, start: d.due, end: d.due, summary: `✓ ${d.title}`, description: d.detail, stamp })); continue; }
     L.push(...vevent({
       uid: `kadry-${d.id}`, start: d.due, end: d.due, summary: `🗂 ${d.title}`, description: d.detail, stamp,
       alarms: [{ trigger: '-P3D', text: `Za 3 dni: ${d.title}` }, dayBefore(`Jutro: ${d.title}`)],

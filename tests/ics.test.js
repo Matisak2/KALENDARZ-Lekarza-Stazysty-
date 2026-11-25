@@ -40,3 +40,20 @@ test('Audyt B12: dyżur o 0:00 eksportuje się o 0:00, nie o 15:00', async () =>
   const t = buildDutiesIcs(defaultState(), [{ id: 'n', date: '2026-12-05', minutes: 300, start: '0:00' }]);
   assert.match(t, /DTSTART:20261205T000000/);
 });
+
+test('Audyt B3: usunięty dyżur trafia do eksportu „tylko zmiany” jako odwołany; zrobiony termin Kadr jako „✓”', async () => {
+  const { buildIcsExport } = await import('../js/ics.js');
+  const { defaultState } = await import('../js/defaults.js');
+  const st = defaultState();
+  st.duties = [{ id: 'd1', date: '2026-12-01', minutes: 305, start: '15:35' }, { id: 'd0', date: '2026-11-02', minutes: 300, start: '15:35' }];
+  const first = buildIcsExport(st, '2026-11-25');
+  assert.ok(first.sent['dyzur-d1@kalendarz-stazysty'].s.includes('20261201T153500'));
+  st.duties = [];
+  st.settings.hrDone = { 'kp-2026-11': true };
+  const next = buildIcsExport(st, '2026-11-25', first.sent);
+  assert.match(next.text, /UID:dyzur-d1@kalendarz-stazysty\r\nDTSTAMP:\d+T\d+Z\r\nDTSTART:20261201T153500\r\nDTEND:20261201T204000\r\nSUMMARY:❌ Odwołane: 🌙 Dyżur 15:35\r\nSEQUENCE:\d+\r\nSTATUS:CANCELLED/);
+  assert.equal(next.cancelled, 1); // przeszły dyżur z 02.11 nie jest odwoływany
+  assert.match(next.text, /SUMMARY:✓ Oddaj w Kadrach dokumenty za listopad/);
+  // stary zapis (sam skrót, bez daty) – nic nie odwołujemy, bo nie znamy daty
+  assert.equal(buildIcsExport(st, '2026-11-25', { 'dyzur-x': 'abc' }).cancelled, 0);
+});
