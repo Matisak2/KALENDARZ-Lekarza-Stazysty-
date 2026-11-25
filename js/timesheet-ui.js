@@ -69,35 +69,36 @@ const vertical = (txt) => [...String(txt)].map((ch) => (ch === ' ' ? '&nbsp;' : 
 
 /**
  * Lista obecności – wierna kopia wzoru USK2 (Wydanie 5, KP-WK 2023-11-27): logo, pieczątka z miejsca stażu,
- * 10 kolumn na osoby (stażysta w kolumnie 1: imię i nazwisko pionowo, „PODPIS” w dniach pracy), podpis kierownika,
- * dni wolne zacienione, UWAGI, spóźnienia i legenda kodów.
+ * 10 kolumn na osoby (stażysta w kolumnie 1: imię i nazwisko pionowo), podpis kierownika, dni wolne zacienione,
+ * UWAGI, spóźnienia i legenda kodów. Bez przykładowego (czerwonego) tekstu ze wzoru – miejsca na podpis i pieczątkę są puste,
+ * w dniu nieobecności wpisany jest tylko kod (UW, ZL, SZ…). Cały druk na czarno.
  */
 export function attendanceHtml(a) {
   const [first, ...rest] = String(a.name || '').trim().split(/\s+/).filter(Boolean);
-  const imie = first ? first.toUpperCase() : 'IMIĘ';
-  const nazw = rest.length ? rest.join(' ').toUpperCase() : 'NAZWISKO';
+  const imie = first ? first.toUpperCase() : '';
+  const nazw = rest.length ? rest.join(' ').toUpperCase() : '';
   const cols = Array.from({ length: 10 }, (_, i) => i + 1);
   const head = cols.map((n) => `<th class="att-h"><div class="att-names">
       <span>${n === 1 ? vertical(imie) : ''}</span><span>${n === 1 ? vertical(nazw) : ''}</span></div>
       <div class="att-n">${n}</div></th>`).join('');
   const rows = a.rows.map((r) => `<tr class="${r.shaded ? 'sh' : ''}"><td class="att-day">${r.day}</td>
-      <td class="att-sig">${r.shaded ? '' : r.code ? `<b>${esc(r.code)}</b>` : 'PODPIS'}</td>${cols.slice(1).map(() => '<td></td>').join('')}<td class="att-boss"></td></tr>`).join('');
+      <td class="att-sig">${!r.shaded && r.code ? `<b>${esc(r.code)}</b>` : ''}</td>${cols.slice(1).map(() => '<td></td>').join('')}<td class="att-boss"></td></tr>`).join('');
   const uw = Array.from({ length: 6 }, (_, i) => `<tr class="att-uw">${i === 0 ? '<td class="att-day att-uwl" rowspan="6">UWAGI</td>' : ''}${cols.map(() => '<td></td>').join('')}<td class="att-none"></td></tr>`).join('');
   const tail = Array.from({ length: 2 }, (_, i) => `<tr class="att-tail">${i === 0 ? '<td class="att-day" rowspan="2"></td>' : ''}${cols.map(() => '<td></td>').join('')}<td class="att-none"></td></tr>`).join('');
   return `<div class="att">
     <div class="att-top">
       <img class="att-logo" src="img/usk2-logo.svg" alt="Uniwersytecki Szpital Kliniczny nr 2 PUM w Szczecinie">
-      <div class="att-stamp"><div class="att-dots red">PIECZĄTKA Z MIEJSCA ODBYWANIA STAŻU</div><small>nazwa komórki organizacyjnej</small></div>
+      <div class="att-stamp"><div class="att-dots">&nbsp;</div><small>nazwa komórki organizacyjnej</small></div>
       <div class="att-page"><div class="att-dots">1</div><small>strona</small></div>
     </div>
     <table class="att-t">
       <colgroup><col class="c0">${cols.map(() => '<col class="cn">').join('')}<col class="cb"></colgroup>
       <thead><tr><th class="att-ym"><div class="att-y">${a.year}</div><div class="att-m">${esc(a.month)}</div></th>${head}
-        <th class="att-boss red">podpis kierownika komórki organizacyjnej</th></tr></thead>
+        <th class="att-boss">podpis kierownika komórki organizacyjnej</th></tr></thead>
       <tbody>${rows}${uw}${tail}</tbody>
     </table>
     <div class="att-late"><span>Razem spóźnienia:</span><span>usprawiedliwione - min<br>nieusprawiedliwione - min</span><span class="att-dl">……………………………………………<br>……………………………………………</span></div>
-    <div class="att-legend red">Legenda do UWAG:<br>
+    <div class="att-legend">Legenda do UWAG:<br>
       ZL - zwolnienie lekarskie UW - urlop wypoczynkowy NU - nieobecność usprawiedliwiona płatna OP - opieka nad dzieckiem lub członkiem rodziny<br>
       D - delegacja SZ - szkolenie NN - nieobecność nieusprawiedliwiona niepłatna UO - urlop okolicznościowy WD - wolne po dyżurze medycznym<br>
       UR - urlop rodzicielki, macierzyński, ojcowski i wychowawczy ŚR - Świadczenie rehabilitacyjne UB - urlop bezpłatny</div>
@@ -130,7 +131,7 @@ export function openTimesheet(state, today, ctx, ym) {
           <div class="card-label" style="margin-top:12px">Komplet do Kadr (${esc(k.monthLabel)})</div>
           <button class="btn primary" data-pack>🖨 Wszystko naraz: karta czasu pracy + karta dyżurów + lista obecności</button>
           <div class="quick two"><button class="btn" data-print-duty>🖨 Karta dyżurów</button><button class="btn" data-print-att>🖨 Lista obecności</button></div>
-          <p class="hint small">Lista obecności wg wzoru USK2 (Wydanie 5): Twoje imię i nazwisko w kolumnie 1, „PODPIS” w dniach pracy, kod nieobecności (UW, ZL, SZ…) zamiast podpisu, dni wolne zacienione. Pieczątkę przybija oddział.</p>
+          <p class="hint small">Lista obecności wg wzoru USK2 (Wydanie 5): Twoje imię i nazwisko w kolumnie 1, w dniu nieobecności kod (UW, ZL, SZ…), dni wolne zacienione. Miejsca na podpisy i pieczątkę są puste.</p>
         </div>
         <div class="ts-preview">${timesheetHtml(k)}</div>
       </div></div>`;

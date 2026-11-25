@@ -122,7 +122,7 @@ export function dutyPay(state, ym) {
 }
 
 /**
- * Lista obecności na miesiąc (wzór USK2, Wydanie 5): dzień pracy = „PODPIS”; nieobecność = kod z legendy USK2
+ * Lista obecności na miesiąc (wzór USK2, Wydanie 5): dzień pracy = puste miejsce na podpis; nieobecność = kod z legendy USK2
  * (ZL, UW, OP, UB, NU, SZ – szkolenie/kurs) w miejscu podpisu; weekend, święto i dzień wolny za sobotę – zacienione.
  */
 export function buildAttendance(state, ym) {
