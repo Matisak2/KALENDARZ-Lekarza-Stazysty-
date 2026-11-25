@@ -280,9 +280,14 @@ function domainsCard(b) {
       <div class="minibar" style="--block:var(--c-course)"><div style="width:${pct}%"></div></div>
       <div class="hint small">${info}${!d.own && pct < 50 ? ' · resztę nadrób pytaniami z bazy CEM' : ''}</div></div>`;
   }).join('');
+  const o = b.onco;
+  const onco = o && o.lessons ? `<div class="dom-row">
+      <div class="dom-h"><b>🎗 Onkologia</b><span class="muted">≥ 30 pyt.</span><span class="dom-p">${Math.round(o.cov * 100)}%</span></div>
+      <div class="minibar" style="--block:var(--c-course)"><div style="width:${Math.round(o.cov * 100)}%"></div></div>
+      <div class="hint small">${o.lessons} ${plural(o.lessons, 'lekcja', 'lekcje', 'lekcji')} o nowotworach w Twoich kursach · zrobione ${Math.round((b.oncoNow?.cov || 0) * 100)}%. Pytania z onkologii są w ramach interny, pediatrii, chirurgii, ginekologii i medycyny rodzinnej (co najmniej 30 na LEK).</div></div>` : '';
   return `<div class="card fade"><details class="course-list"><summary>Dziedziny LEK – pokrycie planu</summary>
     <p class="hint small">Lekcja liczy się do każdej dziedziny, do której pasuje (np. nadciśnienie: interna i medycyna rodzinna). Procent = ile materiału z Twoich kursów dla tej dziedziny obejmie plan (z tym, co już zrobione).</p>
-    ${rows}</details></div>`;
+    ${rows}${onco}</details></div>`;
 }
 
 const num1 = (x) => String(Math.round(x * 10) / 10).replace('.', ',');

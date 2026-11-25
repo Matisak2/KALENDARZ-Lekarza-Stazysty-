@@ -415,6 +415,27 @@ export function domainCoverage(lessons, chosenKeys) {
     return { id: d.id, name: d.name, q: d.q, own: hasOwn, baseOnly, lessons: ls.length, hours: all, got, cov: needH ? Math.min(1, got / needH) : 0 };
   });
 }
+/**
+ * Onkologia na LEK: co najmniej 30 pytań w ramach chorób wewnętrznych, pediatrii, chirurgii, ginekologii i medycyny rodzinnej
+ * (rozp. MZ, Dz.U. 2021 poz. 828 – t.j. Dz.U. 2023 poz. 105). Lekcja „onkologiczna” = w nazwie lekcji słowa o nowotworach.
+ */
+const ONCO_PREFIX = ['nowotw', 'białacz', 'chłoniak', 'szpiczak', 'mięsak', 'czerniak', 'onkolog', 'hematoonkolog', 'przerzut', 'chemioterap', 'radioterap', 'mielodysplast', 'mieloprolif'];
+const ONCO_WORD = new Set(['rak', 'raka', 'raki', 'raków', 'guz', 'guza', 'guzy', 'guzów']);
+export function isOncology(l) {
+  // Tylko nazwa lekcji – nazwa działu („Hematologia i onkologia dziecięca”) obejmuje też tematy nienowotworowe
+  const words = String(l.name || '').toLowerCase().match(/[a-ząćęłńóśźż]+/g) || [];
+  return words.some((w) => ONCO_WORD.has(w) || ONCO_PREFIX.some((p) => w.startsWith(p)));
+}
+
+/** Pokrycie onkologii: { lessons, hours, got, cov } – ważone częstością na LEK (exp), gdy jest baza CEM, inaczej godzinami. */
+export function oncologyCoverage(lessons, chosenKeys) {
+  const ls = lessons.filter(isOncology);
+  const w = (l) => (l.exp != null ? l.exp : l.hours);
+  const all = ls.reduce((a, l) => a + w(l), 0);
+  const got = ls.filter((l) => chosenKeys.has(l.key)).reduce((a, l) => a + w(l), 0);
+  return { lessons: ls.length, hours: ls.reduce((a, l) => a + l.hours, 0), cov: all ? Math.min(1, got / all) : 0 };
+}
+
 export function coverage(lessons, chosenKeys) {
   const tot = DOMAINS.reduce((a, d) => a + d.q, 0);
   return tot ? domainCoverage(lessons, chosenKeys).reduce((a, d) => a + d.q * d.cov, 0) / tot : 0;
@@ -709,6 +730,7 @@ export function buildPlan(state, plan, today, opts = {}) {
     reviewHours: stages.reduce((a, s) => a + s.reviewHours, 0), share: st0.learnHours + st0.baseHours ? st0.baseHours / (st0.learnHours + st0.baseHours) : 0,
     weeks, chosen, dropped, yields: !!yields,
     domains: domainCoverage(lessons.filter((l) => l.mainKey === l.key), keysAll), domainsNow: domainCoverage(lessons.filter((l) => l.mainKey === l.key), doneKeys),
+    onco: oncologyCoverage(canon, keysAll), oncoNow: oncologyCoverage(canon, doneKeys),
     baseOnlyQ: domainCoverage(canon, doneKeys).filter((d) => d.baseOnly).reduce((a, d) => a + d.q, 0),
     lessonsTotal: canon.length, lessonsDone: doneKeys.size, needHours, plannedHours,
     baseTotal, baseLeft, baseCanDo, kNow, kPlan, estNow, estPlan, target, verdict, warnings,

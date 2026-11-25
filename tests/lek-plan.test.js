@@ -148,3 +148,20 @@ test('Plan podejść z treningiem pośrednim: cała baza przed każdym treningie
   const later = buildPlan(st, { id: 'p', survey }, '2027-03-01');
   assert.deepEqual(later.stages.map((x) => x.exam), ['2027-09-15', '2028-02-15']);
 });
+
+test('Onkologia (≥30 pytań w dziedzinach klinicznych): lekcje o nowotworach i pokrycie planu', async () => {
+  const { isOncology } = await import('../js/lek.js');
+  assert.ok(isOncology({ section: 'Ginekologia', name: 'Rak szyjki macicy' }));
+  assert.ok(isOncology({ section: 'Hematologia', name: 'Ostre białaczki' }));
+  assert.ok(isOncology({ section: 'Podstawy onkologii', name: 'Pacjent onkologiczny' }));
+  assert.ok(!isOncology({ section: 'Hematologia i onkologia dziecięca', name: 'Niedokrwistości' })); // dział nie decyduje
+  assert.ok(!isOncology({ section: 'Onkologia ginekologiczna', name: 'Niezłośliwe choroby jajnika' }));
+  assert.ok(!isOncology({ section: 'Chirurgia', name: 'Guzki krwawnicze' }));
+  assert.ok(!isOncology({ section: 'Anestezjologia', name: 'Hipertermia złośliwa' }));
+  const st = defaultState();
+  st.study.courses = [course('Kurs z interny', 'int', [['Hematologia', ['Ostre białaczki', 'Chłoniaki', 'Niedokrwistości']]])];
+  const b = buildPlan(st, { id: 'p', survey: { examDate: '2027-09-20', base: false } }, '2026-11-25');
+  assert.equal(b.onco.lessons, 2);
+  assert.equal(b.onco.cov, 1);
+  assert.equal(b.oncoNow.cov, 0);
+});
