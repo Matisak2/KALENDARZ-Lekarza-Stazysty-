@@ -53,3 +53,8 @@ Pokazuje bloki stażu, dni robocze, święta, urlop, kursy OIL, odrabianie, dyż
 - Urlop 22 dni (5 za 2026 + 17 za 2027). Kursy OIL: 25 dni, terminy dla rocznika 2026/27 jeszcze nieogłoszone.
 - Dyżury 40 h 20 min/mies.; „tygodnie” miesiąca: 1–7, 8–14, 15–21, 22–koniec; max 10 h 05 min na tydzień, max 8 dyżurów;
   każde 5 dni urlopu/L4 w miesiącu zmniejsza normę o 10 h 05 min; brak dyżurów na med. rodzinnej i w dni kursów.
+- USK2 (Informacja dla stażysty + e-maile Kadr, 11.2026): dyżury tylko pn–pt (nie soboty, niedziele, święta), 2 w tygodniu:
+  15:35–20:40 (5 h 05) i 15:35–20:35 (5 h); przerwa bez dyżurów 23–27.12.2026 (`DUTY_BREAKS`). Nominał XI i XII 2026 = 151 h 40.
+  Terminy Kadr w `HR_DEADLINES` (odhaczanie: `settings.hrDone`). Kody nieobecności z legendy listy obecności (Wydanie 5):
+  ZL, UW, OP, UB, NU, SZ (szkolenie), WD (wolne po dyżurze). Staż poza USK2: pismo ze zgodą koordynatora + kopia książeczki
+  zdrowia, pisemna informacja do Kadr (pkt 10–11) – przypomnienie na Dziś.

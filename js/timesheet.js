@@ -36,7 +36,10 @@ export function nightMinutes(start, len) {
   return n;
 }
 
-const ABS_CODE = { urlop: 'UW', urlop_zadanie: 'UŻ', l4: 'L4', opieka: 'OP', bezplatny: 'UB', inne: 'NB' };
+// Kody z legendy USK2 (lista obecności, Wydanie 5, KP-WK 2023-11-27): ZL – zwolnienie lekarskie, UW – urlop
+// wypoczynkowy (także na żądanie), OP – opieka, UB – urlop bezpłatny, NU – nieobecność usprawiedliwiona płatna,
+// SZ – szkolenie, WD – wolne po dyżurze medycznym.
+export const ABS_CODE = { urlop: 'UW', urlop_zadanie: 'UW', l4: 'ZL', opieka: 'OP', bezplatny: 'UB', inne: 'NU' };
 
 /**
  * Wiersze karty na miesiąc `ym` (RRRR-MM).
@@ -72,9 +75,9 @@ export function buildTimesheet(state, ym) {
       if (abs.kind === 'course') {
         r.hours = `${clock(WORK_START)}-${clock(WORK_START + WORK_MIN)}`;
         r.nominal = WORK_MIN;
-        r.note = `kurs: ${abs.label}`;
+        r.note = `SZ – szkolenie: ${abs.label}`;
       } else {
-        r.hours = ABS_CODE[abs.type] || 'NB';
+        r.hours = ABS_CODE[abs.type] || 'NU';
         r.note = EVENT_TYPES[abs.type]?.label || '';
       }
     } else {

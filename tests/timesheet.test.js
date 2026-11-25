@@ -48,7 +48,7 @@ test('Listopad 2026: święto 11.11 zacieniowane, urlop i kurs, dyżur w sobotę
   assert.equal(r(16).hours, 'UW');
   assert.equal(r(16).nominal, 0);
   assert.equal(r(19).hours, '8.00-15.35');
-  assert.match(r(19).note, /kurs: Profilaktyka onkologiczna/);
+  assert.match(r(19).note, /SZ – szkolenie: Profilaktyka onkologiczna/);
   assert.equal(r(21).hours, '8.00-18.05');
   assert.equal(hm(r(21).dutyHoliday), '10,05');
   // listopad 2026: 21 dni pn–pt, minus 11.11 (święto) = 20, minus 2 dni urlopu = 18 × 7,35 (kurs liczy się jak praca)
@@ -70,4 +70,14 @@ test('Przypomnienie o karcie: koniec listopada i początek grudnia; znika po wyg
   assert.ok(!has('2026-11-15'));
   st.timesheets = { '2026-11': { generatedAt: '2026-11-29' } };
   assert.ok(!has('2026-11-30'));
+});
+
+test('Nominał z e-maili Kadr USK2: listopad i grudzień 2026 = 151 h 40 min; kody nieobecności z legendy USK2', () => {
+  const st = defaultState();
+  assert.equal(hm(buildTimesheet(st, '2026-11').totals.nominal, '.'), '151.40');
+  assert.equal(hm(buildTimesheet(st, '2026-12').totals.nominal, '.'), '151.40'); // 24, 25.12 + wolne 23.12 za 26.12
+  st.events = [{ id: 'l', type: 'l4', start: '2026-11-16', end: '2026-11-16' }, { id: 'z', type: 'urlop_zadanie', start: '2026-11-17', end: '2026-11-17' }];
+  const r = (d) => buildTimesheet(st, '2026-11').rows.find((x) => x.day === d);
+  assert.equal(r(16).hours, 'ZL');
+  assert.equal(r(17).hours, 'UW');
 });

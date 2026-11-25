@@ -13,6 +13,20 @@ export const EVENT_TYPES = {
   inne: { label: 'Inna nieobecność', short: 'Nieobecność', icon: '•' },
 };
 
+/**
+ * Terminy Działu Kadrowo-Płacowego USK2 (e-maile do stażystów, 11.2026). id służy do odhaczania (settings.hrDone).
+ */
+export const HR_DEADLINES = [
+  { id: 'kp-2026-11', due: '2026-12-03', title: 'Oddaj w Kadrach dokumenty za listopad', detail: 'Karta czasu pracy, karta dyżurów i lista obecności (z podpisami) – do czwartku 03.12' },
+  { id: 'kcp-2026-12', due: '2026-12-15', title: 'Karta czasu pracy za grudzień – do 15.12', detail: 'Wyjątkowo przed końcem miesiąca: zaplanuj dyżury grudnia z góry (Dyżury → grudzień)' },
+  { id: 'kd-2026-12', due: '2026-12-31', title: 'Karta dyżurów i lista obecności za grudzień', detail: 'Do końca grudnia. Na terenie USK2 pieczątki dyżurnych można zebrać do 15.12' },
+];
+
+/** Dni bez dyżurów ustalone przez Kadry USK2 (poza weekendami i świętami). */
+export const DUTY_BREAKS = [
+  { start: '2026-12-23', end: '2026-12-27', label: 'przerwa świąteczna (Kadry USK2)' },
+];
+
 export function defaultState() {
   return {
     version: SCHEMA_VERSION,

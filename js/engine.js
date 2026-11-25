@@ -2,7 +2,8 @@
 // Czysta logika bez interfejsu – w całości pokryta testami (tests/).
 import { addDays, eachDay, isWeekend, toNum } from './dates.js';
 import { holidayMap } from './holidays.js';
-import { EVENT_TYPES } from './defaults.js';
+import { EVENT_TYPES, HR_DEADLINES, DUTY_BREAKS } from './defaults.js';
+import { hospitalOf } from './hospitals.js';
 import { bookletProgress } from './booklet.js';
 
 /**
@@ -225,6 +226,26 @@ export function alerts(sum) {
     const left = toNum(dl.date) - toNum(today);
     if (left >= 0 && left <= 30) out.push({ level: left <= 7 ? 'urgent' : 'warn', icon: '📝', title: dl.label, detail: left === 0 ? 'Dziś!' : `Zostało ${left} ${left === 1 ? 'dzień' : 'dni'}`, date: dl.date, action: 'deadline-done' });
   }
+  // Terminy Kadr USK2 (karty czasu pracy, dyżurów, listy obecności)
+  const hrDone = settings.hrDone || {};
+  for (const d of HR_DEADLINES) {
+    const left = toNum(d.due) - toNum(today);
+    if (!hrDone[d.id] && left >= 0 && left <= 21) {
+      out.push({ level: left <= 3 ? 'urgent' : 'warn', icon: '📋', title: d.title, detail: `${d.detail} · ${left === 0 ? 'dziś!' : `zostało ${left} ${left === 1 ? 'dzień' : 'dni'}`}`, action: 'hr-done', id: d.id });
+    }
+  }
+  // Staż cząstkowy poza USK2: pismo ze zgodą koordynatora + kopia książeczki zdrowia, pisemna informacja do Kadr
+  for (const b of sum.ctx.state.blocks || []) {
+    const left = toNum(b.start) - toNum(today);
+    const seg = [...(b.segments || [])].sort((x, y) => (x.start < y.start ? -1 : 1))[0];
+    const h = hospitalOf(seg);
+    const id = `ext-${b.id}-${b.start}`;
+    if (h && h.id !== 'usk2' && left >= -7 && left <= 21 && !hrDone[id]) {
+      out.push({ level: left <= 3 ? 'urgent' : 'warn', icon: '🏥', action: 'hr-done', id,
+        title: `${b.short} (${h.short || h.name})${left > 0 ? ` od ${b.start.slice(8)}.${b.start.slice(5, 7)}` : ''} – formalności`,
+        detail: 'Poinformuj koordynatora; do placówki pismo ze zgodą koordynatora + kopia książeczki zdrowia; pisemna informacja do Kadr USK2 o miejscu stażu (Informacja USK2, pkt 10–11)' });
+    }
+  }
   for (const [hDate, off] of Object.entries(settings.saturdayDaysOff || {})) {
     if (!off && hDate >= settings.startDate && hDate <= settings.endDate) {
       const h = sum.ctx.holidays.get(hDate);
@@ -437,6 +458,11 @@ export function dutyMonth(state, ym) {
   if (duties.length > DUTY_COUNT_MAX) warnings.push({ level: 'warn', text: `${duties.length} dyżurów – maksymalnie ${DUTY_COUNT_MAX} w miesiącu` });
   if (total > DUTY_MONTH_MAX) warnings.push({ level: 'warn', text: `Suma ${fmtHM(total)} – maksymalnie ${fmtHM(DUTY_MONTH_MAX)} w miesiącu` });
   for (const x of duties) {
+    const dd = `${x.date.slice(8)}.${x.date.slice(5, 7)}`;
+    // Informacja USK2 dla stażysty, pkt 2 i 6: dyżury tylko pn–pt, nie w soboty, niedziele i święta
+    if (isWeekend(x.date) || statutoryOff(ctx, x.date)) warnings.push({ level: 'warn', text: `${dd}: dyżurów nie pełni się w soboty, niedziele i święta (USK2) – tylko pn–pt` });
+    const br = DUTY_BREAKS.find((r) => r.start <= x.date && x.date <= r.end);
+    if (br) warnings.push({ level: 'warn', text: `${dd}: ${br.label} – bez dyżurów` });
     const a = ctx.absence.get(x.date);
     if (a) warnings.push({ level: 'warn', text: `${x.date.slice(8)}.${x.date.slice(5, 7)}: dyżur w dniu ${a.kind === 'course' ? 'kursu' : 'nieobecności'} (${a.label})` });
     const b = blockOf(x.date);

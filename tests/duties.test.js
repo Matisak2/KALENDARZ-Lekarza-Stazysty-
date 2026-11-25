@@ -86,3 +86,18 @@ test('Suma całego stażu i maksimum 413 h 25 min', () => {
   assert.equal(t.total, 1210);
   assert.equal(fmtHM(t.max), '413 h 25 min');
 });
+
+test('Zasady USK2: dyżur w sobotę, święto i w przerwie świątecznej 23–27.12 → ostrzeżenie; pn–pt bez', () => {
+  const st = defaultState();
+  st.duties = [
+    { id: 'a', date: '2026-12-05', minutes: 305 }, // sobota
+    { id: 'b', date: '2026-12-23', minutes: 300 }, // środa w przerwie świątecznej
+    { id: 'c', date: '2026-12-07', minutes: 305 }, // poniedziałek – OK
+  ];
+  const w = dutyMonth(st, '2026-12').warnings.map((x) => x.text);
+  assert.ok(w.some((t) => t.startsWith('05.12') && t.includes('soboty, niedziele i święta')));
+  assert.ok(w.some((t) => t.startsWith('23.12') && t.includes('przerwa świąteczna')));
+  assert.ok(!w.some((t) => t.startsWith('07.12')));
+  st.duties = [{ id: 'd', date: '2026-11-11', minutes: 305 }]; // święto w środę
+  assert.ok(dutyMonth(st, '2026-11').warnings.some((x) => x.text.startsWith('11.11') && x.text.includes('święta')));
+});

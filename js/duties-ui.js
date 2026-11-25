@@ -100,7 +100,8 @@ export function renderDuties(state, today, ym) {
 export function openDutyEditor(state, duty, ctx) {
   const isNew = !state.duties.some((x) => x.id === duty.id);
   const draft = { id: duty.id || `d${Date.now()}`, date: duty.date, minutes: duty.minutes ?? null, note: duty.note || '', start: duty.start || '' };
-  if (draft.minutes == null) draft.minutes = Math.min(DUTY_WEEK_LIMIT, dutyRoomOn(state, draft.date).room) || 300;
+  // USK2: 2 dyżury w tygodniu – 15:35–20:40 (5 h 05 min) i 15:35–20:35 (5 h)
+  if (draft.minutes == null) { const room = dutyRoomOn(state, draft.date).room; draft.minutes = room >= DUTY_WEEK_LIMIT ? 305 : Math.min(room, 300) || 300; }
 
   const root = document.createElement('div');
   root.className = 'sheet-wrap';
@@ -113,8 +114,10 @@ export function openDutyEditor(state, duty, ctx) {
     const after = room.used + Number(draft.minutes || 0);
     const h = Math.floor(draft.minutes / 60);
     const mi = draft.minutes % 60;
-    const chips = [...new Set([room.room, 300, 302, 605].filter((v) => v > 0))].map((v) =>
-      `<button class="chip ${v === draft.minutes ? 'on' : ''}" data-min="${v}">${v === room.room ? `reszta tygodnia · ${fmtHM(v)}` : fmtHM(v)}</button>`).join('');
+    const chips = [[305, '15:35–20:40 · 5 h 05 min'], [300, '15:35–20:35 · 5 h']].map(([v, l]) =>
+      `<button class="chip ${v === draft.minutes ? 'on' : ''}" data-min="${v}">${l}</button>`).join('');
+    const wd = new Date(`${draft.date}T00:00:00Z`).getUTCDay();
+    const badDay = wd === 0 || wd === 6;
     const valid = draft.date && draft.minutes > 0;
     root.innerHTML = `<div class="sheet-backdrop" data-close></div>
     <div class="sheet" role="dialog" aria-label="Dyżur">
@@ -128,8 +131,9 @@ export function openDutyEditor(state, duty, ctx) {
             <label>Minuty<input type="number" inputmode="numeric" min="0" max="59" step="1" data-f="m" value="${mi}"></label>
           </div>
           <div class="chips">${chips}</div>
+          ${badDay ? '<div class="imp-row warn">⚠️ W USK2 dyżury tylko od poniedziałku do piątku (nie w weekendy i święta).</div>' : ''}
           <label>Początek dyżuru (do karty czasu pracy)<input type="time" data-f="start" value="${esc(draft.start || '')}" placeholder="15:35"></label>
-          <p class="hint small">Puste = w dzień pracy od 15:35 (po zmianie), w weekend i święto od 8:00.</p>
+          <p class="hint small">Puste = od 15:35 (po zmianie). W tygodniu 2 dyżury: 5 h 05 min + 5 h = 10 h 05 min.</p>
           <label>Notatka<input data-f="note" value="${esc(draft.note)}" placeholder="np. SOR, oddział"></label>
         </div>
         <div class="form-card impact">

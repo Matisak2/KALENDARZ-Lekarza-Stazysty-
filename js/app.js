@@ -278,6 +278,7 @@ function todoCard(al, label = 'Na dziś') {
       <div class="todo-ic">${a.icon}</div>
       <div class="grow"><div class="t">${esc(a.title)}</div><div class="s">${esc(a.detail || '')}</div></div>
       ${a.action === 'deadline-done' ? `<button class="chip" data-deadline-done="${a.date}">Zrobione ✓</button>` : ''}
+      ${a.action === 'hr-done' ? `<button class="chip" data-hr-done="${esc(a.id)}">Zrobione ✓</button>` : ''}
     </div>`).join('');
   return `<div class="card fade todo-card"><div class="card-label">${label} · ${al.length}</div>${rows}</div>`;
 }
@@ -423,6 +424,15 @@ app.addEventListener('click', (e) => {
   if (gb) return editBlock(gb.dataset.gotoBlock);
   const ots = e.target.closest('[data-open-ts]');
   if (ots) return openTimesheet(state, getToday(), ctx, ots.dataset.openTs);
+  const hd = e.target.closest('[data-hr-done]');
+  if (hd) {
+    const id = hd.dataset.hrDone;
+    state.settings.hrDone = { ...(state.settings.hrDone || {}), [id]: true };
+    save(state);
+    render();
+    toast('Odhaczone ✓', () => { delete state.settings.hrDone[id]; save(state); render(); });
+    return;
+  }
   const dd = e.target.closest('[data-deadline-done]');
   if (dd) {
     const dl = state.settings.lek.deadlines.find((x) => x.date === dd.dataset.deadlineDone);

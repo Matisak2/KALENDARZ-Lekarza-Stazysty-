@@ -172,3 +172,23 @@ test('Tryb "zaliczane": chirurgia plastyczna bez dni do odrobienia, urlop w blok
   assert.equal(sum.reserve.free, 0);
   assert.ok(!alerts(sum).some((a) => a.title.includes('plastyczna')));
 });
+
+test('Terminy Kadr USK2 i formalności przed stażem poza USK2 (z odhaczaniem)', async () => {
+  const { hospitalOf } = await import('../js/hospitals.js');
+  const st = defaultState();
+  const get = (t) => alerts(summarize(st, t));
+  const nov = get('2026-11-25').find((a) => a.id === 'kp-2026-11');
+  assert.ok(nov && nov.detail.includes('03.12'));
+  assert.ok(!get('2026-12-04').some((a) => a.id === 'kp-2026-11'));
+  assert.ok(get('2026-12-10').some((a) => a.id === 'kcp-2026-12'));
+  st.settings.hrDone = { 'kp-2026-11': true };
+  assert.ok(!get('2026-11-25').some((a) => a.id === 'kp-2026-11'));
+  // Chirurgia dziecięca w Zdrojach od 26.11 – przypomnienie o piśmie i informacji do Kadr
+  const b = st.blocks.find((x) => x.id === 'pers1');
+  b.segments = [{ id: 's', start: b.start, end: b.end, hospital: 'zdroje', ward: '' }];
+  assert.notEqual(hospitalOf(b.segments[0]).id, 'usk2');
+  const ext = get('2026-11-20').find((a) => a.id?.startsWith('ext-pers1'));
+  assert.ok(ext && ext.detail.includes('książeczki zdrowia'));
+  b.segments[0].hospital = 'usk2';
+  assert.ok(!get('2026-11-20').some((a) => a.id?.startsWith('ext-pers1')));
+});
