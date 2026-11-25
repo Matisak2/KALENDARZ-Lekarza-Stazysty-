@@ -38,7 +38,14 @@ Sprawdź i dla każdego problemu podaj: plik:linia, co się dzieje, przykład (d
 Wskaż funkcje, kod lub pliki, które: nie są używane, dublują się, komplikują aplikację bez korzyści, albo są nieaktualne (np. stare formaty, martwy kod). Dla każdej rzeczy: co się stanie po usunięciu i czy coś na tym traci właściciel.
 
 ## Krok 3 – czego brakuje
-Pomyśl jak lekarz stażysta w USK2 Szczecin w roku 2026/27: czego potrzebuje na co dzień (staż, dyżury, Kadry, książeczka, kursy OIL, LEK, specjalizacja, finanse/wynagrodzenie stażysty, zdrowie), a czego aplikacja nie robi albo robi niewygodnie. Uwzględnij też dostępność (czytelność, kontrast, VoiceOver) i wydajność.
+Oceń aplikację po kolei z czterech punktów widzenia. Dla każdego wypisz, czego brakuje albo co jest niewygodne, i podaj konkretną sytuację z życia, w której to przeszkadza.
+
+1. **Stażysta (USK2 Szczecin, rocznik 2026/27)** – realizacja stażu i formalności: bloki i oddziały, odrabianie, urlop i L4, dni wolne za soboty, dyżury i ich rozliczanie, karty czasu pracy i dyżurów, terminy Kadr, staże poza USK2 (pisma, zgody, książeczka zdrowia), książeczka stażowa i podpisy, kursy OIL, zaliczenie stażu na koniec (co trzeba złożyć, komu i kiedy), zapisy na LEK i opłaty w SMK, wybór specjalizacji i nabór w CMKP, wynagrodzenie stażysty (czy dyżury są dobrze policzone do wypłaty).
+2. **Lekarz** – praca kliniczna i rozwój: szybki dostęp do tego, czego potrzebuje na oddziale lub dyżurze (gdzie jest, z kim pracuje, telefony do oddziału, dyżurki, numery wewnętrzne), notatki z przypadków bez danych pacjentów, umiejętności do zaliczenia i procedury do zebrania, nauka do LEK między obowiązkami, punkty edukacyjne i szkolenia, przygotowanie do specjalizacji (publikacje, doktorat, kursy), dbanie o siebie (zmęczenie po dyżurach, odpoczynek, limity godzin).
+3. **Użytkownik aplikacji (iPhone i komputer)** – wygoda obsługi: ile dotknięć wymaga codzienna czynność (np. dodanie dyżuru, odhaczenie lekcji, sprawdzenie, gdzie jutro jestem), czytelność w pośpiechu i w nocy (tryb ciemny), działanie bez internetu, synchronizacja między urządzeniami, kopie zapasowe, powiadomienia, odporność na przypadkowe dotknięcia (właściciel ma czuły ekran), dostępność (rozmiar czcionki, kontrast, VoiceOver), szybkość działania, zrozumiałe komunikaty, pomoc „co tu zrobić” na każdym ekranie.
+4. **Człowiek, który lubi upraszczać sobie życie** – automatyzacja i „zero myślenia”: co aplikacja mogłaby robić sama zamiast właściciela (np. sama wypełniać i przypominać o dokumentach, sama układać dyżury i naukę, sama wysyłać przypomnienia do Kalendarza iPhone'a, sama wyciągać informacje z maili z Kadr), skróty (widżet na ekranie głównym, Siri/Skróty iOS, jeden przycisk „co dziś”), mniej przepisywania tych samych danych w kilku miejscach, gotowe szablony (pisma, wnioski o urlop, maile do Kadr i koordynatora), podsumowanie tygodnia w jednym miejscu.
+
+Na koniec kroku wskaż **5 rzeczy, które dałyby właścicielowi najwięcej oszczędności czasu i nerwów** przy najmniejszym wysiłku wdrożenia.
 
 ## Krok 4 – propozycje zmian i dodatków
 Lista ponumerowana. Przy każdej propozycji:
