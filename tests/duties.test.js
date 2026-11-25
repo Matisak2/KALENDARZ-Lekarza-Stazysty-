@@ -179,3 +179,29 @@ test('Propozycja nie obejmuje dni, które już minęły (parametr „od”)', ()
   const p = proposeDuties(defaultState(), '2026-12', '2026-12-10');
   assert.ok(p.length > 0 && p.every((x) => x.date >= '2026-12-10'));
 });
+
+test('Audyt B2: urlop w tygodniu bez dyżurów (medycyna rodzinna) nie zmniejsza normy', () => {
+  const st = defaultState();
+  assert.equal(dutyMonth(st, '2027-06').norm, 3 * 605); // 1–7.06 medycyna rodzinna, od 10.06 neonatologia
+  st.events = [{ id: 'u', type: 'urlop', start: '2027-06-01', end: '2027-06-07' }];
+  assert.equal(dutyMonth(st, '2027-06').norm, 3 * 605);
+  assert.equal(dutyMonth(st, '2027-06').absenceWorkdays, 0);
+  // urlop w tygodniu z dyżurami – jak dotąd: 5 dni = −10 h 05
+  st.events = [{ id: 'u', type: 'urlop', start: '2027-06-14', end: '2027-06-18' }];
+  assert.equal(dutyMonth(st, '2027-06').norm, 2 * 605);
+});
+
+test('Kurs a dyżury: kurs od środy – dyżury przed i po kursie; tydzień cały w kursie – dyżury przepadają', () => {
+  const st = defaultState();
+  const c = st.courses.find((x) => x.id === 'krew');
+  c.start = '2027-03-10'; c.end = '2027-03-16'; // śr–wt
+  assert.equal(dutyMonth(st, '2027-03').norm, 4 * 605);
+  const p = proposeDuties(st, '2027-03');
+  assert.equal(proposalShortfall(st, '2027-03', p), 0);
+  assert.ok(p.some((x) => x.date === '2027-03-08') && p.some((x) => x.date === '2027-03-09'));
+  c.start = '2027-03-08'; c.end = '2027-03-12'; // pn–pt = cały „tydzień” 8–14
+  const m = dutyMonth(st, '2027-03');
+  assert.equal(m.courseWeeks, 1);
+  assert.equal(m.norm, 3 * 605);
+  assert.equal(proposalShortfall(st, '2027-03'), 0);
+});

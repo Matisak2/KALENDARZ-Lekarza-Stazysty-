@@ -131,7 +131,9 @@ test('Dzień wolny za 01.05.2027 – po wpisaniu daty przepada w bloku', () => {
   const sum = summarize(st, TODAY);
   assert.equal(byId(sum, 'rodz').makeUp, 3);
   assert.ok(!alerts(sum).some((a) => a.title.includes('Święto Pracy')));
-  assert.ok(alerts(summarize(O(), TODAY)).some((a) => a.title.includes('Święto Pracy')));
+  // przypomnienie o wyznaczeniu dnia wolnego – dopiero na 60 dni przed świętem (audyt B15)
+  assert.ok(!alerts(summarize(O(), TODAY)).some((a) => a.title.includes('Święto Pracy')));
+  assert.ok(alerts(summarize(O(), '2027-03-15')).some((a) => a.title.includes('Święto Pracy')));
 });
 
 test('Przypomnienie o zapisach na LEK pojawia się na 30 dni przed terminem', () => {
@@ -247,4 +249,30 @@ test('Podsumowanie tygodnia: pn–nd, miejsce, święta, nieobecności, dyżury 
   const w2 = weekSummary(st, '2026-12-23');
   assert.ok(w2.days.find((d) => d.date === '2026-12-24').kind === 'free');
   assert.ok(w2.days.find((d) => d.date === '2026-12-23').label.startsWith('Dzień wolny'));
+});
+
+import { vacationAccrued, eventImpact } from '../js/engine.js';
+
+test('Urlop 2026 narasta co miesiąc (5 dni za X–XII), od 2027 cała pula od razu', () => {
+  const s = S().settings;
+  assert.equal(vacationAccrued(s, '2026-10-31'), 0);
+  assert.equal(vacationAccrued(s, '2026-11-01'), 1.67);
+  assert.equal(vacationAccrued(s, '2026-12-01'), 3.33);
+  assert.equal(vacationAccrued(s, '2026-12-31'), 3.33);
+  assert.equal(vacationAccrued(s, '2027-01-01'), 22); // 5 za 2026 + 17 za 2027 od razu
+  const st = S();
+  st.events.push({ id: 'u', type: 'urlop', start: '2026-11-16', end: '2026-11-17' }); // 2 dni w listopadzie, nabyte 1,67
+  const sum = summarize(st, '2026-11-01');
+  assert.equal(sum.vacation.accrual.date, '2026-11-17');
+  assert.ok(alerts(sum).some((a) => a.title.startsWith('Urlop 17.11')));
+  const ok = S();
+  ok.events.push({ id: 'u', type: 'urlop', start: '2026-12-28', end: '2026-12-30' }); // 3 dni po 1.12 (nabyte 3,33)
+  assert.equal(summarize(ok, '2026-11-25').vacation.accrual, null);
+  assert.ok(eventImpact(S(), { id: 'n', type: 'urlop', start: '2026-11-02', end: '2026-11-06' }, '2026-11-01').accrualIssue);
+});
+
+test('Audyt B9: dzień wolny za sobotnie święto (23.12) w trybie „zaliczane” nie wydłuża stażu', () => {
+  const sum = summarize(S(), TODAY);
+  assert.equal(byId(sum, 'pers2').lost.length, 0);
+  assert.equal(sum.estimatedEnd, '2027-10-31');
 });

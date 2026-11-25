@@ -73,7 +73,8 @@ const STAMP = () => new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+
 /** Dyżur jako wydarzenie z godziną (czas lokalny telefonu). */
 function dutyEvent(state, x, stamp) {
   const [hh, mm] = String(x.start || '15:35').split(':').map(Number);
-  const from = (hh || 15) * 60 + (mm || 0);
+  // „0:00” to prawidłowa godzina (audyt B12) – domyślnie 15:35 tylko, gdy godziny brak
+  const from = Number.isFinite(hh) ? hh * 60 + (mm || 0) : 15 * 60 + 35;
   const pl = placeOn(state, x.date);
   return vevent({
     uid: `dyzur-${x.id}`, start: x.date, end: x.date, from, to: from + Number(x.minutes || 0),

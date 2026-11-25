@@ -245,6 +245,7 @@ export function openEventEditor(state, today, ev, ctx) {
           <span class="muted">· ${imp.calendarDays} ${plural(imp.calendarDays, 'dzień', 'dni', 'dni')} kalendarzowych</span></div>
         ${imp.vacationDays ? `<div class="imp-row">🏖 Urlop: −${imp.vacationDays} · zostanie <b>${imp.vacationLeftAfter}</b> z ${state.settings.vacationPool ? Object.values(state.settings.vacationPool).reduce((a, b) => a + Number(b), 0) : 22}</div>` : ''}
         ${imp.vacationLeftAfter < 0 && imp.vacationDays ? '<div class="imp-row warn">⚠️ Przekraczasz pulę urlopu</div>' : ''}
+        ${imp.accrualIssue ? `<div class="imp-row warn">⚠️ ${fmtFull(imp.accrualIssue.date)}: urlopu jeszcze nienabyty – do tego dnia ok. ${String(imp.accrualIssue.accrued).replace('.', ',')} dnia (w 2026 urlop narasta co miesiąc, art. 153 § 1 KP)</div>` : ''}
         ${blocks ? `<div class="imp-sub">Do odrobienia z bloków (po zakończeniu harmonogramu):</div>${blocks}` : ''}
         ${imp.inReserve ? `<div class="imp-row">⏳ W okresie rezerwy: ${imp.inReserve} dni</div>` : ''}
         <div class="imp-row ${imp.freeAfter < 0 ? 'warn' : ''}">Zapas rezerwy: ${imp.freeBefore} → <b>${imp.freeAfter}</b></div>

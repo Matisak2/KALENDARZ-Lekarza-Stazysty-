@@ -222,7 +222,7 @@ export function mergeCourse(courses, parsed) {
  */
 export function courseKey(name) {
   return String(name || '').toLowerCase().replace(/[^a-ząćęłńóśźż ]/g, ' ').split(/\s+/)
-    .filter((w) => w && !['kurs', 'z', 'ze', 'i', 'oraz'].includes(w)).map((w) => w.slice(0, 5)).join(' ');
+    .filter((w) => w && !['kurs', 'z', 'ze', 'i', 'oraz'].includes(w)).map((w) => w.slice(0, 5)).sort().join(' '); // kolejność słów bez znaczenia (audyt B17)
 }
 
 /**

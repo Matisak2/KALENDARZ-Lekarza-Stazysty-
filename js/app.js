@@ -1,7 +1,7 @@
 // Kalendarz Stażysty – interfejs
 import { load, save, askPersistence, onSave, migrate, loadProblem, rawProblemData, dailySnapshot } from './store.js';
 import { initSync, onLocalSave } from './sync.js';
-import { summarize, alerts, segmentAt, vacationIdeas, weekSummary, fmtHM } from './engine.js';
+import { summarize, alerts, segmentAt, vacationIdeas, weekSummary, fmtHM, placeOn } from './engine.js';
 import { currentWeek } from './lek.js';
 import { renderBlocks, openBlockEditor } from './blocks-ui.js';
 import { renderMore, handleMoreClick, handleMoreChange } from './more-ui.js';
@@ -221,13 +221,9 @@ function reserveCard(sum) {
       <div><i style="background:var(--c-sick)"></i>Odrabianie z bloków<b>${r.makeUp}</b></div>
       ${r.absences ? `<div><i style="background:var(--c-gray)"></i>Nieobecności w rezerwie<b>${r.absences}</b></div>` : ''}
     </div>
-    <div class="segmented" role="group" aria-label="Jak liczyć święta">
-      <button data-holiday-mode="zaliczane" class="${mode === 'zaliczane' ? 'on' : ''}">Święta zaliczane</button>
-      <button data-holiday-mode="odrabiane" class="${mode === 'odrabiane' ? 'on' : ''}">Święta odrabiane</button>
-    </div>
     <div class="note">${mode === 'odrabiane'
       ? 'Wariant ostrożny: święto w trakcie bloku przepada i trzeba je odrobić.'
-      : 'Wg poradnika OIL Szczecin 2026 (s. 37): „Dni ustawowo wolne od pracy nie wydłużają stażu cząstkowego”.'}
+      : 'Wg poradnika OIL Szczecin 2026 (s. 37): „Dni ustawowo wolne od pracy nie wydłużają stażu cząstkowego”.'} Sposób liczenia świąt zmienisz w Więcej.
       ${r.free < 0 ? ` Staż potrwa wtedy do ok. <b>${fmtFull(sum.estimatedEnd)}</b>.` : ''}</div>
   </div>`;
 }
@@ -357,7 +353,7 @@ function todoCard(al, label = 'Na dziś') {
       <div class="todo-ic">${a.icon}</div>
       <div class="grow"><div class="t">${esc(a.title)}</div><div class="s">${esc(a.detail || '')}</div></div>
       <div class="todo-acts">
-      ${a.action === 'deadline-done' ? `<button class="chip" data-deadline-done="${a.date}">Zrobione ✓</button>` : ''}
+      ${a.action === 'deadline-done' ? `<button class="chip" data-deadline-done="${a.idx}">Zrobione ✓</button>` : ''}
       ${a.pack ? `<button class="chip alt" data-open-ts="${a.pack}">🖨 Druki</button>` : ''}
       ${a.letter ? `<button class="chip alt" data-letters="${esc(JSON.stringify(a.letter))}">✉️ Pismo</button>` : ''}
       ${a.action === 'lek-reg' ? '<button class="chip" data-lek-reg>Zapisałem się…</button>' : ''}
@@ -379,6 +375,26 @@ function loadProblemCard() {
     ${rawProblemData() ? '<button class="chip" data-act="raw-save">Zapisz nieczytelne dane do pliku</button>' : ''}</div></div></div>`;
 }
 
+/** Jedna linijka „Jutro: …” – gdzie jestem, dyżur, wolne (audyt: propozycja 13). */
+function tomorrowLine() {
+  const t = getToday();
+  const d = toIso(toNum(t) + 1);
+  const w = weekSummary(state, d).days.find((x) => x.date === d);
+  if (!w || (w.kind === 'none' && !w.duties.length)) return '';
+  const pl = placeOn(state, d);
+  const h = hospitalOf(pl?.segment);
+  const parts = [];
+  if (w.kind === 'work' && pl?.block) parts.push(`${pl.block.short}${h ? ` · ${h.short || h.name}` : ''}`);
+  else parts.push(w.label || 'wolne');
+  for (const x of w.duties) {
+    const [hh, mm] = String(x.start || '15:35').split(':').map(Number);
+    const from = hh * 60 + (mm || 0);
+    const to = from + Number(x.minutes || 0);
+    parts.push(`🌙 dyżur ${hh}:${String(mm || 0).padStart(2, '0')}–${Math.floor(to / 60)}:${String(to % 60).padStart(2, '0')}`);
+  }
+  return `<div class="tomorrow"><b>Jutro</b> · ${esc(fmtDayShort(d))}: ${esc(parts.join(' · '))}</div>`;
+}
+
 function renderToday() {
   const t = getToday();
   const sum = summarize(state, t);
@@ -390,6 +406,7 @@ function renderToday() {
     <header class="page-head">
       <div class="eyebrow">${fmtLong(t)}</div>
       <h1 class="large-title">Dziś</h1>
+      ${tomorrowLine()}
     </header>
     ${helpBox('dzis')}
     ${loadProblemCard()}
@@ -503,11 +520,12 @@ const ctx = {
   replace(data) { swapState(data); save(state); applyTheme(); render(); },
   replaceFromCloud(data) {
     const m = migrate(data);
-    if (!m) return;
+    if (!m) return false; // np. dane z nowszej wersji aplikacji – sync.js wstrzyma wysyłanie
     swapState(m);
     save(state, { keepTime: true });
     applyTheme();
     if (!document.querySelector('.sheet-wrap')) render();
+    return true;
   },
   onStatus() {
     const a = document.activeElement;
@@ -552,7 +570,8 @@ app.addEventListener('click', (e) => {
   }
   const dd = e.target.closest('[data-deadline-done]');
   if (dd) {
-    const dl = state.settings.lek.deadlines.find((x) => x.date === dd.dataset.deadlineDone);
+    // Po numerze terminu – dwa terminy tego samego dnia odhaczają się osobno (audyt B14)
+    const dl = state.settings.lek.deadlines[Number(dd.dataset.deadlineDone)];
     if (dl) dl.done = true;
     save(state);
     render();

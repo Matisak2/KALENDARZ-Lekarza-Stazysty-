@@ -33,3 +33,10 @@ test('Plik tylko z dyżurami (po propozycji)', () => {
   assert.equal((ics.match(/BEGIN:VEVENT/g) || []).length, 1);
   assert.ok(ics.includes('DTEND:20261201T204000'));
 });
+
+test('Audyt B12: dyżur o 0:00 eksportuje się o 0:00, nie o 15:00', async () => {
+  const { buildDutiesIcs } = await import('../js/ics.js');
+  const { defaultState } = await import('../js/defaults.js');
+  const t = buildDutiesIcs(defaultState(), [{ id: 'n', date: '2026-12-05', minutes: 300, start: '0:00' }]);
+  assert.match(t, /DTSTART:20261205T000000/);
+});

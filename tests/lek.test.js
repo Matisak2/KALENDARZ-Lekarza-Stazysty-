@@ -369,3 +369,7 @@ test('Audyt B8: poprawione dopasowania dziedzin LEK', () => {
   assert.equal(guessDomain('Kurs z kardiochirurgii'), 'chir');
   assert.equal(guessDomain('Kurs z kardiologii'), 'int');
 });
+
+test('Audyt B17: kolejność słów w nazwie kursu nie tworzy duplikatu', () => {
+  assert.equal(courseKey('Kurs z ginekologii i położnictwa'), courseKey('Kurs z położnictwa i ginekologii'));
+});

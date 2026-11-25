@@ -3,6 +3,7 @@
 // Telefon działa dalej bez internetu: lokalna pamięć jest główna, chmura to kopia i łącznik między urządzeniami.
 import { decideSync, toRemote, fromRemote, deviceName } from './sync-core.js';
 import { snapshot } from './store.js';
+import { SCHEMA_VERSION } from './defaults.js';
 
 const V = '10.14.1';
 // Konfiguracja aplikacji webowej (dane publiczne – bezpieczeństwo zapewniają zasady Firestore).
@@ -21,6 +22,9 @@ let ctx = null;
 let user = null;
 let unsub = null;
 let timer = null;
+// Dane w chmurze zapisała nowsza wersja aplikacji – nic nie wysyłamy, dopóki ta wersja się nie zaktualizuje (audyt B4)
+let blocked = false;
+const NEWER = 'W chmurze są dane z nowszej wersji aplikacji (z drugiego urządzenia). Zamknij aplikację całkowicie i otwórz ją ponownie z internetem – pobierze się nowa wersja. Do tego czasu nic nie wysyłam, żeby niczego nie nadpisać.';
 const status = { phase: 'off', error: '', lastAt: null, from: '' };
 
 function info() {
@@ -80,6 +84,10 @@ async function reconcile(remote) {
   const localAt = Number(st.meta?.updatedAt) || 0;
   const remoteAt = remote ? Number(remote.updatedAt) || 0 : null;
   const d = decideSync(localAt, remoteAt, info().lastSync || 0);
+  // Nowsza wersja danych w chmurze: ani wysyłać (nadpisałoby nowsze pola), ani pobierać (ta wersja ich nie odczyta)
+  const rv = Number(fromRemote(remote)?.version) || 0;
+  if (rv > SCHEMA_VERSION) { blocked = true; changed({ phase: 'error', error: NEWER }); return; }
+  blocked = false;
   try {
     if (d === 'push' || d === 'conflict-push') {
       if (d === 'conflict-push' && remote) snapshot(remote.data, `wersja z chmury (${remote.device || 'inne urządzenie'}) przed nadpisaniem`);
@@ -90,8 +98,9 @@ async function reconcile(remote) {
       if (!data) throw new Error('Dane w chmurze są uszkodzone – nic nie zmieniłem.');
       // Zawsze przed pobraniem z chmury: kopia tego, co było w tym urządzeniu
       snapshot(st, `przed pobraniem z chmury (z: ${remote.device || 'inne urządzenie'})`);
+      // Najpierw podmiana, dopiero potem zapamiętanie synchronizacji – nieudana podmiana nie może wyglądać na „zsynchronizowane”
+      if (ctx.replaceFromCloud(data) === false) { blocked = true; changed({ phase: 'error', error: NEWER }); return; }
       setInfo({ lastSync: remoteAt });
-      ctx.replaceFromCloud(data);
       ctx.toast(`☁️ Zaktualizowano z urządzenia: ${remote.device || 'inne'}`);
     } else {
       setInfo({ lastSync: localAt });
@@ -104,7 +113,7 @@ async function reconcile(remote) {
 
 /** Po każdej zmianie w aplikacji – wyślij do chmury (z opóźnieniem, żeby nie wysyłać przy każdym znaku). */
 export function onLocalSave() {
-  if (!user) return;
+  if (!user || blocked) return;
   clearTimeout(timer);
   timer = setTimeout(async () => {
     try {

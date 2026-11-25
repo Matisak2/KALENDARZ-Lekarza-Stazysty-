@@ -52,7 +52,6 @@ export function buildTimesheet(state, ym) {
   const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
   const days = eachDay(`${ym}-01`, `${ym}-${String(last).padStart(2, '0')}`);
   const st = state.settings;
-  const overrides = state.timesheets?.[ym]?.rows || {};
   const warnings = [];
   const rows = days.map((d) => {
     const day = Number(d.slice(8));
@@ -64,7 +63,7 @@ export function buildTimesheet(state, ym) {
     const r = { day, date: d, shaded: free, hours: '', nominal: 0, duty: 0, dutyHoliday: 0, dutyNightHoliday: 0, dutyPhone: 0, note: '' };
     const off = statutoryOff(ctx, d);
     if (off) r.note = off.label;
-    if (!inStaz) return { ...r, ...overrides[day] };
+    if (!inStaz) return r;
     if (free) {
       if (dutyMin) {
         const start = parseClock(duties[0].start) ?? WORK_START;
@@ -90,7 +89,7 @@ export function buildTimesheet(state, ym) {
       r.duty = dutyMin;
       r.dutyRed = dutyMin > 0;
     }
-    return { ...r, ...overrides[day] };
+    return r;
   });
   const sum = (k) => rows.reduce((a, r) => a + (Number(r[k]) || 0), 0);
   const totals = { nominal: sum('nominal'), duty: sum('duty'), dutyHoliday: sum('dutyHoliday'), dutyNightHoliday: sum('dutyNightHoliday'), dutyPhone: sum('dutyPhone') };

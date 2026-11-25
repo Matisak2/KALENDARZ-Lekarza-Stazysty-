@@ -106,6 +106,49 @@ export function blockStats(ctx, block, today) {
   };
 }
 
+/**
+ * Urlop nabyty do dnia `d`. W roku rozpoczęcia stażu (pierwsza praca) urlop narasta: 1/12 rocznego wymiaru za każdy
+ * przepracowany miesiąc (art. 153 § 1 Kodeksu pracy) – pula tego roku (np. 5 dni za X–XII 2026) rozłożona na miesiące do końca roku.
+ * Od 1 stycznia kolejnego roku cała pula tego roku jest dostępna od razu (decyzja właściciela 11.2026, art. 153 § 2 KP).
+ */
+export function vacationAccrued(settings, d) {
+  const pool = settings.vacationPool || {};
+  const start = settings.startDate;
+  const y0 = Number(start.slice(0, 4));
+  const y = Number(d.slice(0, 4));
+  let total = 0;
+  for (const [yy, n] of Object.entries(pool)) if (Number(yy) < y && Number(yy) !== y0) total += Number(n || 0);
+  // rok rozpoczęcia: miesiące od startu do końca roku
+  const m0 = Number(start.slice(5, 7));
+  const months = 12 - m0 + 1;
+  let full = 0; // pełne przepracowane miesiące do dnia d (miesiąc „mija” dzień przed tą samą datą w kolejnym miesiącu)
+  for (let k = 1; k <= months; k++) {
+    const mm = m0 - 1 + k;
+    const anniv = `${y0 + Math.floor(mm / 12)}-${String((mm % 12) + 1).padStart(2, '0')}-${start.slice(8, 10)}`;
+    if (anniv <= d) full = k;
+  }
+  if (d >= start) total += y > y0 ? Number(pool[y0] || 0) : (Number(pool[y0] || 0) * full) / months;
+  if (y > y0 && pool[y] != null) total += Number(pool[y] || 0);
+  return Math.round(total * 100) / 100;
+}
+
+/** Pierwszy dzień urlopu wypoczynkowego, którego w danym momencie jeszcze nie masz nabytego (null = wszystko w porządku). */
+export function vacationAccrualIssue(ctx) {
+  const days = [];
+  for (const ev of ctx.state.events || []) {
+    if (!EVENT_TYPES[ev.type]?.vacation || !ev.start || !ev.end) continue;
+    for (const d of eachDay(ev.start, ev.end)) if (!isWeekend(d) && !statutoryOff(ctx, d)) days.push(d);
+  }
+  days.sort();
+  let used = 0;
+  for (const d of days) {
+    used++;
+    const acc = vacationAccrued(ctx.settings, d);
+    if (used > acc + 1e-9) return { date: d, used, accrued: acc };
+  }
+  return null;
+}
+
 export function vacationSummary(ctx, today) {
   const pool = ctx.settings.vacationPool || {};
   const total = Object.values(pool).reduce((a, b) => a + Number(b || 0), 0);
@@ -121,7 +164,7 @@ export function vacationSummary(ctx, today) {
       if (ev.type === 'urlop_zadanie') onDemand++;
     }
   }
-  return { total, pool, used, planned, left: total - used - planned, byYear, onDemand };
+  return { total, pool, used, planned, left: total - used - planned, byYear, onDemand, accrual: vacationAccrualIssue(ctx) };
 }
 
 /**
@@ -250,14 +293,14 @@ export function alerts(sum) {
   const today = sum.today;
 
   const lek = settings.lek || {};
-  for (const dl of lek.deadlines || []) {
-    if (dl.done || (lek.registered && dl.label.startsWith('Zgłoszenie na LEK (wiosna'))) continue;
+  (lek.deadlines || []).forEach((dl, idx) => {
+    if (dl.done || (lek.registered && dl.label.startsWith('Zgłoszenie na LEK (wiosna'))) return;
     // Opłata: pomijamy, gdy wpisano „nie trzeba płacić” albo „opłacone”
-    if (lek.registered && dl.label.startsWith('Opłata za LEK (wiosna') && (lek.feeNeeded === 'nie' || lek.feePaid)) continue;
+    if (lek.registered && dl.label.startsWith('Opłata za LEK (wiosna') && (lek.feeNeeded === 'nie' || lek.feePaid)) return;
     const left = toNum(dl.date) - toNum(today);
     const reg = dl.label.startsWith('Zgłoszenie na LEK (wiosna');
-    if (left >= 0 && left <= 30) out.push({ level: left <= 7 ? 'urgent' : 'warn', icon: '📝', title: dl.label, detail: left === 0 ? 'Dziś!' : `Zostało ${left} ${left === 1 ? 'dzień' : 'dni'}`, date: dl.date, action: reg ? 'lek-reg' : 'deadline-done' });
-  }
+    if (left >= 0 && left <= 30) out.push({ level: left <= 7 ? 'urgent' : 'warn', icon: '📝', title: dl.label, detail: left === 0 ? 'Dziś!' : `Zostało ${left} ${left === 1 ? 'dzień' : 'dni'}`, date: dl.date, idx, action: reg ? 'lek-reg' : 'deadline-done' });
+  });
   // Po zapisie: czy trzeba zapłacić? (art. 14a ust. 8 i 11 – opłata od 2. zgłoszenia, chyba że 1. niezdany/nieprzystąpienie)
   if (lek.registered && !lek.feeNeeded && lek.examDate && today <= lek.examDate) {
     out.push({ level: 'info', icon: '💳', action: 'lek-reg', title: 'LEK: sprawdź w SMK, czy musisz zapłacić',
@@ -286,7 +329,8 @@ export function alerts(sum) {
     }
   }
   for (const [hDate, off] of Object.entries(settings.saturdayDaysOff || {})) {
-    if (!off && hDate >= settings.startDate && hDate <= settings.endDate) {
+    // Przypomnienie dopiero na 60 dni przed świętem (audyt B15)
+    if (!off && hDate >= settings.startDate && hDate <= settings.endDate && toNum(hDate) - toNum(today) <= 60) {
       const h = sum.ctx.holidays.get(hDate);
       out.push({ level: 'info', icon: '📅', title: `Wpisz dzień wolny za ${h?.name || 'święto'} (${hDate.slice(8, 10)}.${hDate.slice(5, 7)}, sobota)`, detail: 'Pracodawca musi wyznaczyć inny dzień wolny' });
     }
@@ -323,6 +367,11 @@ export function alerts(sum) {
     const ago = last ? toNum(today) - toNum(last) : null;
     if (!last) out.push({ level: 'info', icon: '💾', title: 'Zrób kopię zapasową', detail: 'Dane są tylko w tym telefonie – Więcej → Zapisz kopię', action: 'backup' });
     else if (ago >= 30) out.push({ level: 'info', icon: '💾', title: `Ostatnia kopia ${ago} dni temu`, detail: 'Zapisz nową kopię: Więcej → Zapisz kopię', action: 'backup' });
+  }
+  const acc = sum.vacation.accrual;
+  if (acc && acc.date >= today) {
+    out.push({ level: 'warn', icon: '🏖', title: `Urlop ${acc.date.slice(8, 10)}.${acc.date.slice(5, 7)} – jeszcze nienabyty`,
+      detail: `Do tego dnia nabędziesz ok. ${String(acc.accrued).replace('.', ',')} dnia urlopu, a planujesz ${acc.used}. W 2026 urlop narasta co miesiąc (art. 153 § 1 KP) – przesuń urlop albo zapytaj w Kadrach.` });
   }
   if (sum.reserve.free < 0) {
     out.push({ level: 'warn', icon: '⏳', title: `Brakuje ${-sum.reserve.free} dni roboczych w rezerwie`, detail: `Przy obecnych założeniach staż może potrwać do ${sum.estimatedEnd.slice(8, 10)}.${sum.estimatedEnd.slice(5, 7)}.${sum.estimatedEnd.slice(0, 4)}` });
@@ -430,6 +479,7 @@ export function eventImpact(state, ev, today) {
     workdays: work.length,
     vacationDays: EVENT_TYPES[ev.type]?.vacation ? work.length : 0,
     vacationLeftAfter: after.vacation.left,
+    accrualIssue: EVENT_TYPES[ev.type]?.vacation ? after.vacation.accrual : null,
     perBlock,
     inReserve: work.filter((d) => d >= after.reserve.start && d <= after.reserve.end).length,
     freeBefore: before.reserve.free,
@@ -480,14 +530,25 @@ export function dutyMonth(state, ym) {
   });
   const [y, m] = ym.split('-').map(Number);
   const monthDays = eachDay(`${ym}-01`, `${ym}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, '0')}`);
+  // Urlop / L4 liczymy tylko w „tygodniach” z dyżurami – w tygodniu bez dyżurów (np. medycyna rodzinna) nie ma czego zmniejszać (audyt B2)
+  const inDutyWeek = (d) => buckets.some((b) => b.dutyWeek && b.start <= d && d <= b.end);
   const absenceWorkdays = monthDays.filter((d) => {
     const a = ctx.absence.get(d);
     return a && a.kind === 'event' && ['urlop', 'urlop_zadanie', 'l4', 'opieka', 'bezplatny'].includes(a.type)
-      && !isWeekend(d) && !statutoryOff(ctx, d);
+      && !isWeekend(d) && !statutoryOff(ctx, d) && inDutyWeek(d);
   }).length;
+  // „Tydzień” w całości zajęty kursem (żadnego dnia na dyżur) – dyżury z tego tygodnia przepadają (decyzja właściciela 11.2026)
+  for (const b of buckets) {
+    if (!b.dutyWeek) continue;
+    const work = eachDay(b.start, b.end).filter((d) => !isWeekend(d) && !statutoryOff(ctx, d) && !DUTY_BREAKS.some((r) => r.start <= d && d <= r.end));
+    const course = work.filter((d) => ctx.absence.get(d)?.kind === 'course');
+    b.courseWeek = course.length > 0 && course.length === work.length;
+  }
+  const courseWeeks = buckets.filter((b) => b.courseWeek).length;
   const dutyWeeks = buckets.filter((b) => b.dutyWeek).length;
   const reduction = Math.floor(absenceWorkdays / 5) * DUTY_WEEK_LIMIT;
-  const norm = Math.max(0, dutyWeeks * DUTY_WEEK_LIMIT - reduction);
+  const courseReduction = courseWeeks * DUTY_WEEK_LIMIT;
+  const norm = Math.max(0, dutyWeeks * DUTY_WEEK_LIMIT - reduction - courseReduction);
   const total = duties.reduce((a, x) => a + Number(x.minutes || 0), 0);
 
   const warnings = [];
@@ -504,7 +565,7 @@ export function dutyMonth(state, ym) {
     const dd = `${x.date.slice(8)}.${x.date.slice(5, 7)}`;
     for (const w of list) warnings.push({ level: w.level, text: `${dd}: ${w.text}`, id: x.id });
   }
-  return { ym, duties, buckets, norm, total, left: norm - total, count: duties.length, absenceWorkdays, reduction, dutyWeeks, warnings, issues };
+  return { ym, duties, buckets, norm, total, left: norm - total, count: duties.length, absenceWorkdays, reduction, courseWeeks, courseReduction, dutyWeeks, warnings, issues };
 }
 
 /**

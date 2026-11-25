@@ -102,7 +102,7 @@ export function renderDuties(state, today, ym) {
           <div class="hero-info">
             <div class="card-label">Ten miesiąc</div>
             <div class="hero-name">${fmtHM(m.total)}</div>
-            <div class="hero-place">norma: ${fmtHM(m.norm)}${m.reduction ? ` (−${fmtHM(m.reduction)} za ${m.absenceWorkdays} dni urlopu/L4)` : ''}</div>
+            <div class="hero-place">norma: ${fmtHM(m.norm)}${m.reduction ? ` (−${fmtHM(m.reduction)} za ${m.absenceWorkdays} dni urlopu/L4)` : ''}${m.courseReduction ? ` (−${fmtHM(m.courseReduction)}: ${m.courseWeeks === 1 ? 'tydzień' : 'tygodnie'} kursu – dyżury przepadają)` : ''}</div>
           </div>
           ${ring(pct, 96, 10, `<b>${Math.round(Math.min(pct, 9.99) * 100)}%</b><span>normy</span>`)}
         </div>

@@ -117,3 +117,38 @@ test('Uszkodzone dane w chmurze niczego nie nadpisują', async () => {
   assert.equal(a.state.events.length, 1);
   assert.equal(a.replaced, 0);
 });
+
+test('Audyt B4: dane z nowszej wersji w chmurze – stara wersja nic nie wysyła i nie pobiera', async () => {
+  const c = cloud();
+  const u = { uid: 'U9', email: 'x@y.pl' };
+  const newer = defaultState();
+  newer.version = 99;
+  newer.meta.updatedAt = 5000;
+  newer.events.push({ id: 'nowe', type: 'urlop', start: '2027-03-01', end: '2027-03-02' });
+  c.docs.set('stazysta/U9', { data: JSON.stringify(newer), updatedAt: 5000, device: 'Mac' });
+  mem.clear();
+  localStorage.setItem('kalendarz-sync', JSON.stringify({ enabled: true, lastSync: 3000 }));
+  const old = device(defaultState());
+  old.state.meta.updatedAt = 6000; // lokalna zmiana nowsza niż chmura
+  sync.__test(c, u, old.ctx);
+  await sync.__reconcile(c.docs.get('stazysta/U9'));
+  assert.equal(JSON.parse(c.docs.get('stazysta/U9').data).version, 99); // chmura nienaruszona
+  assert.equal(old.replaced, 0);
+  assert.equal(JSON.parse(localStorage.getItem('kalendarz-sync')).lastSync, 3000); // nie udajemy synchronizacji
+  assert.match(sync.syncStatus().error, /nowszej wersji/);
+});
+
+test('Nieudana podmiana danych z chmury nie zapisuje znacznika synchronizacji', async () => {
+  const c = cloud();
+  const u = { uid: 'U8', email: 'x@y.pl' };
+  const remote = defaultState();
+  remote.meta.updatedAt = 7000;
+  c.docs.set('stazysta/U8', { data: JSON.stringify(remote), updatedAt: 7000, device: 'Mac' });
+  mem.clear();
+  localStorage.setItem('kalendarz-sync', JSON.stringify({ enabled: true, lastSync: 1000 }));
+  const d = device(defaultState());
+  d.ctx.replaceFromCloud = () => false;
+  sync.__test(c, u, d.ctx);
+  await sync.__reconcile(c.docs.get('stazysta/U8'));
+  assert.equal(JSON.parse(localStorage.getItem('kalendarz-sync')).lastSync, 1000);
+});

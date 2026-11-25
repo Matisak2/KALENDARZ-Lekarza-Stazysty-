@@ -49,6 +49,7 @@ export function suggestTarget(data, dz, woj, tryb = 'rez') {
 export function chance(data, dz, woj, pct, tryb = 'rez') {
   const st = specStats(data, dz, woj, tryb).filter((x) => x.places > 0);
   if (!st.length || pct == null) return null;
-  const ok = st.filter((x) => !x.filled || pct >= x.threshold).length;
+  // Nabór z wolnymi miejscami „wystarcza” tylko przy zdanym LEK (≥ 56%) – audyt B13
+  const ok = st.filter((x) => (x.filled ? pct >= x.threshold : pct >= 56)).length;
   return { ok, of: st.length, label: ok === st.length ? 'wysokie' : ok >= st.length / 2 ? 'średnie' : ok > 0 ? 'niskie' : 'bardzo niskie' };
 }

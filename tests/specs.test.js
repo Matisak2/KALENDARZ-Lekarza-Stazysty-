@@ -41,3 +41,9 @@ test('Chirurgia naczyniowa ZP: rezydentura nieobsadzona, ale informacja o progac
   assert.equal(t.target, null);
   assert.match(t.basis, /pozarezydenckim progi sięgały 88\.86%/);
 });
+
+test('Audyt B13: nabór z wolnymi miejscami nie „wystarcza” przy niezdanym LEK', () => {
+  const mini = { sessions: [{ id: 's', label: 'S', places: { W: { D: { rez: 5, dokt: 0, poz: 0 } } }, results: { W: { D: { rez: { n: 2, min: 60, med: 65, max: 70 } } } } }] };
+  assert.equal(chance(mini, 'D', 'W', 50).ok, 0);
+  assert.equal(chance(mini, 'D', 'W', 57).ok, 1);
+});

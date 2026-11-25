@@ -73,12 +73,15 @@ Pokazuje bloki stażu, dni robocze, święta, urlop, kursy OIL, odrabianie, dyż
 
 ## Zasady stażu (stan na 11.2026, źródła w README)
 - Bloki sztywne (tydzień czw–śr). Blok wymaga tygodnie × 5 dni roboczych.
-- Dni stracone w bloku (urlop, L4, kurs, dzień wolny za sobotnie święto, święto w trybie „odrabiane”) odrabia się po całym harmonogramie, na tym samym oddziale.
+- Dni stracone w bloku (urlop, L4, kurs; święto i dzień wolny za sobotnie święto tylko w trybie „odrabiane”) odrabia się po całym harmonogramie, na tym samym oddziale.
+  W trybie „zaliczane” dzień wolny za sobotnie święto (23.12.2026) liczy się jak dzień stażu – nie wydłuża stażu (decyzja właściciela, test B9).
 - Rezerwa 26.08–31.10.2027 = 47 dni roboczych. 282 dni robocze umowy = 235 bloki + 25 kursy + 22 urlop.
 - Święta: `holidayMode` domyślnie `zaliczane` (poradnik OIL 2026, s. 37 – decyzja właściciela); `odrabiane` zostaje jako opcja.
 - Urlop 22 dni (5 za 2026 + 17 za 2027). Kursy OIL: 25 dni, terminy dla rocznika 2026/27 jeszcze nieogłoszone.
 - Dyżury 40 h 20 min/mies.; „tygodnie” miesiąca: 1–7, 8–14, 15–21, 22–koniec; max 10 h 05 min na tydzień, max 8 dyżurów;
-  każde 5 dni urlopu/L4 w miesiącu zmniejsza normę o 10 h 05 min; brak dyżurów na med. rodzinnej i w dni kursów.
+  każde 5 dni urlopu/L4 w „tygodniach” z dyżurami zmniejsza normę o 10 h 05 min; brak dyżurów na med. rodzinnej i w dni kursów;
+  kurs nie zmniejsza normy (dyżury w wolne dni tego „tygodnia”), ale „tydzień” w całości zajęty kursem – dyżury przepadają (−10 h 05).
+- Urlop 2026 narasta co miesiąc (1/12, art. 153 § 1 KP – `vacationAccrued`), od 1.01.2027 cała pula od razu; ostrzeżenie w oknie urlopu i na Dziś.
 - USK2 (Informacja dla stażysty + e-maile Kadr, 11.2026): dyżury tylko pn–pt (nie soboty, niedziele, święta), 2 w tygodniu:
   15:35–20:40 (5 h 05) i 15:35–20:35 (5 h); przerwa bez dyżurów 23–27.12.2026 (`DUTY_BREAKS`). Nominał XI i XII 2026 = 151 h 40.
   Terminy Kadr w `HR_DEADLINES` (odhaczanie: `settings.hrDone`). Kody nieobecności z legendy listy obecności (Wydanie 5):

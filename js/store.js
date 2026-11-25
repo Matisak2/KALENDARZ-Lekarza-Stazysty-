@@ -113,7 +113,9 @@ export function backupText(state) {
 export function parseBackup(text) {
   let obj;
   try { obj = JSON.parse(text); } catch (e) { throw new Error('To nie jest plik kopii (błędny format).'); }
-  const data = migrate(obj?.format === 'kalendarz-stazysty' ? obj.data : obj);
+  const raw = obj?.format === 'kalendarz-stazysty' ? obj.data : obj;
+  const data = migrate(raw);
+  if (!data && Number(raw?.version) > SCHEMA_VERSION) throw new Error('Tę kopię zapisała nowsza wersja aplikacji – zamknij aplikację, otwórz ją ponownie z internetem i spróbuj jeszcze raz.');
   if (!data) throw new Error('Ten plik nie wygląda na kopię Kalendarza Stażysty.');
   return data;
 }
