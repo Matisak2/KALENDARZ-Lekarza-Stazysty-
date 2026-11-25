@@ -3,7 +3,7 @@ import { shareOrDownload } from './more-ui.js';
 import { DOMAINS, domainOf, guessDomain, parseCoursesText, coursesFromFile, mergeCourses, coursesFileJson, mergeCourse, allLessons, buildPlan, currentWeek, DEFAULT_SURVEY, explainLesson } from './lek.js';
 import { cemIndex, loadCem } from './lek-freq.js';
 import { projectReviews, REVIEW_MIN, reviewsToday, rate, hardest, GRADES } from './lek-review.js';
-import { specNames, wojNames, specStats, suggestTarget, chance, MY_SPECS, TRYBY } from './specs.js';
+import { specNames, wojNames, specStats, suggestTarget, chance, TRYBY } from './specs.js';
 import { fmtShort, fmtFull, fmtDayShort, toNum, plural, todayIso } from './dates.js';
 import { esc, helpBox } from './blocks-ui.js';
 
@@ -414,7 +414,9 @@ function specsView(st, state) {
   const woj = wojNames(nabory);
   const all = specNames(nabory);
   const q = specQuery.trim().toLowerCase();
-  const list = q ? all.filter((n) => n.toLowerCase().includes(q)) : MY_SPECS.filter((n) => all.includes(n));
+  // „Moje” specjalizacje – tylko w danych użytkownika (study.mySpecs), nie w kodzie (audyt B18)
+  const mineList = st.mySpecs || [];
+  const list = q ? all.filter((n) => n.toLowerCase().includes(q)) : mineList.filter((n) => all.includes(n));
   const card = (dz) => {
     const rows = specStats(nabory, dz, specWoj, 'rez');
     const rowsP = specStats(nabory, dz, specWoj, 'poz');
@@ -422,7 +424,7 @@ function specsView(st, state) {
     const ch = mine != null ? chance(nabory, dz, specWoj, mine, 'rez') : null;
     const cell = (x) => (x.places ? `${x.places} m. · ${x.threshold != null ? `<b>${x.threshold.toFixed(2)}%</b>` : `<span class="pos">${x.status}</span>`}` : '<span class="muted">brak miejsc</span>');
     return `<div class="card fade spec-card">
-      <div class="bc-top"><div class="bc-name">${esc(dz)}</div>${t.target ? `<span class="status current">cel ${t.target}%</span>` : '<span class="status past">rezydentura: bez konkurencji</span>'}</div>
+      <div class="bc-top"><div class="bc-name">${esc(dz)}</div><button class="chip" data-spec-star="${esc(dz)}" aria-label="${mineList.includes(dz) ? 'Usuń z moich specjalizacji' : 'Dodaj do moich specjalizacji'}">${mineList.includes(dz) ? '★ Moja' : '☆ Dodaj'}</button>${t.target ? `<span class="status current">cel ${t.target}%</span>` : '<span class="status past">rezydentura: bez konkurencji</span>'}</div>
       <table class="spec-t"><tr><th>Nabór</th><th>Rezydentura</th><th>Pozarezyd.</th></tr>
         ${rows.map((x, i) => `<tr><td>${esc(x.session)}</td><td>${cell(x)}</td><td>${cell(rowsP[i])}</td></tr>`).join('')}</table>
       <p class="hint small">${esc(t.basis)}${ch ? ` · Twój najlepszy wynik ${mine}% wystarczyłby w ${ch.ok} z ${ch.of} naborów (szanse: ${ch.label}).` : ''}</p>
@@ -433,11 +435,11 @@ function specsView(st, state) {
     <div class="card fade">
       <div class="card-label">🏥 Specjalizacje – nabory CMKP</div>
       <label class="dom-sel">Województwo<select data-spec-woj>${woj.map((w) => `<option ${w === specWoj ? 'selected' : ''}>${esc(w)}</option>`).join('')}</select></label>
-      <label class="dom-sel">Szukaj specjalizacji<input data-spec-q value="${esc(specQuery)}" placeholder="np. kardiologia (puste = Twoje 4)"></label>
+      <label class="dom-sel">Szukaj specjalizacji<input data-spec-q value="${esc(specQuery)}" placeholder="np. kardiologia (puste = Twoje ★)"></label>
       <p class="hint small">Próg = najniższy wynik zakwalifikowanych, gdy wszystkie miejsca zostały obsadzone. „Zostały wolne miejsca” = każdy chętny się dostał.
         Wynik w naborze to % punktów z LEK (+ ewentualne punkty za doktorat i publikacje). Dane: CMKP, ostatnia aktualizacja ${fmtFull(nabory.updated)}.</p>
     </div>
-    ${list.map(card).join('') || '<p class="hint">Brak wyników wyszukiwania.</p>'}
+    ${list.map(card).join('') || (q ? '<p class="hint">Brak wyników wyszukiwania.</p>' : '<p class="hint">Wyszukaj specjalizację i stuknij „☆ Dodaj” – pojawi się tutaj na stałe (zapisuje się tylko u Ciebie).</p>')}
     ${extrasCard(st)}`;
 }
 
@@ -571,7 +573,7 @@ function surveySheet(state, ctx, plan) {
     if (lek.examDate && lek.examDate > todayIso()) s.examDate = lek.examDate;
   }
   let name = plan?.name || `LEK ${s.examDate.slice(5, 7) === '02' ? 'luty' : 'wrzesień'} ${s.examDate.slice(0, 4)}`;
-  const specs = nabory ? specNames(nabory) : MY_SPECS;
+  const specs = nabory ? specNames(nabory) : (st.mySpecs || []);
   const chips = (field) => DOMAINS.map((d) => `<button class="chip ${s[field].includes(d.id) ? 'on' : ''}" data-chip="${field}:${d.id}">${esc(d.name.replace(/ \(.*\)/, ''))}</button>`).join('');
   const html = () => `
     <div class="form-card">
@@ -860,6 +862,14 @@ export function handleLekClick(e, state, ctx, today) {
   if ((el = t('[data-mock-del]'))) {
     const i = st.mocks.findIndex((x) => x.id === el.dataset.mockDel); const m = st.mocks[i];
     undoable('Usunięto', () => st.mocks.splice(i, 1), () => st.mocks.splice(i, 0, m));
+    return true;
+  }
+  if ((el = t('[data-spec-star]'))) {
+    const dz = el.dataset.specStar;
+    const had = (st.mySpecs || []).includes(dz);
+    undoable(had ? `Usunięto z moich: ${dz}` : `Dodano do moich: ${dz}`,
+      () => { st.mySpecs = had ? st.mySpecs.filter((x) => x !== dz) : [...(st.mySpecs || []), dz]; },
+      () => { st.mySpecs = had ? [...(st.mySpecs || []), dz] : (st.mySpecs || []).filter((x) => x !== dz); });
     return true;
   }
   if ((el = t('[data-spec-goal]'))) {

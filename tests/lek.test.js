@@ -3,25 +3,26 @@ import assert from 'node:assert/strict';
 import { defaultState } from '../js/defaults.js';
 import { DOMAINS, parseCourseText, parseCoursesText, coursesFromFile, mergeCourses, courseKey, coursesFileJson, mergeCourse, guessDomain, studyDays, buildPlan, estimateScore, coverage, domainCoverage, lessonDomains, allLessons, lessonKey, DEFAULT_SURVEY } from '../js/lek.js';
 
+// Przykład ZMYŚLONY (ten sam kształt strony co spis kursu w telefonie; nazwy działów i lekcji nie pochodzą z WNL)
 const SAMPLE = `Kurs z Interny
 ZMIEŃ KURS
 Kurs
 Baza pytań
 Fiszki
-PROPEDEUTYKA INTERNY (11)
-ALERGOLOGIA (10)
-Wstęp do alergologii
+BADANIE PACJENTA (7)
+CHOROBY ALERGICZNE (3)
+Podstawy alergii
 1.5h - 2.5h
-Alergiczny nieżyt nosa
+Katar sienny i alergiczny nieżyt nosa
 1h - 2h
 Astma	2h - 3h
-ANGIOLOGIA (9)
-Choroby aorty piersiowej
+NACZYNIA (2)
+Tętniak aorty
 1.5h - 2.5h
-Tętniaki aorty brzusznej
+Niedokrwienie kończyn
 1.5h - 2.5h
-CHOROBY METABOLICZNE (8)
-Wstęp do cukrzycy
+ZABURZENIA METABOLICZNE (5)
+Cukrzyca – podstawy
 1.5h - 2.5h
 Hipoglikemia
 `;
@@ -34,13 +35,13 @@ test('Import spisu WNL: działy, lekcje, czasy, ostrzeżenia o zwiniętych dzia�
   const p = parseCourseText(SAMPLE);
   assert.equal(p.name, 'Kurs z Interny');
   assert.equal(p.domain, 'int');
-  const alerg = p.sections.find((s) => s.name === 'ALERGOLOGIA');
+  const alerg = p.sections.find((s) => s.name === 'CHOROBY ALERGICZNE');
   assert.deepEqual(alerg.lessons.map((l) => [l.name, l.hMin, l.hMax]), [
-    ['Wstęp do alergologii', 1.5, 2.5], ['Alergiczny nieżyt nosa', 1, 2], ['Astma', 2, 3]]);
-  const met = p.sections.find((s) => s.name === 'CHOROBY METABOLICZNE');
+    ['Podstawy alergii', 1.5, 2.5], ['Katar sienny i alergiczny nieżyt nosa', 1, 2], ['Astma', 2, 3]]);
+  const met = p.sections.find((s) => s.name === 'ZABURZENIA METABOLICZNE');
   assert.equal(met.lessons[1].name, 'Hipoglikemia');
   assert.equal(met.lessons[1].hMin, null);
-  assert.ok(p.warnings.some((w) => w.includes('PROPEDEUTYKA INTERNY')));
+  assert.ok(p.warnings.some((w) => w.includes('BADANIE PACJENTA')));
   assert.ok(!p.sections.some((s) => s.lessons.some((l) => /Baza pytań|Fiszki|ZMIEŃ/i.test(l.name))));
 });
 
@@ -59,7 +60,7 @@ test('Ponowne wklejenie kursu zachowuje id i dziedzinę; klucze lekcji stałe', 
   const b = mergeCourse(a, parseCourseText(SAMPLE));
   assert.equal(b.length, 1);
   assert.equal(b[0].id, a[0].id);
-  assert.equal(lessonKey('Kurs z Interny', 'ALERGOLOGIA', 'Astma'), allLessons({ courses: b }).find((l) => l.name === 'Astma').key);
+  assert.equal(lessonKey('Kurs z Interny', 'CHOROBY ALERGICZNE', 'Astma'), allLessons({ courses: b }).find((l) => l.name === 'Astma').key);
 });
 
 test('Godziny nauki z grafiku: dyżur i dzień po dyżurze, weekend, urlop, święto', () => {

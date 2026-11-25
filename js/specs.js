@@ -3,7 +3,6 @@
 // Gdy zostały wolne miejsca, każdy chętny się dostał – wtedy progu konkurencyjnego nie było.
 
 export const TRYBY = { rez: 'rezydentura', poz: 'pozarezydencki', dokt: 'doktorancki' };
-export const MY_SPECS = ['Chirurgia plastyczna', 'Chirurgia naczyniowa', 'Urologia', 'Medycyna rodzinna'];
 
 export function specNames(data) {
   const set = new Set();
