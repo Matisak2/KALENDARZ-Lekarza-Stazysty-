@@ -10,13 +10,16 @@
 //     Dzięki temu „depresja oddechowa” (ratunkowa) nie liczy się jako depresja (psychiatria),
 //     a „żywienie pozajelitowe” (intensywna terapia) – jako żywienie w medycynie rodzinnej.
 //  4. Między słowami wyrażenia mogą stać maks. 3 inne słowa („krwawienie z górnego odcinka przewodu pokarmowego”).
+//  5. Nazwy specjalizacji (oznaczone „!”, np. „kardiolog”) w nazwie DZIAŁU nie zmieniają dziedziny, gdy kurs ma własną
+//     dziedzinę LEK: „Kardiologia dziecięca” w kursie z pediatrii to pediatria, a „Chirurgia endokrynologiczna” – chirurgia.
+//     O dodatkowych dziedzinach decyduje wtedy treść tematu. W nazwie LEKCJI (np. „Kardiologiczne stany nagłe”) liczą się zawsze.
 // Słownik zawiera wyłącznie ogólne pojęcia medyczne (nie materiały WNL).
 
 const RAW = [
   // ---------- Choroby wewnętrzne ----------
-  ['intern', 'int'], ['chorob wewnętrzn', 'int'], ['kardiolog', 'int'], ['pulmonolog', 'int'], ['gastroenterolog', 'int'],
-  ['hepatolog', 'int'], ['nefrolog', 'int'], ['endokrynolog', 'int'], ['diabetolog', 'int'], ['hematolog', 'int'],
-  ['reumatolog', 'int'], ['alergolog', 'int'], ['angiolog', 'int'], ['immunolog', 'int'], ['zakaźn', 'int'], ['infekcjolog', 'int'],
+  ['intern', 'int!'], ['chorob wewnętrzn', 'int'], ['neurolog', 'int!'], ['zaburz oddych', 'int'], ['wrodz wad serc dorosł', 'int'], ['kardiolog', 'int!'], ['pulmonolog', 'int!'], ['gastroenterolog', 'int!'],
+  ['hepatolog', 'int!'], ['nefrolog', 'int!'], ['endokrynolog', 'int!'], ['diabetolog', 'int!'], ['hematolog', 'int!'],
+  ['reumatolog', 'int!'], ['alergolog', 'int!'], ['angiolog', 'int!'], ['immunolog', 'int!'], ['zakaźn', 'int!'], ['infekcjolog', 'int!'],
   ['nadciśnien', 'int,rodz'], ['nadciśnien płuc', 'int'], ['nadciśnien wrot', 'int'],
   ['niewydoln serc', 'int'], ['przewlekł niewydoln serc', 'int,rodz'], ['ostr niewydoln serc', 'int,rat'],
   ['wieńcow', 'int'], ['przewlekł zesp wieńcow', 'int,rodz'], ['ostr zesp wieńcow', 'int,rat'], ['=ozw', 'int,rat'],
@@ -56,17 +59,17 @@ const RAW = [
   ['zesp metabol', 'int,rodz'], ['otyłoś', 'int,rodz'],
 
   // ---------- Pediatria z neonatologią ----------
-  ['pediatr', 'ped'], ['neonatolog', 'ped'], ['noworod', 'ped'], ['niemowl', 'ped'], ['wcześniak', 'ped'], ['wcześniact', 'ped'],
+  ['pediatr', 'ped!'], ['neonatolog', 'ped!'], ['noworod', 'ped'], ['niemowl', 'ped'], ['wcześniak', 'ped'], ['wcześniact', 'ped'],
   ['dzieci', 'ped'], ['dzieck', 'ped'], ['młodzież', 'ped'], ['krzywic', 'ped'], ['wad wrodz', 'ped'], ['wrodz wad', 'ped'],
   ['zesp down', 'ped'], ['nagł śmierć łóżeczk', 'ped'], ['=odra', 'ped'], ['=odry', 'ped'], ['różyczk', 'ped'], ['płonic', 'ped'],
   ['śwink', 'ped'], ['krztuś', 'ped'], ['krztusiec', 'ped'], ['zapal krtan', 'ped'], ['zapal oskrzelik', 'ped'],
-  ['drgawk gorączk', 'ped'], ['rozwoj fizyczn', 'ped,rodz'], ['rozwoj psychoruch', 'ped,rodz'], ['siatk centyl', 'ped,rodz'],
+  ['drgawk gorączk', 'ped'], ['uraz okołoporod', 'ped,gin'], ['rozwoj fizyczn', 'ped,rodz'], ['rozwoj psychoruch', 'ped,rodz'], ['siatk centyl', 'ped,rodz'],
   ['okres wiek', 'ped,rodz'], ['bilans zdrow', 'ped,rodz'], ['=bilanse', 'ped,rodz'], ['karmien piersi', 'ped,gin,rodz'],
   ['wiek rozwoj', 'ped'], ['pokwitan', 'ped'], ['dojrzewan płciow', 'ped'], ['fenyloketonur', 'ped'], ['badan przesiew noworod', 'ped'],
 
   // ---------- Chirurgia z chirurgią urazową ----------
-  ['chirurg', 'chir'], ['ortoped', 'chir'], ['traumatolog', 'chir'], ['urolog', 'chir'], ['neurochirurg', 'chir'], ['kardiochirurg', 'chir'],
-  ['transplant', 'chir'], ['przeszczep', 'chir'], ['ostr brzuch', 'chir,rat'], ['wyrost', 'chir'], ['przepuklin', 'chir'],
+  ['chirurg', 'chir!'], ['ortoped', 'chir!'], ['traumatolog', 'chir!'], ['urolog', 'chir!'], ['neurochirurg', 'chir!'], ['kardiochirurg', 'chir!'],
+  ['transplant', 'chir!'], ['przeszczep', 'chir'], ['ostr brzuch', 'chir,rat'], ['wyrost', 'chir'], ['przepuklin', 'chir'],
   ['niedrożn', 'chir,rat'], ['kamic żółciow', 'chir'], ['pęcherzyk żółciow', 'chir'], ['dróg żółciow', 'chir,int'],
   ['żylak', 'chir,rodz'], ['uraz', 'chir,rat'], ['obrażen', 'chir,rat'],
   ['złaman', 'chir,rat'], ['zwichn', 'chir'], ['skręcen', 'chir'], ['oparzen', 'chir,rat'], ['odmrożen', 'chir,rat'],
@@ -82,13 +85,13 @@ const RAW = [
   ['wodonercz', 'chir'], ['zatrzym moczu', 'chir,rat'], ['=wodniak', 'chir'], ['wnętrostw', 'chir,ped'],
 
   // ---------- Położnictwo i ginekologia ----------
-  ['ginekolog', 'gin'], ['położn', 'gin'], ['perinatolog', 'gin'], ['ciąż', 'gin'], ['pozamaciczn', 'gin'], ['poród', 'gin'],
+  ['ginekolog', 'gin!'], ['położn', 'gin!'], ['perinatolog', 'gin!'], ['ciąż', 'gin'], ['pozamaciczn', 'gin'], ['poród', 'gin'],
   ['porod', 'gin'], ['połóg', 'gin'], ['połog', 'gin'], ['płód', 'gin'], ['płod', 'gin'], ['niepłodn', 'gin'], ['poronien', 'gin'],
   ['łożysk', 'gin'], ['przedrzucawk', 'gin'], ['rzucawk', 'gin'], ['=hellp', 'gin'], ['krwotok poporod', 'gin,rat'],
   ['macic', 'gin'], ['jajnik', 'gin'], ['jajowod', 'gin'], ['przydatk', 'gin'], ['pochw', 'gin'], ['srom', 'gin'],
   ['szyjk macic', 'gin'], ['endometri', 'gin'], ['mięśniak', 'gin'], ['menopauz', 'gin,rodz'], ['przekwit', 'gin,rodz'],
   ['antykoncep', 'gin,rodz'], ['miesiącz', 'gin'], ['krwawien drog rodn', 'gin'], ['=pierś', 'gin'], ['=piersi', 'gin'],
-  ['sutk', 'gin'], ['mammograf', 'gin,rodz'], ['laktac', 'gin'], ['cukrzyc ciążow', 'gin,int'], ['cytolog', 'gin,rodz'],
+  ['sutk', 'gin'], ['gruczoł piersiow', 'gin'], ['mammograf', 'gin,rodz'], ['laktac', 'gin'], ['cukrzyc ciążow', 'gin,int'], ['cytolog', 'gin,rodz'],
   ['zesp policystyczn jajnik', 'gin'], ['=pcos', 'gin'], ['ciąż mnog', 'gin'], ['konflikt serolog', 'gin'],
 
   // ---------- Medycyna rodzinna ----------
@@ -96,24 +99,24 @@ const RAW = [
   ['przesiew', 'rodz'], ['szczepien', 'rodz'], ['szczepionk', 'rodz'], ['paliatywn', 'rodz'], ['geriatr', 'rodz'],
   ['podeszł wiek', 'rodz'], ['osob starsz', 'rodz'], ['nietrzym moczu', 'rodz'], ['przeziębien', 'rodz'], ['gryp', 'rodz'],
   ['infekcj górn drog oddech', 'rodz'], ['zapal gardł', 'rodz'], ['angin', 'rodz'], ['zapal migdał', 'rodz'], ['zapal zatok', 'rodz'],
-  ['ucha', 'rodz'], ['=ucho', 'rodz'], ['uszu', 'rodz'], ['laryngolog', 'rodz'], ['otolaryngolog', 'rodz'], ['nieżyt nos', 'rodz'],
+  ['ucha', 'rodz'], ['=ucho', 'rodz'], ['uszu', 'rodz'], ['laryngolog', 'rodz!'], ['otolaryngolog', 'rodz!'], ['nieżyt nos', 'rodz'],
   ['alergiczn nieżyt nos', 'int,rodz'], ['krwawien z nos', 'rodz,rat'], ['ból głow', 'rodz'], ['migren', 'rodz'], ['zawrot głow', 'rodz'],
-  ['ból plec', 'rodz'], ['ból krzyż', 'rodz'], ['kręgosłup', 'rodz'], ['uraz kręgosłup', 'chir,rat'], ['zwyrodnien', 'rodz'], ['niedożywien', 'rodz'],
+  ['ból plec', 'rodz'], ['ból krzyż', 'rodz'], ['chorob kręgosłup', 'rodz'], ['ból kręgosłup', 'rodz'], ['uraz|obrażen kręgosłup', 'chir,rat'], ['zwyrodnien', 'rodz'], ['niedożywien', 'rodz'],
   ['zdrow żywien', 'rodz'], ['racjonaln żywien', 'rodz'], ['żywien niemowl', 'ped,rodz'], ['żywien dzieci|dzieck', 'ped'], ['zaburz snu', 'rodz,psych'], ['bezsenn', 'rodz,psych'], ['palen tyton', 'rodz'], ['nikotyn', 'rodz'],
   ['alkohol', 'rodz'], ['leczen bólu', 'rodz'], ['ból przewlekł', 'rodz'], ['przeciwbólow', 'rodz'],
-  ['dermatolog', 'rodz'], ['trądzik', 'rodz'], ['łuszczyc', 'rodz'], ['atopow zapal skór', 'rodz,ped'], ['=azs', 'rodz,ped'],
+  ['dermatolog', 'rodz!'], ['trądzik', 'rodz'], ['łuszczyc', 'rodz'], ['atopow zapal skór', 'rodz,ped'], ['=azs', 'rodz,ped'],
   ['grzybic skór', 'rodz'], ['grzybic paznok', 'rodz'], ['brodawk', 'rodz'], ['brodawk sutk', 'gin'], ['opryszczk', 'rodz'],
   ['półpaśc', 'rodz'], ['ospa', 'rodz,ped'], ['ospy', 'rodz,ped'], ['ospa wietrzn', 'rodz,ped'], ['świerzb', 'rodz'], ['wszaw', 'rodz'],
   ['czerniak', 'rodz'], ['rak skór', 'rodz'], ['znamion', 'rodz'], ['przydatk skór', 'rodz'], ['chorob skór', 'rodz'],
-  ['pęcherzyc', 'rodz'], ['grudkow', 'rodz'], ['okulist', 'rodz'], ['wad refrakc', 'rodz'], ['jaskr', 'rodz'], ['zaćm', 'rodz'],
+  ['pęcherzyc', 'rodz'], ['grudkow', 'rodz'], ['okulist', 'rodz!'], ['wad refrakc', 'rodz'], ['jaskr', 'rodz'], ['zaćm', 'rodz'],
   ['spojówk', 'rodz'], ['czerwon oko', 'rodz'], ['soczewk', 'rodz'], ['pierwsz kontakt', 'rodz'], ['opiek długoterminow', 'rodz'],
   ['wizyt domow', 'rodz'], ['bóle staw', 'rodz'],
 
   // ---------- Medycyna ratunkowa i intensywna terapia ----------
-  ['medycyn ratunk', 'rat'], ['ratunk', 'rat'], ['ratownic', 'rat'], ['anestezjolog', 'rat'], ['znieczul', 'rat'],
+  ['medycyn ratunk', 'rat'], ['ratunk', 'rat'], ['ratownic', 'rat'], ['anestezjolog', 'rat!'], ['znieczul', 'rat'],
   ['intensywn terap', 'rat'], ['=oiom', 'rat'], ['=oit', 'rat'], ['stan nagł', 'rat'], ['stan zagroż', 'rat'],
   ['wstrząs', 'rat'], ['wstrząs kardiogen', 'rat,int'], ['wstrząs septyczn', 'rat,int'], ['wstrząs anafilakt', 'rat,int'],
-  ['zatruc', 'rat'], ['toksykolog', 'rat'], ['resuscyt', 'rat'], ['=rko', 'rat'], ['=bls', 'rat'], ['=als', 'rat'], ['=acls', 'rat'],
+  ['zatruc', 'rat'], ['toksykolog', 'rat!'], ['resuscyt', 'rat'], ['=rko', 'rat'], ['=bls', 'rat'], ['=als', 'rat'], ['=acls', 'rat'],
   ['=pals', 'rat,ped'], ['zatrzym krążen', 'rat'], ['nagł zatrzym', 'rat'], ['defibryl', 'rat'], ['udar', 'rat'], ['udar ciepl', 'rat'],
   ['krwotok', 'rat'], ['ostr niewydoln', 'rat'], ['=odma', 'int,rat'], ['=odmy', 'int,rat'], ['=odmie', 'int,rat'],
   ['tamponad', 'rat,int'], ['kwasic', 'rat,int'], ['zasadowic', 'rat,int'], ['gazometr', 'rat,int'], ['równowag kwas', 'rat,int'],
@@ -128,7 +131,7 @@ const RAW = [
   ['bilans płyn', 'rat'], ['płynoterap', 'rat'], ['bilans wodn', 'rat,int'], ['=ekmo', 'rat'],
 
   // ---------- Psychiatria ----------
-  ['psychiatr', 'psych'], ['depres', 'psych,rodz'], ['schizofren', 'psych'], ['psychoz', 'psych'], ['psychot', 'psych'],
+  ['psychiatr', 'psych!'], ['depres', 'psych,rodz'], ['schizofren', 'psych'], ['psychoz', 'psych'], ['psychot', 'psych'],
   ['zaburz afektyw', 'psych'], ['dwubiegun', 'psych'], ['=mania', 'psych'], ['=manii', 'psych'], ['maniakaln', 'psych'],
   ['hipomani', 'psych'], ['zaburz lękow', 'psych,rodz'], ['lęk', 'psych'], ['nerwic', 'psych'], ['zaburz osobow', 'psych'],
   ['osobowoś', 'psych'], ['zaburz odżywian', 'psych,rodz'], ['anoreks', 'psych'], ['bulimi', 'psych'],
@@ -156,7 +159,8 @@ const words = (s) => normalize(s).split(/[^a-ząćęłńśźż0-9]+/).filter(Boo
 export const DICT = RAW.map(([phrase, doms]) => ({
   phrase,
   parts: phrase.split(' ').map((p) => (p.startsWith('=') ? { exact: true, s: p.slice(1).split('|').map(normalize) } : { exact: false, s: p.split('|').map(normalize) })),
-  domains: doms.split(','),
+  domains: doms.replace('!', '').split(','),
+  spec: doms.endsWith('!'),
 })).sort((a, b) => b.parts.length - a.parts.length || b.parts.reduce((x, p) => x + p.s[0].length, 0) - a.parts.reduce((x, p) => x + p.s[0].length, 0));
 
 const GAP = 3;
@@ -192,7 +196,7 @@ export function findTerms(text) {
       const idx = matchAt(ws, used, e, i);
       if (!idx) continue;
       idx.forEach((j) => { used[j] = true; });
-      hits.push({ phrase: e.phrase, domains: e.domains, text: idx.map((j) => raw[j]).join(' ') });
+      hits.push({ phrase: e.phrase, domains: e.domains, spec: e.spec, text: idx.map((j) => raw[j]).join(' ') });
     }
   }
   return hits;
@@ -204,10 +208,12 @@ export function findTerms(text) {
  * Zwraca { domains, hits } – hits z wyjaśnieniem, które słowa zadecydowały.
  */
 export function classifyLesson(courseDomain, section, name, order, skip = []) {
-  const hits = [...findTerms(section), ...findTerms(name)];
+  const own = order.includes(courseDomain);
+  // Nazwa specjalizacji w nazwie działu – tylko gdy kurs nie ma własnej dziedziny (pkt 5 na górze pliku)
+  const hits = [...findTerms(section).filter((h) => !(own && h.spec)), ...findTerms(name)];
   const found = new Set();
   for (const h of hits) for (const d of h.domains) if (!skip.includes(d)) found.add(d);
-  const out = order.includes(courseDomain) ? [courseDomain] : [];
+  const out = own ? [courseDomain] : [];
   for (const id of order) if (!out.includes(id) && found.has(id)) out.push(id);
   return { domains: out, hits: hits.filter((h) => h.domains.some((d) => out.includes(d))) };
 }

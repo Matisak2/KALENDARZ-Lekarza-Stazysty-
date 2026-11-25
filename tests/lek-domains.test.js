@@ -58,8 +58,23 @@ const CASES = [
   ['rodz', 'Dermatologia', 'Łuszczyca', 'rodz'],
   ['inne', 'Laryngologia', 'Zapalenie ucha środkowego', 'rodz'],
   ['inne', 'Okulistyka', 'Jaskra i zaćma', 'rodz'],
-  ['inne', 'Neurologia', 'Padaczka', 'rat,rodz'],
-  ['inne', 'Neurologia', 'Stwardnienie rozsiane', ''], // brak dopasowania – kurs trzeba przypisać do dziedziny
+  ['inne', 'Neurologia', 'Padaczka', 'int,rat,rodz'], // neurologia = choroby wewnętrzne (decyzja właściciela 11.2026)
+  ['inne', 'Neurologia', 'Stwardnienie rozsiane', 'int'],
+  ['inne', 'Genetyka', 'Aberracje chromosomów', ''], // brak dopasowania – kurs trzeba przypisać do dziedziny
+  // Nazwa specjalizacji w dziale nie zmienia dziedziny kursu (pkt 5 w lek-domains.js); liczy się treść tematu
+  ['ped', 'Kardiologia dziecięca', 'Choroba Kawasakiego', 'ped'],
+  ['ped', 'Pulmonologia dziecięca', 'Astma u dzieci', 'ped,int,rodz'],
+  ['ped', 'Endokrynologia dziecięca', 'Zaburzenia wzrastania', 'ped'],
+  ['ped', 'Choroby zakaźne', 'Odra, świnka, różyczka', 'ped'],
+  ['chir', 'Chirurgia endokrynologiczna', 'Techniki operacyjne', 'chir'],
+  ['gin', 'Endokrynologia ginekologiczna', 'Hiperprolaktynemia', 'gin'],
+  ['gin', 'Ginekologia ogólna', 'Zaburzenia statyki i urologia ginekologiczna', 'gin,chir'],
+  ['rat', 'Stany zagrożenia życia', 'Kardiologiczne stany nagłe', 'rat,int'], // w nazwie lekcji – liczy się
+  ['rat', 'Traumatologia', 'Złamania kości kończyn i miednicy', 'rat,chir'],
+  ['int', 'Pulmonologia', 'Zaburzenia oddychania w czasie snu', 'int'],
+  ['int', 'Kardiologia', 'Wrodzone wady serca u dorosłych', 'int'],
+  ['chir', 'Neurochirurgia', 'Chirurgia kręgosłupa', 'chir'],
+  ['ped', 'Neonatologia', 'Zamartwica i uraz okołoporodowy', 'ped,gin'],
 ];
 
 test('B5: dziedziny LEK z pełnej nazwy działu i lekcji (lista tematów)', () => {
@@ -95,8 +110,8 @@ test('B5: ręczna poprawka dziedzin lekcji ma pierwszeństwo i przetrwa ponowne 
   assert.deepEqual(allLessons({ courses, domainFix: { [key]: [] } })[0].domains, []); // „poza LEK” z wyboru
 });
 
-test('B6: kursy części interny rozpoznawane jako choroby wewnętrzne', () => {
-  for (const n of ['Kurs z chorób zakaźnych', 'Kurs z hematologii', 'Kurs z endokrynologii', 'Kurs z onkologii', 'Kurs z nefrologii']) assert.equal(guessDomain(n), 'int', n);
+test('B6: kursy części interny (i neurologia – decyzja właściciela) rozpoznawane jako choroby wewnętrzne', () => {
+  for (const n of ['Kurs z chorób zakaźnych', 'Kurs z hematologii', 'Kurs z endokrynologii', 'Kurs z onkologii', 'Kurs z nefrologii', 'Kurs z neurologii']) assert.equal(guessDomain(n), 'int', n);
   assert.equal(guessDomain('Kurs z onkologii ginekologicznej'), 'gin');
-  assert.equal(guessDomain('Kurs z neurologii'), 'inne');
+  assert.equal(guessDomain('Kurs z radiologii'), 'inne');
 });

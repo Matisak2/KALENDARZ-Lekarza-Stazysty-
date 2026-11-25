@@ -7,7 +7,7 @@ import { EVENT_TYPES } from './defaults.js';
 import { classifyLesson } from './lek-domains.js';
 
 export const DOMAINS = [
-  { id: 'int', name: 'Choroby wewnętrzne', q: 39, kw: /intern|chorób wewn|choroby wewn|kardio(?!chir)|wewnętrzn|zakaźn|hematolog|endokryn|diabetolog|nefrolog|gastroenterolog|hepatolog|pulmonolog|reumatolog|alergolog|onkolog(?!.*(ginekolog|dziecięc))/i },
+  { id: 'int', name: 'Choroby wewnętrzne', q: 39, kw: /intern|chorób wewn|choroby wewn|kardio(?!chir)|wewnętrzn|zakaźn|neurolog|hematolog|endokryn|diabetolog|nefrolog|gastroenterolog|hepatolog|pulmonolog|reumatolog|alergolog|onkolog(?!.*(ginekolog|dziecięc))/i },
   { id: 'ped', name: 'Pediatria (z neonatologią)', q: 29, kw: /pediat|neonat/i },
   { id: 'chir', name: 'Chirurgia (z urazową)', q: 27, kw: /chirurg|ortoped|urazow/i },
   { id: 'gin', name: 'Położnictwo i ginekologia', q: 26, kw: /ginek|położn|polozn/i },

@@ -49,7 +49,8 @@ test('Rozpoznawanie dziedziny po nazwie kursu', () => {
   assert.equal(guessDomain('Kurs z Ginekologii i Położnictwa'), 'gin');
   assert.equal(guessDomain('Kurs z Medycyny Ratunkowej'), 'rat');
   assert.equal(guessDomain('Kurs z Psychiatrii'), 'psych');
-  assert.equal(guessDomain('Kurs z Neurologii'), 'inne');
+  assert.equal(guessDomain('Kurs z Neurologii'), 'int'); // decyzja właściciela 11.2026
+  assert.equal(guessDomain('Kurs z Radiologii'), 'inne');
 });
 
 test('Ponowne wklejenie kursu zachowuje id i dziedzinę; klucze lekcji stałe', () => {
