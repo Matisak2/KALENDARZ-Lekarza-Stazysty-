@@ -769,19 +769,42 @@ code { background: var(--card-2); padding: 1px 5px; border-radius: 5px; }
 .print-page { break-after: page; page-break-after: always; }
 .print-page:last-child { break-after: auto; page-break-after: auto; }
 
-/* Lista obecności (druk) */
-.att { background: #fff; color: #000; font: 11px/1.3 Arial, Helvetica, sans-serif; padding: 6px; }
-.att-title { text-align: center; font-weight: 700; font-size: 15px; margin: 4px 0 8px; }
-.att-line { margin-bottom: 8px; }
-.att-t { width: 100%; border-collapse: collapse; }
-.att-t th, .att-t td { border: 1px solid #000; padding: 2px 4px; height: 17px; }
-.att-t th { font-weight: 700; background: #eee; }
-.att-t td.c { text-align: center; }
-.att-t td.note { font-size: 9px; }
-.att-t tr.sh td { background: #d9d9d9; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-.att-t th:nth-child(3) { width: 40%; }
-.att-legend { font-size: 9px; margin-top: 6px; }
-.att-sign { display: flex; justify-content: flex-end; margin-top: 26px; text-align: center; }
+/* Lista obecności (druk) – wzór USK2, Wydanie 5 */
+.att { background: #fff; color: #000; font: 11px/1.2 "Times New Roman", Times, serif; padding: 4px 2px; }
+.att .red { color: #e0302a; }
+.att-top { display: flex; align-items: flex-end; gap: 14px; margin-bottom: 20px; }
+.att-logo { height: 50px; flex: none; }
+.att-stamp { flex: 1; text-align: center; }
+.att-stamp .att-dots { font: 700 11px Arial, Helvetica, sans-serif; }
+.att-page { width: 60px; text-align: center; }
+.att-dots { border-bottom: 1px dotted #000; padding-bottom: 1px; }
+.att-top small { font-size: 8px; }
+.att-t { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.att-t col.c0 { width: 7%; } .att-t col.cn { width: 7.7%; } .att-t col.cb { width: 16%; }
+.att-t th, .att-t td { border: 1px solid #000; border-left-width: 2.5px; border-right-width: 2.5px; padding: 0 2px; height: 17.5px; text-align: center; vertical-align: middle; font-weight: 400; }
+.att-t thead th { border-top-width: 3px; border-bottom-width: 2.5px; height: 108px; padding: 0; vertical-align: bottom; }
+.att-ym { vertical-align: top !important; }
+.att-y { padding: 8px 0; border-bottom: 1px solid #000; font-size: 11px; }
+.att-m { padding-top: 30px; font-size: 10px; text-align: left; overflow: hidden; white-space: nowrap; }
+.att-names { display: flex; height: 92px; }
+.att-names span { flex: 1; color: #e0302a; font-size: 10px; line-height: 1.05; padding-top: 2px; overflow: hidden; }
+.att-names span:first-child { border-right: 1px dotted #000; display: flex; flex-direction: column; justify-content: center; }
+.att-n { border: 1px solid #000; border-bottom: 0; margin: 0 14%; font-size: 10px; height: 14px; }
+th.att-boss { vertical-align: middle !important; font: 700 12px/1.35 "Times New Roman", serif; padding: 0 2px; }
+.att-t td.att-day { font-weight: 700; font-size: 11px; }
+.att-t td.att-sig { color: #e0302a; font-size: 10.5px; }
+.att-t td.att-sig b { font-weight: 700; }
+.att-t tr.sh td { background: #b5764a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.att-t tr.att-uw td { height: 16px; }
+.att-t tr.att-uw:first-child td, .att-t tr.att-uw td { border-top-width: 1px; }
+.att-t td.att-uwl { font-weight: 400; }
+.att-t tr.att-uw td.att-uwl { border-top-width: 3px; }
+.att-t tr.att-tail td { height: 17px; border-top-width: 2.5px; border-bottom-width: 2.5px; }
+.att-t td.att-none { border: 0; border-left: 2.5px solid #000; background: transparent !important; }
+.att-late { display: flex; gap: 6px; margin: 20px 0 0 80px; font-size: 11px; line-height: 1.6; }
+.att-late .att-dl { margin-left: 80px; font-size: 9px; line-height: 1.75; }
+.att-legend { text-align: center; font-size: 9.5px; line-height: 1.5; margin-top: 22px; }
+.att-foot { font-size: 6.5px; margin-top: 14px; line-height: 1.6; }
 
 /* Pomoc na ekranach */
 .help-box { margin: -4px 0 12px; background: var(--card); border-radius: 14px; padding: 0 14px; box-shadow: var(--shadow); font-size: 14px; }

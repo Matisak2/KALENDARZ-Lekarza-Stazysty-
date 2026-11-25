@@ -45,4 +45,4 @@
 - [x] Dokumenty za miesiąc (karta czasu pracy + karta dyżurów + lista obecności), pisma i maile, terminy Kadr na cały staż
 - [x] Zapis na LEK (SMK, opłata), doktorat i publikacje, przypadki z oddziału, „Ten tydzień”, pomoc na ekranach, eksport .ics tylko zmian
 - [ ] Subskrypcja kalendarza (wymaga serwera – np. Firebase z planem Blaze)
-- [ ] Lista obecności 1:1 ze wzorem USK2 (potrzebne zdjęcie wzoru)
+- [x] Lista obecności 1:1 ze wzorem USK2 (Wydanie 5)

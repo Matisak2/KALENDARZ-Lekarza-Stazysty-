@@ -122,8 +122,8 @@ export function dutyPay(state, ym) {
 }
 
 /**
- * Lista obecności na miesiąc: dzień pracy = miejsce na podpis; nieobecność = kod z legendy USK2
- * (ZL, UW, OP, UB, NU, SZ – szkolenie/kurs); weekend i święto – zacienione.
+ * Lista obecności na miesiąc (wzór USK2, Wydanie 5): dzień pracy = „PODPIS”; nieobecność = kod z legendy USK2
+ * (ZL, UW, OP, UB, NU, SZ – szkolenie/kurs) w miejscu podpisu; weekend, święto i dzień wolny za sobotę – zacienione.
  */
 export function buildAttendance(state, ym) {
   const ctx = buildContext(state);
@@ -140,5 +140,5 @@ export function buildAttendance(state, ym) {
     if (inStaz && !free && abs) code = abs.kind === 'course' ? 'SZ' : (ABS_CODE[abs.type] || 'NU');
     return { day: Number(d.slice(8)), date: d, wd: WD[new Date(`${d}T00:00:00Z`).getUTCDay()], shaded: free || !inStaz, code, note: off ? off.label : '' };
   });
-  return { ym, monthLabel: `${MONTHS_GEN[m - 1]} ${y}`, rows, name: st.personal?.name || '', group: st.group || '' };
+  return { ym, year: y, month: MONTHS_GEN[m - 1], monthLabel: `${MONTHS_GEN[m - 1]} ${y}`, rows, name: st.personal?.name || '', group: st.group || '' };
 }

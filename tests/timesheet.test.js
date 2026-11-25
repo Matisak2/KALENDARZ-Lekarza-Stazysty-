@@ -115,4 +115,6 @@ test('Lista obecności: kody z legendy USK2, weekendy i święta zacienione', ()
   assert.equal(r(8).code, '');
   assert.ok(r(5).shaded && r(24).shaded && r(23).shaded); // sobota, Wigilia, dzień wolny za 26.12
   assert.ok(!r(8).shaded);
+  assert.equal(a.year, 2026);
+  assert.equal(a.month, 'grudzień');
 });
