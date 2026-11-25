@@ -94,7 +94,8 @@ export function defaultState() {
     customSkills: {},
     booklet: {},
     // domainFix: klucz lekcji -> [dziedziny LEK] – ręczna poprawka rozpoznania (okno „Dziedziny lekcji”)
-    study: { courses: [], done: {}, plans: [], activePlan: null, attempts: [], mocks: [], extras: { phd: '', pubs: [] }, domainFix: {} },
+    // reviews: klucz tematu -> { due, ivl, ease, reps, hist } – powtórki (lek-review.js)
+    study: { courses: [], done: {}, plans: [], activePlan: null, attempts: [], mocks: [], extras: { phd: '', pubs: [] }, domainFix: {}, reviews: {} },
     timesheets: {},
     // icsSent: uid -> skrót treści wydarzenia z ostatniego eksportu (eksport „tylko nowe i zmienione”)
     meta: { lastBackup: null, createdAt: null, icsSent: {} },

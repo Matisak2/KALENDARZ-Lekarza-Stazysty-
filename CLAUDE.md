@@ -43,6 +43,10 @@ Pokazuje bloki stażu, dni robocze, święta, urlop, kursy OIL, odrabianie, dyż
   „Wstęp do…” z działem, duplikaty tematów liczone raz (`duplicateMap`), ostrzeżenia (`warnings`); plan podejść (`finalExam`:
   ankieta `finalLater/finalDate/finalBase`) – etap 1 do najbliższego LEK: cała baza CEM + najważniejsze lekcje; etap 2: reszta lekcji,
   na końcu drugie przejście bazy; ostatni tydzień przed każdym LEK = powtórka. UD384 → ostrzeżenie dla terminów od 1.05.2027.
+- `js/lek-review.js` – powtórki tematów (`study.reviews[klucz główny tematu]` = {due, ivl, ease, reps, hist}): 1→3→7→14→30 dni, dalej ×łatwość;
+  oceny Trudne/Średnio/Łatwe (`rate`, nie po LEK – 2 dni przed), limit dziennie 3 / dyżur 1 / weekend-urlop 6 / L4 i przerwa 0 (`CAP`).
+  `planFor` (lek-ui) = plan z czasem na powtórki (`projectReviews`, 2 przybliżenia; minuty na powtórkę w ankiecie `reviewMin`, domyślnie 10).
+  Powtórki na Dziś („Plan na dziś”) i w LEK → Plan. Dni L4/opieki = 0 h nauki (`studyDays` kind 'sick').
 - `js/specs.js` + `data/nabory.json` (generuje `python3 scripts/nabory.py` z PDF-ów CMKP; wymaga pdftotext). Próg = min. wynik zakwalifikowanych, gdy miejsca obsadzone.
 - `js/timesheet.js` (karta czasu pracy wg wzoru USK2: zapis „7,35” = 7 h 35 min, sumy „166.50”; ostrzeżenia `warnings`; `buildAttendance` – lista obecności; `dutyPay`) + `js/timesheet-ui.js` (okno „Dokumenty za miesiąc”: podgląd, PDF karty, karta dyżurów, lista obecności – kopia wzoru USK2 Wydanie 5 (`attendanceHtml`: stażysta w kolumnie 1, kod nieobecności w dniu nieobecności, dni wolne zacienione; bez przykładowego czerwonego tekstu ze wzoru – cały druk na czarno) i „wszystko naraz”). Imię i nazwisko w `settings.personal`, pensja w `settings.pay` – tylko lokalnie.
 - `js/letters.js` (szablony: wniosek urlopowy, informacja o L4, zgoda koordynatora i informacja do Kadr o stażu poza USK2, mail z dokumentami) + `js/letters-ui.js` (Kopiuj / e-mail / PDF). Wejścia: Więcej, okno urlopu/L4, przyciski „✉️ Pismo” i „🖨 Druki” na Dziś.

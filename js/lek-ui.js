@@ -2,6 +2,7 @@
 import { shareOrDownload } from './more-ui.js';
 import { DOMAINS, domainOf, guessDomain, parseCoursesText, coursesFromFile, mergeCourses, coursesFileJson, mergeCourse, allLessons, buildPlan, currentWeek, DEFAULT_SURVEY, explainLesson } from './lek.js';
 import { cemIndex, loadCem } from './lek-freq.js';
+import { projectReviews, REVIEW_MIN, reviewsToday, rate, hardest, GRADES } from './lek-review.js';
 import { specNames, wojNames, specStats, suggestTarget, chance, MY_SPECS, TRYBY } from './specs.js';
 import { fmtShort, fmtFull, fmtDayShort, toNum, plural, todayIso } from './dates.js';
 import { esc, helpBox } from './blocks-ui.js';
@@ -32,6 +33,33 @@ const pctBar = (v, target) => `<div class="score-bar"><div style="width:${Math.m
 
 /** Opcje planu: indeks bazy CEM (częstość tematów). */
 export const planOpts = () => ({ cem: cemIndex() });
+
+let planMemo = { k: null, b: null };
+/**
+ * Plan z powtórkami: 1) plan bez powtórek, 2) przewidywane powtórki (tematy zrobione + z planu),
+ * 3) plan z czasem na powtórki odjętym od nauki nowych lekcji. Wynik zapamiętany do następnej zmiany danych.
+ */
+export function planFor(state, plan, today) {
+  const cem = cemIndex();
+  const st = state.study || {};
+  const k = JSON.stringify([state.meta?.updatedAt, plan.id, plan.survey, plan.skip, plan.must, today, !!cem, Object.keys(st.done || {}).length, Object.keys(st.reviews || {}).length]);
+  if (planMemo.k === k) return planMemo.b;
+  const min = Number(plan.survey?.reviewMin ?? REVIEW_MIN) || 0;
+  let b = buildPlan(state, plan, today, { cem });
+  let load = new Map();
+  if (min > 0) {
+    // Dwa przybliżenia: powtórki liczone dla lekcji, które naprawdę zmieszczą się w planie
+    for (let i = 0; i < 2; i++) {
+      load = projectReviews(state, b, today);
+      const ld = load;
+      b = buildPlan(state, plan, today, { cem, reviewHours: (d) => ((ld.get(d) || 0) * min) / 60 });
+    }
+  }
+  b.reviewLoad = load;
+  b.reviewMin = min;
+  planMemo = { k, b };
+  return b;
+}
 
 export function renderLek(state, today, ctx) {
   const st = study(state);
@@ -74,7 +102,7 @@ function planView(state, st, today) {
 }
 
 function planSummary(state, st, p, today) {
-  const b = buildPlan(state, p, today, planOpts(state, today));
+  const b = planFor(state, p, today);
   const s = b.survey;
   const w = currentWeek(b, today);
   const vColor = { good: 'var(--ok)', tight: 'var(--warn)', hard: 'var(--danger)' }[b.verdict];
@@ -141,6 +169,7 @@ function planSummary(state, st, p, today) {
         ${w.lessons.length ? w.lessons.map(lessonRow).join('') : '<p class="sub">W tym tygodniu: pytania z bazy i powtórka.</p>'}
         ${b.stages[w.stage]?.withBase ? `<div class="base-row">🧩 Baza pytań: ok. <b>${Math.round((w.base * 60) / perQ(w))}</b> pytań (${h(w.base)})${b.baseOnlyQ ? `<br><small>w tym ok. ${Math.round(((w.base * 60) / perQ(w)) * b.baseOnlyQ / 200)} z prawa i bioetyki, zdrowia publicznego i orzecznictwa – tych dziedzin uczysz się tylko z bazy</small>` : ''}</div>` : `<div class="base-row">🧩 Pytania do przerobionych tematów: ${h(w.base)}</div>`}
       </div>` : ''}
+      ${reviewsCard(state, b, today)}
       ${s.base ? `<div class="card fade"><div class="card-label">🧩 Baza CEM</div>
         <div class="val-row"><span><b>${s.baseDone || 0}</b> / ${baseTotal || '?'} pytań</span>
           <span><button class="chip" data-base-add="50">+50</button><button class="chip" data-base-add="100">+100</button><button class="chip" data-lek="edit-plan">Zmień</button></span></div>
@@ -161,6 +190,61 @@ function planSummary(state, st, p, today) {
         ${plansList(st)}
       </div>
     </div></div>`;
+}
+
+/* ---------- Powtórki ---------- */
+
+const examsOf = (state) => {
+  const p = activePlan(state.study || {});
+  const sv = p?.survey || {};
+  return [sv.examDate, sv.finalLater ? sv.finalDate : null].filter(Boolean).sort();
+};
+
+/** Wiersze „Powtórki na dziś” z przyciskami oceny (ekran Dziś i zakładka LEK). */
+export function reviewRows(state, today) {
+  const p = activePlan(state.study || {});
+  const r = reviewsToday(state, p?.survey, today);
+  if (!r.list.length) return { html: '', ...r };
+  const html = r.list.map((x) => `<div class="rv-item">
+      <div class="nm">🔁 ${esc(x.name)}<small>${esc(x.section)} · ${x.r ? `powtórka nr ${x.r.reps + 1}` : 'pierwsza powtórka'}${x.hard ? ' · ostatnio trudne' : ''}</small></div>
+      <div class="quick three rv-btns">${Object.entries(GRADES).map(([g, l]) => `<button class="btn rv-${g}" data-rv="${esc(x.key)}|${g}">${l}</button>`).join('')}</div>
+    </div>`).join('') + (r.more ? `<p class="hint small">+ ${r.more} ${plural(r.more, 'zaległa powtórka', 'zaległe powtórki', 'zaległych powtórek')} – przejdą na kolejne dni (limit dziś: ${r.cap}).</p>` : '');
+  return { html, ...r };
+}
+
+/** Ocena powtórki (przycisk Trudne / Średnio / Łatwe) – z „Cofnij”. */
+export function handleReviewClick(e, state, ctx) {
+  const el = e.target.closest('[data-rv]');
+  if (!el) return false;
+  const v = el.dataset.rv; // klucz lekcji sam zawiera „|” – ocena jest po ostatnim
+  const key = v.slice(0, v.lastIndexOf('|'));
+  const g = v.slice(v.lastIndexOf('|') + 1);
+  if (!GRADES[g]) return true;
+  const st = study(state);
+  const today = ctx.today();
+  const prev = st.reviews?.[key];
+  const next = rate(prev, g, today, examsOf(state));
+  st.reviews = { ...(st.reviews || {}), [key]: next };
+  ctx.save(); ctx.render();
+  ctx.toast(`${GRADES[g]} – następna powtórka ${fmtShort(next.due)}`, () => {
+    st.reviews = { ...(st.reviews || {}) };
+    if (prev) st.reviews[key] = prev; else delete st.reviews[key];
+    ctx.save(); ctx.render();
+  });
+  return true;
+}
+
+function reviewsCard(state, b, today) {
+  const r = reviewRows(state, today);
+  const days = Object.entries(r.upcoming).sort();
+  const hard = hardest(state.study);
+  const load = b?.reviewLoad ? [...b.reviewLoad.values()].reduce((a, x) => a + x, 0) : 0;
+  return `<div class="card fade"><div class="card-label">🔁 Powtórki</div>
+    ${r.html || '<p class="sub">Na dziś nie ma powtórek ✓</p>'}
+    ${days.length ? `<div class="sub">Najbliższe dni: ${days.map(([d, n]) => `${fmtDayShort(d)} – ${n}`).join(' · ')}</div>` : ''}
+    ${hard.length ? `<details class="course-list"><summary>Twoje trudne tematy (${hard.length})</summary>${hard.map((x) => `<div class="val-row"><span>${esc(x.name)}<br><small class="muted">${esc(x.section)}</small></span><b>${x.n}× trudne</b></div>`).join('')}</details>` : ''}
+    <p class="hint small">Po odhaczeniu lekcji temat wraca do powtórki po 1, 3, 7, 14 i 30 dniach. Ocena po powtórce: <b>Trudne</b> – wraca jutro, <b>Średnio</b> – kolejny odstęp, <b>Łatwe</b> – dłuższy odstęp. Przed LEK każdy temat ma powtórkę najpóźniej 2 dni przed egzaminem. Limit dziennie: 3 (dyżur 1, weekend i urlop 6, L4 i dni przerwy – 0); jedna powtórka to ok. ${b?.reviewMin ?? REVIEW_MIN} min (zmienisz w ankiecie)${load && b?.reviewMin ? ` – plan rezerwuje na nie ok. ${Math.round((load * b.reviewMin) / 60)} h do egzaminu` : ''}.</p>
+  </div>`;
 }
 
 function plansList(st) {
@@ -532,6 +616,9 @@ function surveySheet(state, ctx, plan) {
       <p class="hint small">W zaznaczone dni plan nie da żadnej lekcji. Resztę rozłoży na pozostałe dni, zgodnie z Twoim grafikiem (dyżury, urlop, święta).</p>
       <div class="t-strong small-t">Ile czasu liczyć na lekcję (przedział z WNL, np. 1,5–2,5 h)?</div>
       <div class="segmented three">${[['fast', 'Dolna granica'], ['mid', 'Środek'], ['slow', 'Górna granica']].map(([k, l]) => `<button data-sv="pace:${k}" class="${s.pace === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+      <div class="t-strong small-t">Ile minut na jedną powtórkę tematu?</div>
+      <div class="segmented five">${[0, 5, 10, 15, 20].map((m) => `<button data-sv="reviewMin:${m}" class="${Number(s.reviewMin ?? 10) === m ? 'on' : ''}">${m ? `${m} min` : 'bez'}</button>`).join('')}</div>
+      <p class="hint small">Powtórki (1, 3, 7, 14, 30 dni po lekcji) utrwalają materiał, ale zabierają czas na nowe lekcje – plan to uwzględnia. „bez” = plan nie rezerwuje na nie czasu (powtórki i tak pojawią się na Dziś).</p>
       <div class="t-strong small-t">Jak się uczysz najchętniej?</div>
       <div class="segmented four">${[['video', 'Wideo'], ['read', 'Czytanie'], ['questions', 'Pytania'], ['mix', 'Mieszanie']].map(([k, l]) => `<button data-sv="style:${k}" class="${s.style === k ? 'on' : ''}">${l}</button>`).join('')}</div>
     </div>
@@ -568,7 +655,7 @@ function surveySheet(state, ctx, plan) {
     const sv = e.target.closest('[data-sv]');
     if (sv) {
       const [k, v] = sv.dataset.sv.split(':');
-      s[k] = v === 'true' ? true : v === 'false' ? false : v;
+      s[k] = v === 'true' ? true : v === 'false' ? false : k === 'reviewMin' ? Number(v) : v;
       if (k === 'finalLater' && s.finalLater) {
         // Propozycja: następna sesja (luty -> wrzesień, wrzesień -> luty kolejnego roku); trening przed ostatecznym LEK
         const y = Number(s.examDate.slice(0, 4));
@@ -645,6 +732,7 @@ export function handleLekClick(e, state, ctx, today) {
     ctx.toast('Usunięto', () => { st.extras.pubs.splice(i, 0, removed); ctx.save(); ctx.render(); });
     return true;
   }
+  if (handleReviewClick(e, state, ctx)) return true;
   if ((el = t('[data-dom-fix]'))) { domainFixSheet(state, ctx, el.dataset.domFix); return true; }
   if ((el = t('[data-lekseg]'))) { seg = el.dataset.lekseg; ctx.render(); window.scrollTo({ top: 0 }); return true; }
   if ((el = t('[data-lek]'))) {

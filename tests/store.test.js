@@ -52,3 +52,12 @@ test('Dane bez study.domainFix (starsze zapisy) dostają puste poprawki dziedzin
   assert.deepEqual(m.study.domainFix, {});
   assert.deepEqual(m.study.done, { 'kurs|dział|lekcja': '2026-11-20' });
 });
+
+test('Dane bez study.reviews dostają puste powtórki, odhaczone lekcje zostają', () => {
+  const old = defaultState();
+  delete old.study.reviews;
+  old.study.done = { 'k|d|l': '2026-11-20' };
+  const m = store.migrate(JSON.parse(JSON.stringify(old)));
+  assert.deepEqual(m.study.reviews, {});
+  assert.deepEqual(m.study.done, { 'k|d|l': '2026-11-20' });
+});

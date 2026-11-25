@@ -2,13 +2,13 @@
 import { load, save, askPersistence, onSave, migrate, loadProblem, rawProblemData, dailySnapshot } from './store.js';
 import { initSync, onLocalSave } from './sync.js';
 import { summarize, alerts, segmentAt, vacationIdeas, weekSummary, fmtHM } from './engine.js';
-import { buildPlan, currentWeek } from './lek.js';
+import { currentWeek } from './lek.js';
 import { renderBlocks, openBlockEditor } from './blocks-ui.js';
 import { renderMore, handleMoreClick, handleMoreChange } from './more-ui.js';
 import { hospitalOf } from './hospitals.js';
 import { renderCalendar, openDay, openEventEditor, shiftMonth, todayMonth } from './calendar-ui.js';
 import { renderDuties, openDutyEditor, dutyTodayCard, dutyPlanCard, openDutyProposal, printDutySheet } from './duties-ui.js';
-import { renderLek, handleLekClick, handleLekChange, handleLekInput, openLekRegistration, planOpts } from './lek-ui.js';
+import { renderLek, handleLekClick, handleLekChange, handleLekInput, openLekRegistration, planFor, reviewRows, handleReviewClick } from './lek-ui.js';
 import { loadCem } from './lek-freq.js';
 import { openTimesheet } from './timesheet-ui.js';
 import { openLetters } from './letters-ui.js';
@@ -246,10 +246,11 @@ function todayPlanCard(sum) {
   for (const x of (state.duties || []).filter((d) => d.date === t)) rows.push(dutyRow(x, 'dziś'));
   for (const x of (state.duties || []).filter((d) => d.date === tomorrow)) rows.push(dutyRow(x, 'jutro'));
   const st = state.study;
+  try { const rv = reviewRows(state, t); if (rv.html) rows.push(rv.html); } catch { /* powtórki nie blokują ekranu Dziś */ }
   const plan = (st?.plans || []).find((p) => p.id === st.activePlan && !p.archived);
   if (plan && (st.courses || []).length) {
     try {
-      const b = buildPlan(state, plan, t, planOpts(state, t));
+      const b = planFor(state, plan, t);
       const w = currentWeek(b, t);
       const todo = (w?.lessons || []).filter((l) => !st.done?.[l.key]).slice(0, 2);
       for (const l of todo) {
@@ -272,7 +273,7 @@ function weekCard(sum) {
   const st = state.study;
   const plan = (st?.plans || []).find((p) => p.id === st.activePlan && !p.archived);
   if (plan && (st.courses || []).length) {
-    try { lessons = (currentWeek(buildPlan(state, plan, t, planOpts(state, t)), t)?.lessons || []).filter((l) => !st.done?.[l.key]).length; } catch { /* bez planu */ }
+    try { lessons = (currentWeek(planFor(state, plan, t), t)?.lessons || []).filter((l) => !st.done?.[l.key]).length; } catch { /* bez planu */ }
   }
   const DAYS = ['pn', 'wt', 'śr', 'cz', 'pt', 'sb', 'nd'];
   const ic = { work: '', free: '☀️', absence: '🏖', course: '🎓', none: '' };
@@ -558,6 +559,7 @@ app.addEventListener('click', (e) => {
     toast('Odhaczone ✓', () => { if (dl) delete dl.done; save(state); render(); });
     return;
   }
+  if (tab !== 'lek' && handleReviewClick(e, state, ctx)) return;
   if (tab === 'lek' && handleLekClick(e, state, ctx, getToday())) return;
   const gt = e.target.closest('[data-goto-tab]');
   if (gt) { tab = gt.dataset.gotoTab; window.scrollTo({ top: 0 }); return render(); }

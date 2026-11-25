@@ -268,7 +268,7 @@ export function coursesFileJson(courses) {
 /**
  * Godziny nauki dzień po dniu (od jutra/od daty do dnia przed egzaminem).
  * Rodzaj dnia: urlop -> hVacation; weekend/święto/dzień wolny -> hWeekend;
- * dzień dyżuru albo dzień po dyżurze -> hDuty; zwykły dzień -> hWork.
+ * dzień dyżuru albo dzień po dyżurze -> hDuty; zwykły dzień -> hWork; L4 i opieka -> 0 h.
  * Dni tygodnia z `restDays` (przerwa wybrana w ankiecie) -> 0 h.
  */
 export function studyDays(state, survey, from, examDate) {
@@ -281,6 +281,7 @@ export function studyDays(state, survey, from, examDate) {
     const abs = ctx.absence.get(d);
     let kind = 'work';
     if (abs && abs.kind === 'event' && EVENT_TYPES[abs.type]?.vacation) kind = 'vacation';
+    else if (abs && abs.kind === 'event' && ['l4', 'opieka'].includes(abs.type)) return { date: d, kind: 'sick', hours: 0 }; // L4 / opieka – bez nauki
     else if (isWeekend(d) || statutoryOff(ctx, d)) kind = 'free';
     else if (dutyDays.has(d) || dutyDays.has(addDays(d, -1))) kind = 'duty';
     if (rest.has(weekday(d))) return { date: d, kind: 'rest', hours: 0 };
@@ -315,6 +316,7 @@ export const DEFAULT_SURVEY = {
   finalLater: false, // true = najbliższy LEK to nie ostateczny
   finalDate: '', // termin ostatecznego LEK (orientacyjny – można zmienić)
   finalBase: true, // czy na ostatecznym LEK będzie jawna baza CEM
+  reviewMin: 10, // minut na jedną powtórkę tematu (0 = plan nie rezerwuje czasu na powtórki)
 };
 
 const STYLE_FACTOR = { video: 1.15, read: 1.0, questions: 0.85, mix: 1.0 };
