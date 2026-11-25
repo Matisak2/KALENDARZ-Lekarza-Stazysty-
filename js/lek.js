@@ -4,9 +4,10 @@
 import { addDays, eachDay, isWeekend, toNum, weekday } from './dates.js';
 import { buildContext, statutoryOff } from './engine.js';
 import { EVENT_TYPES } from './defaults.js';
+import { classifyLesson } from './lek-domains.js';
 
 export const DOMAINS = [
-  { id: 'int', name: 'Choroby wewnętrzne', q: 39, kw: /intern|chorób wewn|choroby wewn|kardio(?!chir)|wewnętrzn/i },
+  { id: 'int', name: 'Choroby wewnętrzne', q: 39, kw: /intern|chorób wewn|choroby wewn|kardio(?!chir)|wewnętrzn|zakaźn|hematolog|endokryn|diabetolog|nefrolog|gastroenterolog|hepatolog|pulmonolog|reumatolog|alergolog|onkolog(?!.*(ginekolog|dziecięc))/i },
   { id: 'ped', name: 'Pediatria (z neonatologią)', q: 29, kw: /pediat|neonat/i },
   { id: 'chir', name: 'Chirurgia (z urazową)', q: 27, kw: /chirurg|ortoped|urazow/i },
   { id: 'gin', name: 'Położnictwo i ginekologia', q: 26, kw: /ginek|położn|polozn/i },
@@ -335,45 +336,38 @@ export function lessonHours(lo, hi, pace = 'fast') {
   return lo;
 }
 
-/** Wszystkie lekcje z zaimportowanych kursów z informacją o dziedzinie i czasie. */
-/*
- * Lekcje pasujące także do innych dziedzin LEK (po nazwie lekcji i działu). Dzięki temu np. „Nadciśnienie tętnicze”
- * z interny liczy się też do medycyny rodzinnej – dziedziny bez osobnego kursu WNL są pokrywane lekcjami z innych
- * kursów. Bioetyka, zdrowie publiczne i orzecznictwo – tylko z bazy CEM (BASE_ONLY). Słowa kluczowe ogólne (bez materiałów WNL).
- */
-const EXTRA = {
-  int: /nadciśnieni|cukrzyc|niewydolność serca|zespoły wieńcowe|zaburzenia rytmu|zatorowość|zakrzepic|astm|obturacyjn|zapaleni[ae] płuc|niedokrwistoś|tarczyc|nerek|wątrob|toczeń|twardzin|zapaleni[ae] naczyń|gruźlic|sepsa|zakażeni[ae] układu moczowego|hiv/,
-  ped: /dzieci|dziecięc|dziecka|noworod|niemowl|wcześniact|młodzieży|perinatolog|krzywic/,
-  chir: /urazy|obrażeni|złamani|oparzeni|przepuklin|ostry brzuch|wyrostka|niedrożnoś|krwawienie z przewodu|kamica żółciowa|chirurg/,
-  gin: /ciąż|porod|poród|połog|płod|(^|\s)piersi(?!ow)|gruczoł piersiowy|jajnik|macic|sromu|pochwy|antykoncep|menopauz|niepłodnoś|endometrioz/,
-  rodz: /nadciśnieni|cukrzyc|dyslipid|astm|obturacyjn|(?<!prze)szczepien|bilans(e|y|ach)? zdrowia|rozwój (fizyczny|psychoruchowy)|okresy wieku|zakażeni[ae] układu moczowego|przeziębien|grypa|bóle głowy|zawroty głowy|otyłoś|osteoporoz|zwyrodnieniow|antykoncep|menopauz|żywieni(?!e (poza|do)jelitow)|niedożywien|profilaktyk|niedokrwistoś|wrzodow|refluks|infekcje górnych|choroby ucha|nosa i zatok|zapaleni[ae] gardła|pokrzywk|atopowe|opryszczk|ospa|zaburzenia afektywne|depres|zaburzenia lękowe|otępien|geriatri|nietrzymanie moczu|kamica|tarczyc|przewlekła choroba nerek|przewlekła niewydolność serca|przewlekłe zespoły wieńcowe|zakrzepic|żył powierzchownych|uzależnien|alkohol|leczenie bólu|leczenia bólu|biegunk|zaparci|alergiczny nieżyt|łuszczyc|grudkowo|przydatków skóry|wady refrakcji|spojówek|jaskra|soczewki|choroby kończyny|kręgosłup|choroby kości|zapalenia jednego stawu|zaburzenia snu|zaburzenia odżywiania|paliatywn|pozaszpitalne|dna moczanowa/,
-  rat: /stany nagłe|stanów nagłych|stany zagrożenia|wstrząs|anafilaks|zatruci|toksyk|obrażeni|urazy|oparzeni|resuscytac|\brko\b|\bbls\b|\bals\b|zatrzymanie krążenia|udar|sepsa|krwawieni|krwotok|ostry brzuch|ostre zapalenie wyrostka|odma|zatorowość płucna|kwasic|hipoglikemi|ostre zespoły wieńcowe|ostra niewydolność|ostre uszkodzenie nerek|niedrożnoś|ostre niedokrwienie|zaburzenia rytmu|tamponad|złamani|zaburzenia elektrolitowe|gazometri|wentylacj|udrażnianie|stany napadowe|padaczk/,
-  psych: /psychiatr|majaczen|otępien|uzależnien|alkoholizm|zatrucia alkohol|zespół abstynencyjny|depres|zaburzenia psychiczne|samobój|zaburzenia odżywiania|zaburzenia snu/,
-};
-
 /**
  * Dziedziny, których bez własnego kursu uczymy się wyłącznie z bazy pytań CEM (lekcje z innych kursów
  * pokrywają je tylko szczątkowo – decyzja właściciela 11.2026). Kurs przypisany do takiej dziedziny działa normalnie.
  */
 export const BASE_ONLY = ['etyka', 'zp', 'orz'];
 
-/** Dziedziny LEK lekcji: najpierw dziedzina kursu, potem dodatkowe z nazwy lekcji/działu. */
+/**
+ * Dziedziny LEK lekcji: najpierw dziedzina kursu, potem dziedziny rozpoznane z PEŁNEJ nazwy działu i lekcji
+ * (słownik wyrażeń medycznych w lek-domains.js – np. nadciśnienie: interna + medycyna rodzinna).
+ */
 export function lessonDomains(courseDomain, section, name) {
-  const text = `${section || ''} ${name || ''}`.toLowerCase();
-  const out = DOMAIN_IDS.includes(courseDomain) ? [courseDomain] : [];
-  for (const id of DOMAIN_IDS) if (!out.includes(id) && !BASE_ONLY.includes(id) && EXTRA[id]?.test(text)) out.push(id);
-  return out;
+  return classifyLesson(courseDomain, section, name, DOMAIN_IDS, BASE_ONLY).domains;
 }
 
+/** To samo z wyjaśnieniem: które słowa nazwy zadecydowały o dziedzinach (okno „Dziedziny lekcji”). */
+export function explainLesson(courseDomain, section, name) {
+  return classifyLesson(courseDomain, section, name, DOMAIN_IDS, BASE_ONLY);
+}
+
+/** Wszystkie lekcje z zaimportowanych kursów z informacją o dziedzinie i czasie (z ręcznymi poprawkami dziedzin). */
 export function allLessons(study, pace = 'fast') {
   const out = [];
+  const fix = study.domainFix || {};
   for (const c of study.courses || []) {
     for (const s of c.sections || []) {
       for (const l of s.lessons || []) {
         const lo = l.hMin ?? 1.5;
         const hi = l.hMax ?? lo + 1;
-        out.push({ key: lessonKey(c.name, s.name, l.name), course: c.name, courseId: c.id, domain: c.domain, section: s.name,
-          name: l.name, hours: lessonHours(lo, hi, pace), domains: lessonDomains(c.domain, s.name, l.name) });
+        const key = lessonKey(c.name, s.name, l.name);
+        const manual = Array.isArray(fix[key]) ? fix[key].filter((d) => DOMAIN_IDS.includes(d)) : null;
+        out.push({ key, course: c.name, courseId: c.id, domain: c.domain, section: s.name,
+          name: l.name, hours: lessonHours(lo, hi, pace), domains: manual || lessonDomains(c.domain, s.name, l.name), manual: !!manual });
       }
     }
   }

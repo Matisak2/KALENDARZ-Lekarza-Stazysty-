@@ -1,6 +1,6 @@
 // Zakładka „LEK”: planer nauki (Plan), spis kursów WNL (Materiały), wyniki LEK i próbne (Wyniki), Specjalizacje.
 import { shareOrDownload } from './more-ui.js';
-import { DOMAINS, domainOf, guessDomain, parseCoursesText, coursesFromFile, mergeCourses, coursesFileJson, mergeCourse, allLessons, buildPlan, currentWeek, DEFAULT_SURVEY } from './lek.js';
+import { DOMAINS, domainOf, guessDomain, parseCoursesText, coursesFromFile, mergeCourses, coursesFileJson, mergeCourse, allLessons, buildPlan, currentWeek, DEFAULT_SURVEY, explainLesson } from './lek.js';
 import { specNames, wojNames, specStats, suggestTarget, chance, MY_SPECS, TRYBY } from './specs.js';
 import { fmtShort, fmtFull, fmtDayShort, toNum, plural, todayIso } from './dates.js';
 import { esc, helpBox } from './blocks-ui.js';
@@ -80,7 +80,7 @@ function planSummary(state, st, p, today) {
   const doneSet = st.done || {};
   const lessonRow = (l) => `<div class="lesson ${doneSet[l.key] ? 'on' : ''}">
       <label class="skill ${doneSet[l.key] ? 'on' : ''}"><input type="checkbox" data-lesson="${esc(l.key)}" ${doneSet[l.key] ? 'checked' : ''}>
-        <span class="box"></span><span class="nm">${esc(l.name)}<small>${esc((l.domains?.length ? l.domains : [l.domain]).map(shortDom).join(' + '))} · ${esc(l.section)} · ${h(l.hours)}</small></span></label>
+        <span class="box"></span><span class="nm">${esc(l.name)}<small>${esc(domText(l))} · ${esc(l.section)} · ${h(l.hours)}</small></span></label>
       <button class="chip" data-skip="${esc(l.key)}" title="Pomiń">Pomiń</button></div>`;
   const weeksHtml = b.weeks.filter((x) => x !== w).slice(0, 30).map((x) => `<div class="wk ${x.review ? 'rv' : ''}">
       <div class="wk-h"><b>${fmtShort(x.start)}–${fmtShort(x.end)}</b><span>${h(x.hours)}${x.review ? ' · powtórka' : ''}</span></div>
@@ -143,6 +143,8 @@ function plansList(st) {
 
 const SHORT_DOM = { int: 'interna', ped: 'pediatria', chir: 'chirurgia', gin: 'ginekologia', rodz: 'medycyna rodzinna', rat: 'ratunkowa', psych: 'psychiatria', etyka: 'prawo i etyka', zp: 'zdrowie publiczne', orz: 'orzecznictwo' };
 const shortDom = (id) => SHORT_DOM[id] || 'poza LEK';
+/** Dziedziny lekcji do wyświetlenia; ✎ = poprawione ręcznie. */
+const domText = (l) => `${l.domains?.length ? l.domains.map(shortDom).join(' + ') : 'poza LEK'}${l.manual ? ' ✎' : ''}`;
 
 /** Karta: jak plan pokrywa każdą dziedzinę LEK (także dziedziny bez własnego kursu WNL). */
 function domainsCard(b) {
@@ -173,7 +175,7 @@ function materialsView(st) {
   const domOpts = (sel) => [...DOMAINS, { id: 'inne', name: 'Inne (poza dziedzinami LEK)' }]
     .map((d) => `<option value="${d.id}" ${d.id === sel ? 'selected' : ''}>${esc(d.name)}</option>`).join('');
   const list = courses.map((c) => {
-    const ls = allLessons({ courses: [c] });
+    const ls = allLessons({ courses: [c], domainFix: st.domainFix });
     const dn = ls.filter((l) => done[l.key]).length;
     const left = ls.filter((l) => !done[l.key]).reduce((a, l) => a + l.hours, 0);
     return `<div class="card fade">
@@ -187,9 +189,11 @@ function materialsView(st) {
           const lo = s.lessons.reduce((a, l) => a + (l.hMin || 0), 0);
           const hi = s.lessons.reduce((a, l) => a + (l.hMax || 0), 0);
           return `<div class="sec-name"><span>${esc(s.name)} <span class="sec-n">(${s.lessons.length})</span></span>${lo ? `<span class="t-chip">🕒 ${num1(lo)}–${num1(hi)} h</span>` : ''}</div>${s.lessons.map((l) => {
-          const key = ls.find((x) => x.section === s.name && x.name === l.name)?.key;
-          return `<label class="skill ${done[key] ? 'on' : ''}"><input type="checkbox" data-lesson="${esc(key)}" ${done[key] ? 'checked' : ''}>
-            <span class="box"></span><span class="nm">${esc(l.name)}</span>${l.hMin != null ? `<span class="t-chip">${num1(l.hMin)}–${num1(l.hMax)} h</span>` : ''}</label>`;
+          const x = ls.find((y) => y.section === s.name && y.name === l.name);
+          const key = x?.key;
+          return `<div class="lesson"><label class="skill ${done[key] ? 'on' : ''}"><input type="checkbox" data-lesson="${esc(key)}" ${done[key] ? 'checked' : ''}>
+            <span class="box"></span><span class="nm">${esc(l.name)}<small class="${x && !x.domains.length ? 'neg' : ''}">${esc(x ? domText(x) : '')}</small></span>${l.hMin != null ? `<span class="t-chip">${num1(l.hMin)}–${num1(l.hMax)} h</span>` : ''}</label>
+            <button class="chip" data-dom-fix="${esc(key)}" aria-label="Dziedziny LEK lekcji ${esc(l.name)}">Dziedziny</button></div>`;
         }).join('')}`;
         }).join('')}
       </details></div>`;
@@ -346,6 +350,49 @@ function sheet(title, body, okLabel = 'Zapisz') {
     <div class="sheet-body">${body}</div></div>`;
   const close = () => { root.classList.add('closing'); document.body.classList.remove('no-scroll'); setTimeout(() => root.remove(), 220); };
   return { root, close };
+}
+
+/**
+ * Okno „Dziedziny lekcji”: dlaczego aplikacja przypisała lekcję do tych dziedzin (słowa z nazwy)
+ * i ręczna poprawka (study.domainFix[klucz lekcji]). Zmiana tylko po „Zapisz”, potem „Cofnij”.
+ */
+function domainFixSheet(state, ctx, key) {
+  const st = study(state);
+  const l = allLessons(st).find((x) => x.key === key);
+  if (!l) return;
+  const auto = explainLesson(l.domain, l.section, l.name);
+  const sel = new Set(l.domains);
+  const why = [
+    DOMAINS.some((d) => d.id === l.domain) ? `<div>📚 Kurs „${esc(l.course)}” → <b>${esc(shortDom(l.domain))}</b></div>` : `<div>📚 Kurs „${esc(l.course)}” nie ma dziedziny LEK</div>`,
+    ...auto.hits.map((x) => `<div>🔎 „${esc(x.text)}” → <b>${esc(x.domains.filter((d) => auto.domains.includes(d)).map(shortDom).join(' + '))}</b></div>`),
+  ].join('');
+  const { root, close } = sheet('Dziedziny lekcji', `<div class="form-card">
+      <div class="t-strong">${esc(l.name)}</div><div class="sub">${esc(l.section)} · ${esc(l.course)}</div>
+      <div class="card-label" style="margin-top:12px">Rozpoznane automatycznie: ${esc(auto.domains.length ? auto.domains.map(shortDom).join(' + ') : 'poza LEK')}</div>
+      <div class="hint small">${why}</div>
+      <p class="hint small">Aplikacja czyta pełną nazwę działu i lekcji. Jeśli coś się nie zgadza, zaznacz właściwe dziedziny i stuknij <b>Zapisz</b> – poprawka zostanie przy tej lekcji także po ponownym wczytaniu spisu.</p></div>
+    <div class="form-card"><div class="card-label">Ta lekcja liczy się do</div>
+      ${DOMAINS.map((d) => `<label class="skill ${sel.has(d.id) ? 'on' : ''}"><input type="checkbox" data-fd="${d.id}" ${sel.has(d.id) ? 'checked' : ''}><span class="box"></span><span class="nm">${esc(d.name)}<small>${d.q} pytań na LEK</small></span></label>`).join('')}
+      <p class="hint small">Bez zaznaczenia lekcja wypadnie z planu (poza LEK).</p>
+      ${l.manual ? '<button class="btn" data-fd-auto>Przywróć rozpoznanie automatyczne</button>' : ''}</div>`);
+  root.addEventListener('change', (e) => { const c = e.target.closest('[data-fd]'); if (c) c.closest('.skill').classList.toggle('on', c.checked); });
+  const apply = (next) => {
+    const prev = st.domainFix?.[key];
+    st.domainFix = { ...(st.domainFix || {}) };
+    if (next) st.domainFix[key] = next; else delete st.domainFix[key];
+    ctx.save(); ctx.render(); close();
+    ctx.toast('Zapisano ✓', () => { st.domainFix = { ...(st.domainFix || {}) }; if (prev) st.domainFix[key] = prev; else delete st.domainFix[key]; ctx.save(); ctx.render(); });
+  };
+  root.addEventListener('click', (e) => {
+    if (e.target.closest('[data-close]')) return close();
+    if (e.target.closest('[data-fd-auto]')) return apply(null);
+    if (e.target.closest('[data-ok]')) {
+      const next = DOMAINS.map((d) => d.id).filter((id) => root.querySelector(`[data-fd="${id}"]`).checked);
+      // Taki sam wynik jak automatyczny = bez ręcznej poprawki (aplikacja dalej sama się uczy z lepszego słownika)
+      const same = next.length === auto.domains.length && next.every((d) => auto.domains.includes(d));
+      return apply(same ? null : next);
+    }
+  });
 }
 
 function pasteSheet(state, ctx) {
@@ -545,6 +592,7 @@ export function handleLekClick(e, state, ctx, today) {
     ctx.toast('Usunięto', () => { st.extras.pubs.splice(i, 0, removed); ctx.save(); ctx.render(); });
     return true;
   }
+  if ((el = t('[data-dom-fix]'))) { domainFixSheet(state, ctx, el.dataset.domFix); return true; }
   if ((el = t('[data-lekseg]'))) { seg = el.dataset.lekseg; ctx.render(); window.scrollTo({ top: 0 }); return true; }
   if ((el = t('[data-lek]'))) {
     const a = el.dataset.lek;

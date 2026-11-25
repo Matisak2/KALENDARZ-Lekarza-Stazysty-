@@ -1,10 +1,10 @@
 // Service worker: aplikacja działa offline, a nowe wersje pobiera w tle.
-const CACHE = 'stazysta-v37';
+const CACHE = 'stazysta-v38';
 const SHELL = [
   './', 'index.html', 'css/app.css', 'manifest.webmanifest',
   'js/app.js', 'js/store.js', 'js/engine.js', 'js/dates.js', 'js/holidays.js', 'js/defaults.js',
   'js/hospitals.js', 'js/ics.js', 'js/blocks-ui.js', 'js/more-ui.js', 'js/calendar-ui.js', 'js/duties-ui.js', 'js/skills.js', 'js/booklet.js', 'js/sync.js', 'js/sync-core.js',
-  'js/lek.js', 'js/lek-ui.js', 'js/specs.js', 'data/nabory.json',
+  'js/lek.js', 'js/lek-domains.js', 'js/lek-ui.js', 'js/specs.js', 'data/nabory.json',
   'js/timesheet.js', 'js/timesheet-ui.js', 'img/usk2-logo.svg',
   'js/letters.js', 'js/letters-ui.js', 'js/cases.js', 'js/cases-ui.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',

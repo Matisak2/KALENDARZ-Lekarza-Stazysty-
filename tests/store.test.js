@@ -43,3 +43,12 @@ test('Kopia dzienna – najwyżej raz na ~dobę', () => {
   assert.equal(store.dailySnapshot(s, t + 3600e3), null);
   assert.ok(store.dailySnapshot(s, t + 25 * 3600e3));
 });
+
+test('Dane bez study.domainFix (starsze zapisy) dostają puste poprawki dziedzin, nic nie ginie', () => {
+  const old = defaultState();
+  delete old.study.domainFix;
+  old.study.done = { 'kurs|dział|lekcja': '2026-11-20' };
+  const m = store.migrate(JSON.parse(JSON.stringify(old)));
+  assert.deepEqual(m.study.domainFix, {});
+  assert.deepEqual(m.study.done, { 'kurs|dział|lekcja': '2026-11-20' });
+});
