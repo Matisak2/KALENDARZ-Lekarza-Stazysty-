@@ -105,6 +105,7 @@ export function buildTimesheet(state, ym) {
  * § 12 pkt 1 lit. a: za każdą godzinę dyżuru (w porze dziennej i nocnej) – 125% stawki godzinowej zasadniczego
  * wynagrodzenia miesięcznego. Stawka godzinowa = pensja zasadnicza / wymiar godzin miesiąca (dni robocze × 7 h 35 min).
  * To szacunek do porównania z paskiem – sposób liczenia stawki w USK2 może się różnić.
+ * `total` = pensja zasadnicza + dyżury (brutto, bez L4/urlopu bezpłatnego – podajemy tylko liczbę takich dni).
  */
 export function dutyPay(state, ym) {
   const ctx = buildContext(state);
@@ -117,7 +118,10 @@ export function dutyPay(state, ym) {
   const base = Number(st.pay?.base) || 0;
   const hourly = base && nominalMin ? base / (nominalMin / 60) : 0;
   const pay = Math.round((dutyMin / 60) * hourly * 1.25 * 100) / 100;
-  return { base, nominalMin, hourly: Math.round(hourly * 100) / 100, dutyMin, rate: 1.25, pay };
+  // Dni L4/opieki i urlopu bezpłatnego w miesiącu – zmieniają wypłatę (chorobowe, potrącenie), szacunek ich nie liczy
+  const off = (types) => days.filter((d) => !isWeekend(d) && !statutoryOff(ctx, d) && types.includes(ctx.absence.get(d)?.type)).length;
+  return { base, nominalMin, hourly: Math.round(hourly * 100) / 100, dutyMin, rate: 1.25, pay,
+    total: Math.round((base + pay) * 100) / 100, sickDays: off(['l4', 'opieka']), unpaidDays: off(['bezplatny']) };
 }
 
 /**

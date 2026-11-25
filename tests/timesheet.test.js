@@ -118,3 +118,16 @@ test('Lista obecności: kody z legendy USK2, weekendy i święta zacienione', ()
   assert.equal(a.year, 2026);
   assert.equal(a.month, 'grudzień');
 });
+
+test('Wypłata za miesiąc: pensja + dyżury (125%) brutto; dni L4 tylko jako informacja', () => {
+  const st = defaultState();
+  st.settings.pay = { base: 6000 };
+  st.duties = [{ id: 'a', date: '2026-11-03', minutes: 305 }, { id: 'b', date: '2026-11-05', minutes: 300 }];
+  st.events = [{ id: 'l', type: 'l4', start: '2026-11-16', end: '2026-11-17' }];
+  const p = dutyPay(st, '2026-11');
+  const hourly = 6000 / ((20 * 455) / 60); // listopad: 20 dni × 7 h 35 min
+  assert.ok(Math.abs(p.pay - (605 / 60) * hourly * 1.25) < 0.01);
+  assert.equal(p.total, Math.round((6000 + p.pay) * 100) / 100);
+  assert.equal(p.sickDays, 2);
+  assert.equal(p.unpaidDays, 0);
+});

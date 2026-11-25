@@ -136,11 +136,16 @@ export function renderDuties(state, today, ym) {
 function payCard(state, ym) {
   const p = dutyPay(state, ym);
   const zl = (v) => `${v.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł`;
-  return `<div class="card fade"><div class="card-label">💰 Wynagrodzenie za dyżury · szacunek</div>
+  const [y, m] = ym.split('-').map(Number);
+  const mon = ['styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec', 'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień'][m - 1];
+  return `<div class="card fade"><div class="card-label">💰 Wypłata za ${mon} ${y} · szacunek</div>
     <label class="dom-sel">Pensja zasadnicza brutto (miesięcznie, z umowy)<input type="number" inputmode="decimal" step="0.01" data-pay-base value="${p.base || ''}" placeholder="np. z umowy lub paska"></label>
     ${p.base ? `<div class="val-row"><span>Stawka godzinowa</span><b>${zl(p.hourly)}</b></div>
-      <div class="val-row"><span>Dyżury ${fmtHM(p.dutyMin)} × 125%</span><b>${zl(p.pay)} brutto</b></div>` : ''}
-    <p class="hint small">Za każdą godzinę dyżuru stażysty – 125% stawki godzinowej pensji zasadniczej (rozporządzenie w sprawie stażu, Dz.U. 2023 poz. 377, § 12 pkt 1 lit. a). Stawka = pensja / wymiar godzin miesiąca (${fmtHM(p.nominalMin)}). To szacunek do porównania z paskiem – Kadry mogą liczyć stawkę inaczej. Pensja zapisuje się tylko u Ciebie.</p>
+      <div class="val-row"><span>Pensja zasadnicza</span><b>${zl(p.base)}</b></div>
+      <div class="val-row"><span>Dyżury ${fmtHM(p.dutyMin)} × 125% stawki</span><b>${zl(p.pay)}</b></div>
+      <div class="val-row"><span><b>Razem brutto</b></span><b>${zl(p.total)}</b></div>
+      ${p.sickDays || p.unpaidDays ? `<div class="imp-row warn">⚠️ W tym miesiącu: ${[p.sickDays ? `${p.sickDays} dni L4/opieki (wynagrodzenie chorobowe zamiast pensji za te dni)` : '', p.unpaidDays ? `${p.unpaidDays} dni urlopu bezpłatnego (bez wynagrodzenia)` : ''].filter(Boolean).join(', ')} – szacunek tego nie uwzględnia.</div>` : ''}` : ''}
+    <p class="hint small">Za każdą godzinę dyżuru stażysty – 125% stawki godzinowej pensji zasadniczej (rozporządzenie w sprawie stażu, Dz.U. 2023 poz. 377, § 12 pkt 1 lit. a). Stawka = pensja / wymiar godzin miesiąca (${fmtHM(p.nominalMin)}). To szacunek brutto (przed podatkiem i składkami) do porównania z paskiem – Kadry mogą liczyć stawkę inaczej, a dyżury bywają wypłacane z pensją za kolejny miesiąc. Pensja zapisuje się tylko u Ciebie.</p>
   </div>`;
 }
 
